@@ -1,0 +1,39 @@
+ARG EXTENSION_FOLDER=openg2p-registry-farmer-extension
+
+FROM postgres:16-alpine
+
+ARG EXTENSION_FOLDER
+ARG GIT_COMMIT=dev
+ARG BUILD_TIME=dev
+
+ENV GIT_COMMIT=${GIT_COMMIT} \
+    BUILD_TIME=${BUILD_TIME} \
+    EXTENSION_FOLDER=${EXTENSION_FOLDER}
+
+# Copy seed SQL scripts from the extension source tree.
+# Supports both folder conventions:
+#   configurations/ + sample_data/  (farmer and newer extensions)
+#   db_scripts/                     (legacy family extension)
+COPY ${EXTENSION_FOLDER}/src/ /tmp/ext-src/
+
+# The Python package folder inside src/ varies per extension.
+# Find whichever subfolder contains SQL scripts and copy them.
+RUN mkdir -p /seed/configurations /seed/sample_data && \
+    # Copy configurations/ if found anywhere under src/
+    find /tmp/ext-src -maxdepth 2 -type d -name configurations | while read d; do \
+      cp -r "$d"/* /seed/configurations/ 2>/dev/null || true; \
+    done && \
+    # Copy db_scripts/ into configurations (legacy layout)
+    find /tmp/ext-src -maxdepth 2 -type d -name db_scripts | while read d; do \
+      cp -r "$d"/* /seed/configurations/ 2>/dev/null || true; \
+    done && \
+    # Copy sample_data/ if found
+    find /tmp/ext-src -maxdepth 2 -type d -name sample_data | while read d; do \
+      cp -r "$d"/* /seed/sample_data/ 2>/dev/null || true; \
+    done && \
+    rm -rf /tmp/ext-src
+
+COPY docker-entrypoint-db-seed.sh /seed/entrypoint.sh
+RUN chmod +x /seed/entrypoint.sh
+
+ENTRYPOINT ["/seed/entrypoint.sh"]
