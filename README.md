@@ -19,7 +19,7 @@ register model.
 | `dashboard-ui/` | The Crop Sown Registry analytics dashboard (the view behind the portal's Dashboard button) |
 | `docker/` | Thin Dockerfiles (`FROM openg2p/openg2p-registry-*` + `pip install cropsown-extension`) selected at runtime by `REGISTRY_EXTENSION_MODULE` (Option C). `docker/staff-ui/` also injects the Dashboard header button; `docker/dashboard-ui/` builds the analytics app. |
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
-| `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the mock master-data catalog API) |
+| `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -80,7 +80,7 @@ The stack runs the whole login chain — Keycloak (realm `staff`), the IAM staff
 API and master data — alongside the registry, so this is a real OIDC login and
 the registry resolves the user's roles into permissions exactly as a deployment
 does. Staff API on http://localhost:8001/docs, Partner API on
-http://localhost:8002/docs, mock crop catalogue on http://localhost:8010/docs.
+http://localhost:8002/docs, Master Data API on http://localhost:8010/docs.
 See [local/README.md](local/README.md) for the full service list and how the
 pieces fit together.
 
