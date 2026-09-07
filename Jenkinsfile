@@ -10,6 +10,11 @@
 // docker/*/Dockerfile definitions, so the two never disagree about what the
 // registry IS — only about where the artefacts land.
 //
+// To run this pipeline against your own machine instead of jenkins.oanstaging.com,
+// see local/jenkins/README.md: it stands up a controller wired to the local Docker
+// daemon with PUSH_TO_ECR=false, so the Build stage runs for real and the ECR/deploy
+// stages are skipped until you turn them on.
+//
 // The Staff Portal UI and the analytics dashboard are deliberately NOT built
 // here. helm/openg2p-cropsown-registry/values.yaml consumes staffUi as-is from
 // the platform base image, and dashboard-ui is a Compose-only service, so
@@ -88,6 +93,17 @@ pipeline {
                         BRANCH="${BRANCH_NAME}"
                         TAG="${BRANCH}-${BUILD_NUMBER}"
 
+                        # The real controller builds clean so a moved base image
+                        # tag is never silently reused. That is minutes per image
+                        # per run, which is unaffordable when you are iterating
+                        # locally, so the local controller sets DOCKER_NO_CACHE
+                        # false. Absent (the real controller), it stays on.
+                        CACHE_FLAG="--no-cache"
+                        if [ "${DOCKER_NO_CACHE:-true}" = "false" ]; then
+                            CACHE_FLAG=""
+                            echo "note: building WITH cache (DOCKER_NO_CACHE=false)"
+                        fi
+
                         echo "=== Building images for branch: ${BRANCH} tag: ${TAG} (RP ${RP_VERSION}) ==="
 
                         for SVC in ${SERVICES}; do
@@ -97,7 +113,7 @@ pipeline {
                                 --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${TAG}" \
                                 --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${BRANCH}" \
                                 --file "docker/${SVC}/Dockerfile" \
-                                --no-cache .
+                                ${CACHE_FLAG} .
                         done
 
                         echo "=== All images built ==="
@@ -107,6 +123,10 @@ pipeline {
         }
 
         stage('Push to ECR') {
+            // A local run builds and stops there: local/jenkins sets
+            // PUSH_TO_ECR=false. Unset — which is every run on the real
+            // controller — means push, so this changes nothing there.
+            when { expression { env.PUSH_TO_ECR != 'false' } }
             steps {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     sh '''
@@ -150,7 +170,14 @@ pipeline {
         }
 
         stage('Deploy to Dev') {
-            when { branch 'develop' }
+            // beforeAgent matters: without it Jenkins tries to allocate the
+            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
+            // would queue forever waiting for a label that does not exist here.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { env.PUSH_TO_ECR != 'false' }
+            }
             agent { label 'vpn-deploy-agent' }
             steps {
                 withCredentials([
@@ -206,7 +233,14 @@ pipeline {
         }
 
         stage('Deploy to Staging') {
-            when { branch 'staging' }
+            // beforeAgent matters: without it Jenkins tries to allocate the
+            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
+            // would queue forever waiting for a label that does not exist here.
+            when {
+                beforeAgent true
+                branch 'staging'
+                expression { env.PUSH_TO_ECR != 'false' }
+            }
             agent { label 'vpn-deploy-agent' }
             steps {
                 withCredentials([
@@ -252,7 +286,7 @@ pipeline {
         success {
             script {
                 def to = committerMail()
-                mail(
+                mailQuietly(
                     to: to,
                     subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
@@ -274,7 +308,7 @@ Jenkins
         failure {
             script {
                 def to = committerMail()
-                mail(
+                mailQuietly(
                     to: to,
                     subject: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
@@ -302,3 +336,16 @@ def committerMail() {
     def email = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
     return email.contains('noreply') ? env.DEVOPS_EMAILS : email
 }
+
+// Local controllers (local/jenkins) have no SMTP, and an unconfigured `mail`
+// step throws — which in post{} turns an otherwise green build red. A
+// notification that could not be sent has never been a build failure, so it is
+// logged and swallowed.
+def mailQuietly(Map args) {
+    try {
+        mail(args)
+    } catch (err) {
+        echo "notification not sent: ${err.message}"
+    }
+}
+
