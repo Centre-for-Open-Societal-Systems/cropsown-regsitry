@@ -264,6 +264,11 @@ helm/**/Chart.lock
 helm/**/charts/*.tgz
 
 crop sown registry ERD.html
-docker-compose.yml
-local
 master-dat-service-api-responses
+# docker-compose.yml and local/ are deliberately NOT ignored: README.md lists both
+# as paths this repo owns, and the local stack is unusable without them. local/.env
+# holds only local-only dev credentials, documented as such in local/README.md.
+# local/.env is the exception to the generic `.env` rule above: it carries only
+# local-only dev credentials and is the documented entry point for the stack
+# (`docker compose --env-file local/.env up -d --build`).
+!local/.env
