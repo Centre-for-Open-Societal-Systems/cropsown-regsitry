@@ -209,7 +209,6 @@ pipeline {
             when { branch 'staging' }
             agent { label 'vpn-deploy-agent' }
             steps {
-                input message: "Approve deployment of cropsown-registry:${BRANCH_NAME}-${BUILD_NUMBER} to staging?"
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')
