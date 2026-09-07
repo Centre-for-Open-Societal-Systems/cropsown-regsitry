@@ -15,12 +15,16 @@
 // daemon with PUSH_TO_ECR=false, so the Build stage runs for real and the ECR/deploy
 // stages are skipped until you turn them on.
 //
-// The Staff Portal UI and the analytics dashboard are deliberately NOT built
-// here. helm/openg2p-cropsown-registry/values.yaml consumes staffUi as-is from
-// the platform base image, and dashboard-ui is a Compose-only service, so
-// neither has a chart value to point at a build. Publishing them would produce
-// images nothing deploys. (docker/staff-ui and docker/dashboard-ui are still
-// built by docker-compose.yml for the local stack.)
+// The Staff Portal UI is deliberately NOT built here:
+// helm/openg2p-cropsown-registry/values.yaml consumes staffUi as-is from the
+// platform base image, so it has no chart value to point at a build and
+// publishing it would produce an image nothing deploys. docker/staff-ui is
+// still built by docker-compose.yml for the local stack.
+//
+// dashboard-ui IS built and published, even though the chart has no value
+// referencing it — the analytics dashboard is currently a Compose-only service.
+// The image is published so it is ready ahead of the dashboard being deployed;
+// until then nothing pulls it.
 
 pipeline {
     agent any
@@ -35,7 +39,7 @@ pipeline {
         // The five images the chart deploys, matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
         // root as context.
-        SERVICES = 'staff-api partner-api celery db-seed sanity-tests'
+        SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
 
         // Where failure mail goes when the commit has no usable author address.
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
@@ -104,6 +108,19 @@ pipeline {
                             echo "note: building WITH cache (DOCKER_NO_CACHE=false)"
                         fi
 
+                        # dashboard-ui compiles the portal origin into its client
+                        # bundle at build time (docker/dashboard-ui/Dockerfile,
+                        # ARG NEXT_PUBLIC_PORTAL_URL), so the image is only correct
+                        # for the environment named here. Unset, the Dockerfile
+                        # default applies — the LOCAL portal — which is wrong for
+                        # anything this pipeline publishes.
+                        PORTAL_ARG=""
+                        if [ -n "${PORTAL_URL:-}" ]; then
+                            PORTAL_ARG="--build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"
+                        else
+                            echo "WARNING: PORTAL_URL unset — dashboard-ui bakes in the local portal URL"
+                        fi
+
                         echo "=== Building images for branch: ${BRANCH} tag: ${TAG} (RP ${RP_VERSION}) ==="
 
                         for SVC in ${SERVICES}; do
@@ -113,7 +130,7 @@ pipeline {
                                 --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${TAG}" \
                                 --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${BRANCH}" \
                                 --file "docker/${SVC}/Dockerfile" \
-                                ${CACHE_FLAG} .
+                                ${PORTAL_ARG} ${CACHE_FLAG} .
                         done
 
                         echo "=== All images built ==="
