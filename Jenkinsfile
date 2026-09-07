@@ -41,7 +41,7 @@ pipeline {
         // root as context.
         SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
 
-        // Where failure mail goes when the commit has no usable author address.
+        // Always notified, on success and on failure, alongside the commit author.
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
     }
 
@@ -302,7 +302,7 @@ pipeline {
     post {
         success {
             script {
-                def to = committerMail()
+                def to = notifyList()
                 mailQuietly(
                     to: to,
                     subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
@@ -324,7 +324,7 @@ Jenkins
         }
         failure {
             script {
-                def to = committerMail()
+                def to = notifyList()
                 mailQuietly(
                     to: to,
                     subject: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
@@ -347,11 +347,16 @@ Jenkins
     }
 }
 
-// The commit author, or the DevOps list when the commit was made by a bot (a
-// `noreply` address bounces, so the notification would be lost).
-def committerMail() {
+// The DevOps list always, plus the commit author when the commit carries a
+// usable address. A `noreply` address bounces, so a bot commit notifies the
+// list alone rather than mailing into a void.
+def notifyList() {
     def email = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
-    return email.contains('noreply') ? env.DEVOPS_EMAILS : email
+    def recipients = env.DEVOPS_EMAILS.split(',').collect { it.trim() }
+    if (email && !email.contains('noreply')) {
+        recipients = [email] + recipients
+    }
+    return recipients.unique().join(', ')
 }
 
 // Local controllers (local/jenkins) have no SMTP, and an unconfigured `mail`
