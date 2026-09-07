@@ -178,7 +178,7 @@ pipeline {
                         # `sanity.image.*` writes a key the chart never reads, so the
                         # sanity Job would silently keep the values.yaml default tag.
                         helm upgrade --install "${RELEASE_NAME}" ./${CHART_DIR} \
-                            --namespace "${NAMESPACE}" \
+                            --namespace "crop" \
                             --create-namespace \
                             --timeout 10m \
                             --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
@@ -205,48 +205,48 @@ pipeline {
             }
         }
 
-        // stage('Deploy to Staging') {
-        //     when { branch 'main' }
-        //     agent { label 'vpn-deploy-agent' }
-        //     steps {
-        //         input message: "Approve deployment of cropsown-registry:${BRANCH_NAME}-${BUILD_NUMBER} to staging?"
-        //         withCredentials([
-        //             string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-        //             file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')
-        //         ]) {
-        //             sh '''
-        //                 set -eu
-        //                 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        //                 BRANCH="${BRANCH_NAME}"
-        //                 TAG="${BRANCH}-${BUILD_NUMBER}"
-        //
-        //                 helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-        //                 helm dependency build ./${CHART_DIR}
-        //
-        //                 helm upgrade --install "${RELEASE_NAME}-staging" ./${CHART_DIR} \
-        //                     --namespace "${NAMESPACE}-staging" \
-        //                     --create-namespace \
-        //                     --timeout 10m \
-        //                     --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
-        //                     --set registry.staffApi.image.tag=${TAG} \
-        //                     --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
-        //                     --set registry.partnerApi.image.tag=${TAG} \
-        //                     --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-        //                     --set registry.celeryWorker.image.tag=${TAG} \
-        //                     --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-        //                     --set registry.celeryBeat.image.tag=${TAG} \
-        //                     --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
-        //                     --set registry.dbSeed.image.tag=${TAG} \
-        //                     --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
-        //                     --set registry.sanity.image.tag=${TAG}
-        //
-        //                 kubectl rollout status "deployment/${RELEASE_NAME}-staging-staff-api" \
-        //                     -n "${NAMESPACE}-staging" --timeout=120s || true
-        //                 kubectl get pods -n "${NAMESPACE}-staging" | grep "${RELEASE_NAME}-staging" || true
-        //             '''
-        //         }
-        //     }
-        // }
+        stage('Deploy to Staging') {
+            when { branch 'staging' }
+            agent { label 'vpn-deploy-agent' }
+            steps {
+                input message: "Approve deployment of cropsown-registry:${BRANCH_NAME}-${BUILD_NUMBER} to staging?"
+                withCredentials([
+                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                    file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')
+                ]) {
+                    sh '''
+                        set -eu
+                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        BRANCH="${BRANCH_NAME}"
+                        TAG="${BRANCH}-${BUILD_NUMBER}"
+
+                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
+                        helm dependency build ./${CHART_DIR}
+
+                        helm upgrade --install "${RELEASE_NAME}-staging" ./${CHART_DIR} \
+                            --namespace "crop-staging" \
+                            --create-namespace \
+                            --timeout 10m \
+                            --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
+                            --set registry.staffApi.image.tag=${TAG} \
+                            --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
+                            --set registry.partnerApi.image.tag=${TAG} \
+                            --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
+                            --set registry.celeryWorker.image.tag=${TAG} \
+                            --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
+                            --set registry.celeryBeat.image.tag=${TAG} \
+                            --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
+                            --set registry.dbSeed.image.tag=${TAG} \
+                            --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
+                            --set registry.sanity.image.tag=${TAG}
+
+                        kubectl rollout status "deployment/${RELEASE_NAME}-staging-staff-api" \
+                            -n "${NAMESPACE}-staging" --timeout=120s || true
+                        kubectl get pods -n "${NAMESPACE}-staging" | grep "${RELEASE_NAME}-staging" || true
+                    '''
+                }
+            }
+        }
     }
 
     post {
