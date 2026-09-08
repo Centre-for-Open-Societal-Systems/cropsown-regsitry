@@ -36,6 +36,14 @@ pipeline {
         RELEASE_NAME = 'cropsown-registry'
         CHART_DIR    = 'helm/openg2p-cropsown-registry'
 
+        // Staging carries its own release name rather than "${RELEASE_NAME}-staging".
+        // The openg2p-registry subchart rejects any release name over 18 characters
+        // (its templates/validate.yaml — longer names push the generated postgres-init
+        // Job names past Kubernetes' 63-char label ceiling), and the suffixed form is
+        // 25, so that stage could only ever have failed at chart validation.
+        STAGING_RELEASE   = 'cropsown-stg'
+        STAGING_NAMESPACE = 'crop-staging'
+
         // The five images the chart deploys, matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
         // root as context.
@@ -222,7 +230,7 @@ pipeline {
                         # `sanity.image.*` writes a key the chart never reads, so the
                         # sanity Job would silently keep the values.yaml default tag.
                         helm upgrade --install "${RELEASE_NAME}" ./${CHART_DIR} \
-                            --namespace "crop" \
+                            --namespace "${NAMESPACE}" \
                             --create-namespace \
                             --timeout 10m \
                             --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
@@ -239,7 +247,12 @@ pipeline {
                             --set registry.sanity.image.tag=${TAG}
 
                         echo "=== Waiting for rollout ==="
-                        kubectl rollout status "deployment/${RELEASE_NAME}-staff-api" \
+                        # staff-portal-api, not staff-api: the subchart sets
+                        # staffApi.nameOverride=staff-portal-api, so that is the
+                        # Deployment the chart actually creates. The old name matched
+                        # nothing, and `|| true` swallowed the error — this step
+                        # reported success without ever waiting for a rollout.
+                        kubectl rollout status "deployment/${RELEASE_NAME}-staff-portal-api" \
                             -n "${NAMESPACE}" --timeout=120s || true
 
                         echo "=== Deployment status ==="
@@ -280,8 +293,8 @@ pipeline {
                         helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
                         helm dependency build ./${CHART_DIR}
 
-                        helm upgrade --install "${RELEASE_NAME}-staging" ./${CHART_DIR} \
-                            --namespace "crop-staging" \
+                        helm upgrade --install "${STAGING_RELEASE}" ./${CHART_DIR} \
+                            --namespace "${STAGING_NAMESPACE}" \
                             --create-namespace \
                             --timeout 10m \
                             --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
@@ -297,9 +310,9 @@ pipeline {
                             --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
                             --set registry.sanity.image.tag=${TAG}
 
-                        kubectl rollout status "deployment/${RELEASE_NAME}-staging-staff-api" \
-                            -n "${NAMESPACE}-staging" --timeout=120s || true
-                        kubectl get pods -n "${NAMESPACE}-staging" | grep "${RELEASE_NAME}-staging" || true
+                        kubectl rollout status "deployment/${STAGING_RELEASE}-staff-portal-api" \
+                            -n "${STAGING_NAMESPACE}" --timeout=120s || true
+                        kubectl get pods -n "${STAGING_NAMESPACE}" | grep "${STAGING_RELEASE}" || true
                     '''
                 }
             }
