@@ -20,6 +20,7 @@ register model.
 | `docker/` | Thin Dockerfiles (`FROM openg2p/openg2p-registry-*` + `pip install cropsown-extension`) selected at runtime by `REGISTRY_EXTENSION_MODULE` (Option C). `docker/staff-ui/` also injects the Dashboard header button; `docker/dashboard-ui/` builds the analytics app. |
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
+| `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -83,6 +84,49 @@ does. Staff API on http://localhost:8001/docs, Partner API on
 http://localhost:8002/docs, Master Data API on http://localhost:8010/docs.
 See [local/README.md](local/README.md) for the full service list and how the
 pieces fit together.
+
+## Continuous integration
+
+`Jenkinsfile` is the self-hosted pipeline. It builds six images from
+`docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
+`sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
+branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
+to `crop-staging`. The Staff Portal UI is deliberately not built here: the chart
+consumes it as-is from the platform base image, so a build of it would produce an
+image nothing deploys.
+
+This is a different road from `.gitlab-ci.yml`, which delegates to
+`openg2p/packaging@v1` and publishes to the shared OpenG2P registry and Helm
+catalogue. Both build the same Dockerfiles; only the destination differs.
+
+`dashboard-ui` is the one image with no chart value pointing at it — the
+analytics dashboard is still Compose-only, so nothing pulls it yet. It is
+published so it is ready ahead of the dashboard being deployed. Because Next.js
+compiles the portal origin into the client bundle at build time, set `PORTAL_URL`
+on the controller to the deployed portal origin; left unset the build warns and
+falls back to the local portal, which is wrong for a published image.
+
+### Running the pipeline locally
+
+`local/jenkins/` stands up a controller on <http://localhost:8090> wired to your
+own Docker daemon, with the `cropsown-registry` multibranch job already created:
+
+```bash
+docker compose -f local/jenkins/docker-compose.yml up -d --build
+```
+
+Two environment variables that only this controller sets opt the pipeline into
+local behaviour. Absent — which is every run on the real controller — everything
+keeps its production form.
+
+| Variable | Local | Effect |
+|---|---|---|
+| `PUSH_TO_ECR` | `false` | skips the ECR push and both deploy stages |
+| `DOCKER_NO_CACHE` | `false` | builds with cache rather than `--no-cache` |
+
+Builds run **committed** code: Jenkins clones `file:///repo`, so uncommitted
+edits — including edits to the `Jenkinsfile` itself — are invisible until you
+commit. See `local/jenkins/README.md`.
 
 ## Deploy
 
