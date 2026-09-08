@@ -91,9 +91,20 @@ pieces fit together.
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
 branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
-to `crop-staging`. The staging cluster is not provisioned yet, so that deploy
-is gated off — set `STAGING_DEPLOY=true` on the controller, and add the
-`staging-kubeconfig` credential, once it exists. The Staff Portal UI is
+to `crop-staging`.
+
+**Both deploys are gated off today**, so a build ends after the ECR push and the
+images wait there for a deploy by hand. Each stage runs on an agent labelled
+`vpn-deploy-agent`, which reaches the clusters over the VPN; no node currently
+carries that label, and an unsatisfiable label does not fail a build — it queues
+until the 90-minute timeout, which is how a successful build ends up red. So:
+
+| Gate | Turn on when |
+|---|---|
+| `DEV_DEPLOY=true` | a node labelled `vpn-deploy-agent`, with `helm` and `kubectl`, is online |
+| `STAGING_DEPLOY=true` | the staging cluster exists **and** the `staging-kubeconfig` credential is added |
+
+Both are set on the controller. The Staff Portal UI is
 deliberately not built here: the chart consumes it as-is from the platform base
 image, so a build of it would produce an image nothing deploys.
 
