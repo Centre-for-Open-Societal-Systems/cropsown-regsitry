@@ -91,9 +91,11 @@ pieces fit together.
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
 branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
-to `crop-staging`. The Staff Portal UI is deliberately not built here: the chart
-consumes it as-is from the platform base image, so a build of it would produce an
-image nothing deploys.
+to `crop-staging`. The staging cluster is not provisioned yet, so that deploy
+is gated off — set `STAGING_DEPLOY=true` on the controller, and add the
+`staging-kubeconfig` credential, once it exists. The Staff Portal UI is
+deliberately not built here: the chart consumes it as-is from the platform base
+image, so a build of it would produce an image nothing deploys.
 
 This is a different road from `.gitlab-ci.yml`, which delegates to
 `openg2p/packaging@v1` and publishes to the shared OpenG2P registry and Helm

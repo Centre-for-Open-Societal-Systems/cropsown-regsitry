@@ -253,10 +253,17 @@ pipeline {
             // beforeAgent matters: without it Jenkins tries to allocate the
             // vpn-deploy-agent BEFORE evaluating the condition, so a local run
             // would queue forever waiting for a label that does not exist here.
+            //
+            // STAGING_DEPLOY gates the stage OFF by default: the staging cluster
+            // is not provisioned yet, and without it the stage fails on the
+            // missing staging-kubeconfig credential, turning every staging build
+            // red for a deployment nobody expects to work. Set STAGING_DEPLOY=true
+            // on the controller once the cluster and that credential exist.
             when {
                 beforeAgent true
                 branch 'staging'
                 expression { env.PUSH_TO_ECR != 'false' }
+                expression { env.STAGING_DEPLOY == 'true' }
             }
             agent { label 'vpn-deploy-agent' }
             steps {
