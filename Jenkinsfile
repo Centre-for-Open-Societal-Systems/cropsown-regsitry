@@ -69,11 +69,17 @@ pipeline {
             // and catches the failure that is otherwise invisible until deploy:
             // images built FROM one platform version while the chart pulls a
             // subchart expecting another.
+            //
+            // Run as a plain script rather than under pytest. The agents carry a
+            // python3 but no working pip: the install below used to fail, the
+            // `|| true` swallowed it, and the build died one line later on
+            // `No module named pytest` — a packaging problem wearing the mask of
+            // a failed guard. The check needs nothing beyond the stdlib, so it
+            // needs no packaging at all. checks.yml still runs it under pytest.
             steps {
                 sh '''
                     set -eu
-                    python3 -m pip install --quiet --user pytest 2>/dev/null || true
-                    python3 -m pytest test/test_rp_pin_lockstep.py -q
+                    python3 test/test_rp_pin_lockstep.py
                 '''
             }
         }

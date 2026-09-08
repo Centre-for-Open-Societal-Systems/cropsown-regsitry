@@ -9,13 +9,15 @@ another, and the overlay lands on a harness it does not match (the failure that
 bit us repeatedly). `scripts/bump-rp-version.sh` moves them together; this test
 fails the build if anything ever splits them again.
 
-No dependencies beyond the stdlib + pytest — runs anywhere the other tests do.
+Stdlib only, and deliberately no pytest import: `python3 test/test_rp_pin_lockstep.py`
+runs the same check on any machine with a bare interpreter. The Jenkins build
+agents have a python3 but no working pip, so the pipeline invokes it that way;
+.github/workflows/checks.yml still collects it as an ordinary pytest test.
 """
 
 import pathlib
 import re
-
-import pytest
+import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CHART = REPO / "helm" / "openg2p-cropsown-registry" / "Chart.yaml"
@@ -48,8 +50,17 @@ def test_rp_pin_is_in_lockstep():
     if len(all_pins) != 1:
         lines = [f"  Chart.yaml openg2p-registry dependency: {chart}"]
         lines += [f"  {p}: {v}" for p, v in docker.items()]
-        pytest.fail(
+        raise AssertionError(
             "openg2p-registry pin has SPLIT — images and chart must be identical:\n"
             + "\n".join(lines)
             + "\n\nFix with: ./scripts/bump-rp-version.sh <version>"
         )
+
+
+if __name__ == "__main__":
+    try:
+        test_rp_pin_is_in_lockstep()
+    except AssertionError as err:
+        print(err, file=sys.stderr)
+        sys.exit(1)
+    print("openg2p-registry pin is in lockstep")
