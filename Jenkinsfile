@@ -204,10 +204,23 @@ pipeline {
             // beforeAgent matters: without it Jenkins tries to allocate the
             // vpn-deploy-agent BEFORE evaluating the condition, so a local run
             // would queue forever waiting for a label that does not exist here.
+            //
+            // DEV_DEPLOY gates the stage OFF by default, the same way
+            // STAGING_DEPLOY gates the one below. No node currently carries the
+            // vpn-deploy-agent label, and an unsatisfiable label does not fail —
+            // it QUEUES, so the build sat at "'vpn-deploy-agent' is offline"
+            // until someone aborted it or the 90-minute timeout fired. That
+            // turned a run whose images built and pushed cleanly into a red
+            // build, and buried the deploy's real blocker under a timeout.
+            //
+            // Off, a develop build ends green after the push and the images wait
+            // in ECR for a deploy by hand. Set DEV_DEPLOY=true on the controller
+            // once a node with that label is online and carries helm + kubectl.
             when {
                 beforeAgent true
                 branch 'develop'
                 expression { env.PUSH_TO_ECR != 'false' }
+                expression { env.DEV_DEPLOY == 'true' }
             }
             agent { label 'vpn-deploy-agent' }
             steps {
