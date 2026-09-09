@@ -93,6 +93,12 @@ pieces fit together.
 branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
 to `crop-staging`.
 
+Merging a pull request into `develop` starts a build on its own. A GitHub
+webhook into the controller is the fast path; the `pollSCM` trigger in the
+Jenkinsfile is the fallback, and it asks GitHub rather than waiting to be told,
+so it works whether or not `jenkins.oanstaging.com` is reachable from outside.
+Worst case a merge waits five minutes.
+
 A green `develop` build deploys: the dev stage runs on the same agent as the
 build and rolls the images it just pushed into the `crop` namespace, which is
 the `crop` deployments view in Rancher. That agent must carry `helm` and

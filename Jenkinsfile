@@ -59,6 +59,23 @@ pipeline {
         timeout(time: 90, unit: 'MINUTES')
     }
 
+    // A merge into develop should build on its own. The fast path is a GitHub
+    // webhook into the controller — nothing here is needed for that, and if one
+    // is delivering, this trigger only means a build that a missed delivery
+    // would otherwise have dropped still happens within five minutes.
+    //
+    // It is the fallback that matters: a webhook has to reach
+    // jenkins.oanstaging.com FROM GitHub, and polling asks the other way round,
+    // so it works whether or not the controller is reachable from outside.
+    //
+    // 'H' spreads the poll across the interval rather than firing every branch
+    // job on the same tick. Polling only picks up commits on a branch Jenkins
+    // has already indexed; a brand-new branch still waits for the multibranch
+    // scan, which is job config rather than anything this file can set.
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
     stages {
         stage('Checkout') {
             steps { checkout scm }
