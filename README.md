@@ -93,16 +93,21 @@ pieces fit together.
 branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
 to `crop-staging`.
 
-**Both deploys are gated off today**, so a build ends after the ECR push and the
-images wait there for a deploy by hand. Each stage runs on an agent labelled
-`vpn-deploy-agent`, which reaches the clusters over the VPN; no node currently
-carries that label, and an unsatisfiable label does not fail a build — it queues
-until the 90-minute timeout, which is how a successful build ends up red. So:
+A green `develop` build deploys: the dev stage runs on the same agent as the
+build and rolls the images it just pushed into the `crop` namespace, which is
+the `crop` deployments view in Rancher. That agent must carry `helm` and
+`kubectl`, and the `gen2-kubeconfig` credential must point at the cluster
+behind `rancher.openg2p.test`.
 
-| Gate | Turn on when |
+The staging deploy is still gated off, and still asks for an agent labelled
+`vpn-deploy-agent` that reaches the cluster over the VPN. No node carries that
+label, and an unsatisfiable label does not fail a build — it queues until the
+90-minute timeout, which is how a successful build ends up red. So:
+
+| Gate | Effect |
 |---|---|
-| `DEV_DEPLOY=true` | a node labelled `vpn-deploy-agent`, with `helm` and `kubectl`, is online |
-| `STAGING_DEPLOY=true` | the staging cluster exists **and** the `staging-kubeconfig` credential is added |
+| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy to `crop` by hand |
+| `STAGING_DEPLOY=true` | turn on once the staging cluster exists **and** the `staging-kubeconfig` credential is added, on a node labelled `vpn-deploy-agent` |
 
 Both are set on the controller. The Staff Portal UI is
 deliberately not built here: the chart consumes it as-is from the platform base

@@ -201,28 +201,32 @@ pipeline {
         }
 
         stage('Deploy to Dev') {
-            // beforeAgent matters: without it Jenkins tries to allocate the
-            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
-            // would queue forever waiting for a label that does not exist here.
+            // Runs on the SAME agent as the build rather than a labelled deploy
+            // node. The stage used to ask for `vpn-deploy-agent`, which no node
+            // carries — and an unsatisfiable label does not fail, it QUEUES, so
+            // the build sat at "'vpn-deploy-agent' is offline" until someone
+            // aborted it or the 90-minute timeout fired. That turned a run whose
+            // images built and pushed cleanly into a red build. Gating the
+            // deploy off dodged the queue but left every green develop build
+            // stopping at the push, so the images sat in ECR and the crop
+            // namespace never moved. The stage now runs where the rest of the
+            // pipeline already runs; that node needs helm and kubectl on PATH,
+            // and the `gen2-kubeconfig` credential must point at the cluster
+            // behind rancher.openg2p.test.
             //
-            // DEV_DEPLOY gates the stage OFF by default, the same way
-            // STAGING_DEPLOY gates the one below. No node currently carries the
-            // vpn-deploy-agent label, and an unsatisfiable label does not fail —
-            // it QUEUES, so the build sat at "'vpn-deploy-agent' is offline"
-            // until someone aborted it or the 90-minute timeout fired. That
-            // turned a run whose images built and pushed cleanly into a red
-            // build, and buried the deploy's real blocker under a timeout.
+            // DEV_DEPLOY is now an opt-OUT: set it to 'false' on the controller
+            // to hold a develop build at the push and deploy by hand. Local runs
+            // are already excluded by PUSH_TO_ECR=false (local/jenkins), so they
+            // need no second flag.
             //
-            // Off, a develop build ends green after the push and the images wait
-            // in ECR for a deploy by hand. Set DEV_DEPLOY=true on the controller
-            // once a node with that label is online and carries helm + kubectl.
+            // beforeAgent is kept so the conditions are evaluated before a node
+            // is allocated.
             when {
                 beforeAgent true
                 branch 'develop'
                 expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.DEV_DEPLOY == 'true' }
+                expression { env.DEV_DEPLOY != 'false' }
             }
-            agent { label 'vpn-deploy-agent' }
             steps {
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
