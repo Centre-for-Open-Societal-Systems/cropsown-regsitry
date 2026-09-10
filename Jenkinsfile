@@ -42,7 +42,15 @@ pipeline {
         // Job names past Kubernetes' 63-char label ceiling), and the suffixed form is
         // 25, so that stage could only ever have failed at chart validation.
         STAGING_RELEASE   = 'cropsown-stg'
-        STAGING_NAMESPACE = 'crop-staging'
+
+        // `crop`, the same namespace name dev uses, and not `crop-staging`.
+        // Staging is a separate EC2 instance running its own RKE2 cluster,
+        // reached through the staging-rke2-kubeconfig credential, so the two
+        // environments are held apart by the cluster they land in — this stage
+        // shares no API server with the dev deploy above. `crop-staging` only
+        // restated a split the kubeconfig already makes, and pointed the deploy
+        // at a namespace the staging instance does not use.
+        STAGING_NAMESPACE = 'crop'
 
         // The five images the chart deploys, matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
@@ -214,6 +222,15 @@ pipeline {
             // and the `gen2-kubeconfig` credential must point at the cluster
             // behind rancher.openg2p.test.
             //
+            // DEV_DEPLOY gates the stage OFF by default — unlike the staging
+            // stage below, which deploys unless STAGING_DEPLOY says otherwise,
+            // because the instance behind it is provisioned and this cluster's
+            // deploy agent is not. No node currently carries the
+            // vpn-deploy-agent label, and an unsatisfiable label does not fail —
+            // it QUEUES, so the build sat at "'vpn-deploy-agent' is offline"
+            // until someone aborted it or the 90-minute timeout fired. That
+            // turned a run whose images built and pushed cleanly into a red
+            // build, and buried the deploy's real blocker under a timeout.
             // DEV_DEPLOY is now an opt-OUT: set it to 'false' on the controller
             // to hold a develop build at the push and deploy by hand. Local runs
             // are already excluded by PUSH_TO_ECR=false (local/jenkins), so they
@@ -286,26 +303,38 @@ pipeline {
         }
 
         stage('Deploy to Staging') {
-            // beforeAgent matters: without it Jenkins tries to allocate the
-            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
-            // would queue forever waiting for a label that does not exist here.
+            // Merging a pull request into `staging` now deploys. The staging
+            // instance exists — a separate EC2 box running its own RKE2
+            // cluster — so the two reasons this stage was held back are gone:
             //
-            // STAGING_DEPLOY gates the stage OFF by default: the staging cluster
-            // is not provisioned yet, and without it the stage fails on the
-            // missing staging-kubeconfig credential, turning every staging build
-            // red for a deployment nobody expects to work. Set STAGING_DEPLOY=true
-            // on the controller once the cluster and that credential exist.
+            //   - It no longer asks for `vpn-deploy-agent`. No node carries that
+            //     label, and an unsatisfiable label does not fail a build, it
+            //     QUEUES — so the stage sat at "'vpn-deploy-agent' is offline"
+            //     until the 90-minute timeout turned a run whose images built
+            //     and pushed cleanly into a red build. It runs on the same agent
+            //     as the build, which reaches the staging API server through the
+            //     kubeconfig below; that agent needs helm and kubectl on PATH.
+            //   - The credential is `staging-rke2-kubeconfig`, the kubeconfig for
+            //     that instance's RKE2 cluster, rather than the
+            //     `staging-kubeconfig` that was never added to the controller.
+            //
+            // STAGING_DEPLOY is an opt-OUT, matching the shape of DEV_DEPLOY:
+            // set it to 'false' on the controller to hold a staging build at the
+            // ECR push and deploy by hand. Local runs are already excluded by
+            // PUSH_TO_ECR=false (local/jenkins), so they need no second flag.
+            //
+            // beforeAgent is kept so the conditions are evaluated before a node
+            // is allocated.
             when {
                 beforeAgent true
                 branch 'staging'
                 expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.STAGING_DEPLOY == 'true' }
+                expression { env.STAGING_DEPLOY != 'false' }
             }
-            agent { label 'vpn-deploy-agent' }
             steps {
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')
+                    file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
                     sh '''
                         set -eu
@@ -313,7 +342,10 @@ pipeline {
                         BRANCH="${BRANCH_NAME}"
                         TAG="${BRANCH}-${BUILD_NUMBER}"
 
+                        echo "=== Deploying ${STAGING_RELEASE} to namespace ${STAGING_NAMESPACE} on the staging cluster ==="
+
                         helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
+                        helm repo update openg2p || true
                         helm dependency build ./${CHART_DIR}
 
                         helm upgrade --install "${STAGING_RELEASE}" ./${CHART_DIR} \
@@ -333,8 +365,11 @@ pipeline {
                             --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
                             --set registry.sanity.image.tag=${TAG}
 
+                        echo "=== Waiting for rollout ==="
                         kubectl rollout status "deployment/${STAGING_RELEASE}-staff-portal-api" \
                             -n "${STAGING_NAMESPACE}" --timeout=120s || true
+
+                        echo "=== Deployment status ==="
                         kubectl get pods -n "${STAGING_NAMESPACE}" | grep "${STAGING_RELEASE}" || true
                     '''
                 }

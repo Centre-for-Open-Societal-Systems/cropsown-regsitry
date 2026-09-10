@@ -90,6 +90,32 @@ pieces fit together.
 `Jenkinsfile` is the self-hosted pipeline. It builds six images from
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
+branch-derived tags, and deploys both `develop` and `staging` to a `crop`
+namespace.
+
+The same namespace name, because the two land on different clusters. Dev goes to
+the cluster behind `rancher.openg2p.test` via the `gen2-kubeconfig` credential;
+staging is a separate EC2 instance running its own RKE2 cluster, reached with
+`staging-rke2-kubeconfig`. The kubeconfig is what separates them, so nothing is
+gained by calling one namespace `crop-staging` — and the staging instance does
+not have a namespace by that name.
+
+**Merging a pull request into `staging` deploys it.** A green build rolls the
+images it just pushed into `crop` on the staging instance, under the release name
+`cropsown-stg`. The stage runs on the same agent as the build, which needs `helm`
+and `kubectl` on PATH.
+
+The dev deploy is still gated off, so a `develop` build ends after the ECR push
+and the images wait there for a deploy by hand. That stage runs on an agent
+labelled `vpn-deploy-agent`, which reaches the dev cluster over the VPN; no node
+currently carries that label, and an unsatisfiable label does not fail a build —
+it queues until the 90-minute timeout, which is how a successful build ends up
+red. So:
+
+| Gate | Effect |
+|---|---|
+| `DEV_DEPLOY=true` | turn on once a node labelled `vpn-deploy-agent`, with `helm` and `kubectl`, is online |
+| `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy to the staging instance by hand |
 branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
 to `crop-staging`.
 
