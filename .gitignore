@@ -265,12 +265,14 @@ helm/**/charts/*.tgz
 
 crop sown registry ERD.html
 master-dat-service-api-responses
-
 # local/ is the local docker-compose dev stack config (Postgres init, Keycloak,
 # IAM, mock crop catalogue, geo-seed, and local-only .env credentials). It is used
 # only by `docker compose up` for local development; CI/CD and deployed (Helm)
 # environments do not use it, so it is not committed.
 local/
+
+# Pinned helm/kubectl that ci/deploy-dev.sh fetches when the agent has none.
+.tools/
 
 # JetBrains / IDE project files
 .idea/
