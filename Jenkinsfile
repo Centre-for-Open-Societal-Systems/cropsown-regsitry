@@ -235,9 +235,11 @@ pipeline {
             // deploy off dodged the queue but left every green develop build
             // stopping at the push, so the images sat in ECR and the crop
             // namespace never moved. The stage now runs where the rest of the
-            // pipeline already runs; that node needs helm and kubectl on PATH,
-            // and the `gen2-kubeconfig` credential must point at the cluster
-            // behind rancher.openg2p.test.
+            // pipeline already runs. That node has neither helm nor kubectl, so
+            // ci/deploy-dev.sh fetches pinned, checksummed copies into the
+            // workspace when they are missing (and uses the node's own if it
+            // ever gets them). The `gen2-kubeconfig` credential must point at
+            // the cluster behind rancher.openg2p.test.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that

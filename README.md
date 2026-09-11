@@ -105,7 +105,9 @@ not have a namespace by that name.
 rolls the images it just pushed into `crop` on that branch's cluster — release
 `cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
 `cropsown-stg` on the staging instance. Both deploy stages run on the same agent
-as the build, which needs `helm` and `kubectl` on PATH. Neither asks for a
+as the build. That agent has no `helm` or `kubectl`: `ci/deploy-dev.sh` fetches
+pinned, checksum-verified copies into `.tools/` when they are missing, while the
+staging stage still needs them on PATH. Neither asks for a
 labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
 an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
