@@ -275,3 +275,7 @@ master-dat-service-api-responses
 
 # Pinned helm/kubectl that ci/deploy-dev.sh fetches when the agent has none.
 .tools/
+
+# WireGuard peer configs carry a private key. ci/setup-agent-vpn.sh reads one,
+# and the README example keeps it in the repo root — never commit it.
+/*.conf

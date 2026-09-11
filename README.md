@@ -21,7 +21,7 @@ register model.
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
-| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster; `ci/setup-agent-vpn.sh` puts a Jenkins agent on the dev cluster's VPN |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -111,6 +111,27 @@ stage asks for a
 labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
 an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
+
+**The agent must be on the openg2p-Gen2 WireGuard VPN.** The dev cluster's API
+server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), is routable
+only over that VPN; off it, the dev deploy fails on `dial tcp 10.15.0.1:6443:
+i/o timeout`. Get a peer config issued for the agent by whoever runs the
+openg2p-Gen2 WireGuard server — not a copy of a person's, since two machines on
+one key knock each other off — and, once, as root on the agent (on the host, if
+Jenkins runs in a container):
+
+```sh
+./ci/setup-agent-vpn.sh jenkins-agent.conf --dry-run   # review; keys are hidden
+sudo ./ci/setup-agent-vpn.sh jenkins-agent.conf
+```
+
+It narrows the tunnel to the API server (`10.15.0.1/32`), so CI reaches that and
+nothing else on the dev network, enables it across reboots, and checks the API
+server answers. The deploy scripts check the same before running helm, and
+when they cannot connect the build ends **UNSTABLE** rather than failed: the
+images are in ECR, nothing was deployed, and a "built, not deployed" mail goes
+out. Any other deploy error — a rejected login, a helm failure — still fails the
+build.
 
 Nobody has to start that build. `develop` and `staging` poll the repository every
 five minutes and build any new commit; a GitHub webhook to
