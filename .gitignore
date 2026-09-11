@@ -267,3 +267,6 @@ crop sown registry ERD.html
 docker-compose.yml
 local
 master-dat-service-api-responses
+
+# JetBrains / IDE project files
+.idea/

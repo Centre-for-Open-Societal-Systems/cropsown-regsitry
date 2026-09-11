@@ -83,6 +83,12 @@ export async function fetchRecordStates() {
     LEFT JOIN g2p_attribute_values av ON av.value_id = cs.status
     WHERE cs.record_status = 'ACTIVE'
       AND cs.status IS NOT NULL
+      -- Intermediate approval-workflow states are not offered as analytics
+      -- filters; only the final/actionable states are shown.
+      AND cs.status NOT IN (
+        'APPROVAL_STATUS_APPROVAL_LEVEL_1',
+        'APPROVAL_STATUS_APPROVAL_LEVEL_2'
+      )
     GROUP BY 1, 2
     ORDER BY count DESC, name
   `)

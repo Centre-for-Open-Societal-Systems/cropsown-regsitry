@@ -20,37 +20,45 @@ class G2PSchemaCultivation:
     end_gc: Optional[date] = None
     end_month: Optional[int] = None
     end_day: Optional[int] = None
-    actual_planted_date_ec: Optional[str] = None
-    actual_fertilizer_sack: Optional[float] = None
-    has_cluster_farming: Optional[bool] = None
+    actual_cultivation_date_ec: Optional[str] = None
     is_crop_changed: Optional[bool] = None
-    land_uuid: Optional[str] = None
     land_id: Optional[str] = None
-    is_land_registered: Optional[bool] = None
     ownership_type: Optional[str] = None
     soil_fertility_type: Optional[str] = None
     plot_category: Optional[str] = None
     land_area: Optional[float] = None
-    unit: Optional[str] = None
-    sub_kebele: Optional[str] = None
     season: Optional[str] = None
     commodity: Optional[str] = None
     crop_variety: Optional[str] = None
     crop_category: Optional[str] = None
+    local_name: Optional[str] = None
+    scientific_name: Optional[str] = None
+    actual_yield: Optional[float] = None
     land_prep_method: Optional[str] = None
     cultivation_type: Optional[str] = None
-    cropping_system: Optional[CroppingSystemEnum] = None
-    actual_planted_date: Optional[date] = None
+    cropping_system: Optional[str] = None
+    actual_cultivation_date: Optional[date] = None
     actual_crop_area: Optional[float] = None
     actual_growth_duration_days: Optional[int] = None
-    actual_seed_class: Optional[SeedClassEnum] = None
-    actual_seed_source: Optional[SeedSourceEnum] = None
+    actual_seed_class: Optional[str] = None
+    actual_seed_source: Optional[str] = None
     seed_variety: Optional[str] = None
     actual_seed_qty: Optional[float] = None
     actual_fertilizer_type: Optional[str] = None
     actual_fertilizer_qty: Optional[float] = None
     water_source: Optional[str] = None
+    water_source_method: Optional[str] = None
+    water_source_frequency: Optional[str] = None
     remark: Optional[str] = None
+
+
+
+
+
+    da_name: Optional[str] = None
+    da_mobile_number: Optional[str] = None
+    supervisor_name: Optional[str] = None
+    supervisor_mobile_number: Optional[str] = None
 
 
 class G2PRegisterSchemaCultivation(G2PRegisterBaseSchema, G2PSchemaCultivation):
@@ -61,7 +69,7 @@ class G2PRegisterSchemaCultivation(G2PRegisterBaseSchema, G2PSchemaCultivation):
     """
 
 
-class G2PRegisterHistorySchemaCultivation(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaCultivation(G2PRegisterHistorySchema, G2PSchemaCultivation):
     """
     Schema for Cultivation / Land Preparation history.
     Inherits fields from G2PRegisterHistorySchema.

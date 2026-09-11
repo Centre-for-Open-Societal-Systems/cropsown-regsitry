@@ -74,3 +74,14 @@ RUN node /tmp/patch-geo-envelope.js
 COPY --chown=nextjs docker/staff-ui/assets/patch-dashboard-nav.js /tmp/patch-dashboard-nav.js
 RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
     node /tmp/patch-dashboard-nav.js
+
+# ── Replace broken avatar text with default silhouette placeholder ─────────
+COPY --chown=nextjs docker/staff-ui/assets/patch-avatar.js /tmp/patch-avatar.js
+RUN node /tmp/patch-avatar.js
+
+# ── Remove upgrade-insecure-requests for local dev ──────────────────────────
+# Next.js forces HTTPS by default through CSP, which breaks local HTTP loading.
+RUN sed -i 's/upgrade-insecure-requests//g' /app/.next/server/middleware.js
+
+
+

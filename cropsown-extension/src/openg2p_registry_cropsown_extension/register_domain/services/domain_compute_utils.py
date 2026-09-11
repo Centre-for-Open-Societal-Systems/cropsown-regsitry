@@ -16,7 +16,6 @@ fertilizer in kg. A quintal is 100 kg, which is where the ×100 comes from.
 from .domain_validation_utils import as_float, as_int
 
 QUINTAL_TO_KG = 100.0
-KG_PER_FERTILIZER_SACK = 50.0
 TIMAD_TO_HECTARE = 0.25
 
 
@@ -61,12 +60,6 @@ def compute_harvest_yield(record: dict) -> None:
     record["yield_per_ha"] = round(_ratio(qty * QUINTAL_TO_KG, record.get("area_harvested")), 4)
 
 
-def compute_fertilizer_sacks(record: dict, qty_field: str, sack_field: str) -> None:
-    """Odoo: `_compute_planned_fertilizer_sacks` / `_compute_actual_fertilizer_sacks`."""
-    qty = as_float(record.get(qty_field))
-    record[sack_field] = round(qty / KG_PER_FERTILIZER_SACK, 4) if qty else 0.0
-
-
 def compute_cluster_area(record: dict) -> None:
     """Odoo: `_compute_cluster_area_hectare` — 1 timad is a quarter hectare."""
     timad = as_float(record.get("cluster_area_timad"))
@@ -107,3 +100,30 @@ def is_date_in_season(test_date, start_month, start_day, end_month, end_day) -> 
     if (sm, sd) <= (em, ed):
         return (sm, sd) <= (tm, td) <= (em, ed)
     return (tm, td) >= (sm, sd) or (tm, td) <= (em, ed)
+
+
+def compute_ec_date(record: dict | object, gc_field: str, ec_field: str) -> None:
+    """Computes the Ethiopian Calendar (EC) date from the Gregorian Calendar (GC) date."""
+    from .calendar_utils import to_ethiopian
+    from .domain_validation_utils import parse_date
+    import logging
+
+    _logger = logging.getLogger("g2p-register-domain-service")
+    if isinstance(record, dict):
+        gc_val = record.get(gc_field)
+    else:
+        gc_val = getattr(record, gc_field, None)
+    
+    # Only calculate if GC date exists
+    if gc_val:
+        gc_date = parse_date(gc_val)
+        if gc_date is not None:
+            try:
+                eth_tuple = to_ethiopian(gc_date.year, gc_date.month, gc_date.day)
+                ec_val = f"{eth_tuple[2]:04d}-{eth_tuple[1]:02d}-{eth_tuple[0]:02d}"
+                if isinstance(record, dict):
+                    record[ec_field] = ec_val
+                else:
+                    setattr(record, ec_field, ec_val)
+            except Exception as e:
+                _logger.warning(f"Could not convert GC date {gc_date} to EC for field {ec_field}: {e}")

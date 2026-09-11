@@ -75,3 +75,14 @@ label.cursor-pointer.inline-flex.items-center.justify-between > span {
 label.cursor-pointer.inline-flex.items-center.justify-between > img {
   flex-shrink: 0;
 }
+
+/* Reduce width of the first panel (profile picture container) to avoid too much empty space */
+div[data-panel-id="vertical_panel_cs_cropsown_record_1"],
+#vertical_panel_cs_cropsown_record_1,
+.vertical_panel_cs_cropsown_record_1 {
+  width: 220px !important;
+  max-width: 220px !important;
+  min-width: 220px !important;
+  flex: 0 0 220px !important;
+}
+

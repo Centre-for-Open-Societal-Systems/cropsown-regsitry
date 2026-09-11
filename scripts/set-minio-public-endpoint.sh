@@ -7,8 +7,9 @@
 # `docker compose up -d staff-api partner-api`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ip=$(ip -4 addr show eth0 | awk '/inet /{print $2}' | cut -d/ -f1)
-[ -n "$ip" ] || { echo "could not determine the WSL eth0 address" >&2; exit 1; }
+ip=$(ip -4 addr show eth0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 || true)
+[ -n "$ip" ] || ip=$(ip -4 addr show | awk '/inet 192\.|inet 172\.|inet 10\./ {print $2}' | head -n1 | cut -d/ -f1 || true)
+[ -n "$ip" ] || ip="localhost"
 sed -i -E "s|^(REGISTRY_(CORE|STAFF_PORTAL_API|PARTNER_API)_MINIO_ENDPOINT)=.*|\1=${ip}:9000|" local/env/local.env
 # The staff portal's CSP must allow that same origin, or the browser blocks
 # every record photo (img-src defaults to 'self').
