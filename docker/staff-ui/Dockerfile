@@ -53,19 +53,14 @@ RUN set -eux; \
 COPY --chown=nextjs docker/staff-ui/assets/patch-tabs.js /tmp/patch-tabs.js
 RUN node /tmp/patch-tabs.js
 
-# ── Correct the master-data geo levels endpoint ─────────────────────────────
-# The portal calls /geo/get_all_g2p_geo_levels; the master-data service pinned
-# here exposes /geo/get_g2p_geo_levels. Without this the cascading address
-# widget fails on its first request.
-COPY --chown=nextjs docker/staff-ui/assets/patch-geo-endpoint.js /tmp/patch-geo-endpoint.js
-RUN node /tmp/patch-geo-endpoint.js
-
-# ── Wrap the master-data geo calls in the G2P envelope ──────────────────────
-# The portal posts { pagination_request, request_payload }; the master-data
-# service pinned here requires { request_header, request_body }. Without this
-# the cascading address widget gets "Invalid Input. Field required".
-COPY --chown=nextjs docker/staff-ui/assets/patch-geo-envelope.js /tmp/patch-geo-envelope.js
-RUN node /tmp/patch-geo-envelope.js
+# ── (no geo patches needed) ─────────────────────────────────────────────────
+# The portal's master-data proxy already wraps geo calls in the G2P envelope
+# (request_header + request_body via the shared backend-request helper) and
+# natively targets /geo/get_all_g2p_geo_levels and /geo/get_g2p_geo_level_values,
+# which this stack's master-data service exposes. Earlier endpoint/envelope
+# patches double-wrapped the body — the service then saw request_payload one
+# level too deep and rejected it with "Invalid Input. Field required" — so they
+# have been removed.
 
 # ── Add the Dashboard header button ─────────────────────────────────────────
 # Puts a Dashboard control immediately left of Configuration, pointing at the
