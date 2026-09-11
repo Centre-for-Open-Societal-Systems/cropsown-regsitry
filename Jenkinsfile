@@ -241,6 +241,13 @@ pipeline {
             // ever gets them). The `gen2-kubeconfig` credential must point at
             // the cluster behind rancher.openg2p.test.
             //
+            // That cluster's API server (10.15.0.1:6443) is routable only over
+            // the openg2p-Gen2 WireGuard VPN, so the agent must be a peer on it
+            // — ci/setup-agent-vpn.sh does that, once, as root on the agent.
+            // Off the VPN the deploy dies on an i/o timeout; the script checks
+            // the API server first so it says so, rather than leaving helm to
+            // time out after the dependency steps.
+            //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
             // "deploy by hand" is the same command the pipeline runs, not a

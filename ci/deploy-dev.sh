@@ -137,9 +137,24 @@ ensure_kubectl
 
 note "Deploying ${RELEASE_NAME} to namespace ${NAMESPACE}"
 echo "helm:     $(helm version --short 2>/dev/null || echo '?') ($(command -v helm))"
-echo "kubectl:  $(kubectl version --client 2>/dev/null | head -1 || echo '?') ($(command -v kubectl))"
+# sed, not head: head exits after one line, kubectl dies of SIGPIPE writing its
+# second, and pipefail turns that into a failure that appended a stray "?".
+echo "kubectl:  $(kubectl version --client 2>/dev/null | sed -n 1p || echo '?') ($(command -v kubectl))"
 echo "context:  $(kubectl config current-context 2>/dev/null || echo '(none)')"
 echo "images:   ${ECR_REGISTRY}/${ECR_BASE}/*:${TAG}"
+
+# Reach the API server before helm does. helm's own failure ("kubernetes cluster
+# unreachable ... i/o timeout") only arrives after the repo and dependency steps,
+# and says nothing about why — and for dev the why is nearly always the network:
+# that API server answers only over the openg2p-Gen2 WireGuard VPN.
+server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)"
+echo "server:   ${server:-(none in KUBECONFIG)}"
+if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; then
+  die "the Kubernetes API at ${server:-<none>} did not answer from $(hostname): ${err}
+  A timeout here means this machine has no route to the cluster. The dev cluster
+  is reachable only over the openg2p-Gen2 WireGuard VPN; put the agent on it with
+  ci/setup-agent-vpn.sh (see its header)."
+fi
 
 # The wrapper chart owns no templates; every manifest comes from the pinned
 # openg2p-registry subchart, so the dependency must be present before install.
