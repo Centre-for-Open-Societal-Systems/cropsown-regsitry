@@ -99,9 +99,8 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
             validation_error(f"Land ID '{land_id}' in Pest/Disease Infestation does not match any Land ID specified in crop records{msg_fayda}.")
 
     def _validate_observation_date(self, record: dict) -> None:
-        observation_date = parse_date(record.get("observation_date"))
-        if observation_date is not None and observation_date > date.today():
-            validation_error("observation_date must not be in the future")
+        # Future observation dates are allowed; no restriction here.
+        return
 
     def _validate_estimated_damage(self, record: dict) -> None:
         raw_val = record.get("estimated_damage_pct")

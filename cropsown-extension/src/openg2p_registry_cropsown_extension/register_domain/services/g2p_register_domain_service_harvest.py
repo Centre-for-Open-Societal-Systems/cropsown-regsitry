@@ -21,7 +21,6 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
             compute_harvest_yield(record)
-            self._validate_harvest_date(record)
             self._validate_post_harvest_loss(record)
             self._validate_disposal_quantities(record)
             compute_ec_date(record, "harvest_date", "harvest_date_ec")
@@ -29,7 +28,12 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 await self._validate_land_id_matches_sowing(record, session=session)
                 await self._validate_harvest_after_sowing(record, session=session)
                 await self._validate_harvest_area_after_sowing(record, session=session)
-                await self._validate_date_in_season_enhanced(record, "harvest_date", session=session)
+                # Cluster harvest (cluster_harvest_date): must fall within the cluster's
+                # selected season window (start_gc..end_gc), resolved from the cluster /
+                # cultivation-cluster records. Independent harvest_date is blank for cluster
+                # rows and has no season window, so this only affects cluster rows; if no
+                # season window is found the check is skipped (no block).
+                await self._validate_date_in_season_enhanced(record, "cluster_harvest_date", session=session)
 
     async def _validate_harvest_area_after_sowing(self, record: dict, session) -> None:
         area_harvested = as_float(record.get("area_harvested") if record.get("area_harvested") is not None else record.get("cluster_area_harvested"))
@@ -291,10 +295,18 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                         prior_date = parse_date(row_p_f[0])
                         prior_stage = "Planned Date"
 
-        if prior_date and harvest_date < prior_date:
+        # Independent harvest (this method only runs for harvest_date, which is
+        # blank for cluster rows): a sowing record is required, and the harvest
+        # date must be strictly after that sowing date. Cluster harvest dates
+        # (cluster_harvest_date) are intentionally not validated here.
+        if prior_stage != "Sowing Date" or prior_date is None:
             validation_error(
-                f"Harvest Date ({harvest_date.strftime('%Y-%m-%d')}) cannot be earlier than "
-                f"{prior_stage} ({prior_date.strftime('%Y-%m-%d')})."
+                "A sowing record is required for this land before a harvest can be recorded."
+            )
+        if harvest_date <= prior_date:
+            validation_error(
+                f"Harvest Date ({harvest_date.strftime('%Y-%m-%d')}) must be after the "
+                f"Sowing Date ({prior_date.strftime('%Y-%m-%d')})."
             )
 
     async def _validate_date_in_season_enhanced(self, record: dict, field: str, session) -> None:
@@ -310,11 +322,11 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
         if start_gc and value < start_gc:
             validation_error(
-                f"Harvest Date ({value.strftime('%Y-%m-%d')}) is before Season Start Date ({start_gc.strftime('%Y-%m-%d')})."
+                f"Cluster Harvest Date ({value.strftime('%Y-%m-%d')}) is before the Season Start Date ({start_gc.strftime('%Y-%m-%d')})."
             )
         if end_gc and value > end_gc:
             validation_error(
-                f"Harvest Date ({value.strftime('%Y-%m-%d')}) is after Season End Date ({end_gc.strftime('%Y-%m-%d')})."
+                f"Cluster Harvest Date ({value.strftime('%Y-%m-%d')}) is after the Season End Date ({end_gc.strftime('%Y-%m-%d')})."
             )
 
     async def _resolve_season_bounds(self, record: dict, session) -> tuple[date | None, date | None]:
@@ -334,7 +346,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         from sqlalchemy import text
 
         if submission_id:
-            for tbl in ("g2p_intake_form_sowings", "g2p_intake_form_cultivations", "g2p_intake_form_plannings"):
+            for tbl in ("g2p_intake_form_cultivation_clusters", "g2p_intake_form_clusters"):
                 query = f"SELECT start_gc, end_gc FROM {tbl} WHERE submission_id = :sub_id"
                 params = {"sub_id": submission_id}
                 if land_id:
@@ -358,7 +370,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                     master_ids.add(str(r[0]))
 
         if master_ids:
-            for tbl in ("g2p_register_sowings", "g2p_register_cultivations", "g2p_register_plannings"):
+            for tbl in ("g2p_register_cultivation_clusters", "g2p_register_clusters"):
                 query = f"SELECT start_gc, end_gc FROM {tbl} WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"
                 params = {"m_ids": list(master_ids)}
                 if land_id:
@@ -432,11 +444,6 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         if str(land_id).strip() not in valid_land_ids:
             msg_fayda = f" for Fayda ID '{fayda_fan_id}'" if fayda_fan_id else ""
             validation_error(f"Land ID '{land_id}' in Harvest does not match any Land ID specified in Sowing or Crop Planning{msg_fayda}.")
-
-    def _validate_harvest_date(self, record: dict) -> None:
-        harvest_date = parse_date(record.get("harvest_date"))
-        if harvest_date is not None and harvest_date > date.today():
-            validation_error("harvest_date must not be in the future")
 
     def _validate_post_harvest_loss(self, record: dict) -> None:
         loss_pct = as_float(record.get("post_harvest_loss_pct"))

@@ -21,6 +21,8 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
             validate_alphabetical_name(record.get("da_name"), "DA Name")
             validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
+            validate_alphabetical_name(record.get("local_name"), "Local Name")
+            validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
             if not str(record.get("season") or "").strip():

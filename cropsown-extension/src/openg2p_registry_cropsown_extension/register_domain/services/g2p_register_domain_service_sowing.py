@@ -17,6 +17,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("da_name"), "DA Name")
             validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
             prod_season = record.get("production_season")
             submission_id = record.get("submission_id")
             if session and submission_id and not prod_season:
@@ -449,9 +450,8 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
             validation_error(f"Land ID '{land_id}' in Sowing does not match any Land ID specified in Crop Planning or Cultivation{msg_fayda}.")
 
     def _validate_sowing_date(self, record: dict) -> None:
-        sowing_date = parse_date(record.get("sowing_date"))
-        if sowing_date is not None and sowing_date > date.today():
-            validation_error("sowing_date must not be in the future")
+        # Future sowing dates are allowed (e.g. planned sowing); no restriction here.
+        return
 
     def _validate_area_sown(self, record: dict) -> None:
         area_sown = as_float(record.get("area_sown"))

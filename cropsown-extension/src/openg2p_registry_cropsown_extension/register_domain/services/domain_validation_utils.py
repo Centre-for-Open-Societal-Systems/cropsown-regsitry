@@ -84,7 +84,11 @@ def validate_alphabetical_name(value, field_name: str) -> None:
 
 
 def validate_mobile_number(value, field_name: str) -> None:
-    return
+    if is_blank(value):
+        return
+    import re
+    if not re.match(r"^\+?[0-9]+$", str(value).strip()):
+        validation_error(f"{field_name} must contain only digits, optionally starting with +")
 
 
 
