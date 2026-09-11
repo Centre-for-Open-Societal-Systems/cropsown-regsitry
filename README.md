@@ -19,7 +19,9 @@ register model.
 | `dashboard-ui/` | The Crop Sown Registry analytics dashboard (the view behind the portal's Dashboard button) |
 | `docker/` | Thin Dockerfiles (`FROM openg2p/openg2p-registry-*` + `pip install cropsown-extension`) selected at runtime by `REGISTRY_EXTENSION_MODULE` (Option C). `docker/staff-ui/` also injects the Dashboard header button; `docker/dashboard-ui/` builds the analytics app. |
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
-| `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the mock master-data catalog API) |
+| `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
+| `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` rolls an ECR build into the dev cluster |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -80,9 +82,95 @@ The stack runs the whole login chain — Keycloak (realm `staff`), the IAM staff
 API and master data — alongside the registry, so this is a real OIDC login and
 the registry resolves the user's roles into permissions exactly as a deployment
 does. Staff API on http://localhost:8001/docs, Partner API on
-http://localhost:8002/docs, mock crop catalogue on http://localhost:8010/docs.
+http://localhost:8002/docs, Master Data API on http://localhost:8010/docs.
 See [local/README.md](local/README.md) for the full service list and how the
 pieces fit together.
+
+## Continuous integration
+
+`Jenkinsfile` is the self-hosted pipeline. It builds six images from
+`docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
+`sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
+branch-derived tags, and deploys both `develop` and `staging` to a `crop`
+namespace.
+
+The same namespace name, because the two land on different clusters. Dev goes to
+the cluster behind `rancher.openg2p.test` via the `gen2-kubeconfig` credential;
+staging is a separate EC2 instance running its own RKE2 cluster, reached with
+`staging-rke2-kubeconfig`. The kubeconfig is what separates them, so nothing is
+gained by calling one namespace `crop-staging` — and the staging instance does
+not have a namespace by that name.
+
+**Merging a pull request into `develop` or `staging` deploys it.** A green build
+rolls the images it just pushed into `crop` on that branch's cluster — release
+`cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
+`cropsown-stg` on the staging instance. Both deploy stages run on the same agent
+as the build, which needs `helm` and `kubectl` on PATH. Neither asks for a
+labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
+an unsatisfiable label does not fail a build — it queues until the 90-minute
+timeout, which is how a successful build ended up red.
+
+Nobody has to start that build. `develop` and `staging` poll the repository every
+five minutes and build any new commit; a GitHub webhook to
+`https://jenkins.oanstaging.com/github-webhook/` starts it at once, with polling
+as the fallback. The trigger is registered by a build that reads the
+Jenkinsfile, so the first build of each branch after the polling change is
+started by hand.
+
+The dev deploy is `ci/deploy-dev.sh`; the Jenkinsfile only hands it the
+credentials and the image tag. To deploy by hand, run the same script against
+any tag already in ECR, with your kubeconfig pointing at the dev cluster:
+
+```sh
+AWS_ACCOUNT_ID=<account> ./ci/deploy-dev.sh develop-42
+```
+
+Use a build-numbered tag rather than `develop`: a release already on `develop`
+renders the same manifests again, so nothing rolls. The script prints the
+kube context before it changes anything; `./ci/deploy-dev.sh` with no tag prints
+its usage, and the header lists the defaults it shares with the pipeline.
+
+| Gate | Effect |
+|---|---|
+| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy with `ci/deploy-dev.sh` |
+| `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy to the staging instance by hand |
+
+Both are set on the controller. The Staff Portal UI is
+deliberately not built here: the chart consumes it as-is from the platform base
+image, so a build of it would produce an image nothing deploys.
+
+This is a different road from `.gitlab-ci.yml`, which delegates to
+`openg2p/packaging@v1` and publishes to the shared OpenG2P registry and Helm
+catalogue. Both build the same Dockerfiles; only the destination differs.
+
+`dashboard-ui` is the one image with no chart value pointing at it — the
+analytics dashboard is still Compose-only, so nothing pulls it yet. It is
+published so it is ready ahead of the dashboard being deployed. Because Next.js
+compiles the portal origin into the client bundle at build time, set `PORTAL_URL`
+on the controller to the deployed portal origin; left unset the build warns and
+falls back to the local portal, which is wrong for a published image.
+
+### Running the pipeline locally
+
+`local/jenkins/` stands up a controller on <http://localhost:8090> wired to your
+own Docker daemon, with the `cropsown-registry` multibranch job already created:
+
+```bash
+docker compose -f local/jenkins/docker-compose.yml up -d --build
+```
+
+Two environment variables that only this controller sets opt the pipeline into
+local behaviour. Absent — which is every run on the real controller — everything
+keeps its production form.
+
+| Variable | Local | Effect |
+|---|---|---|
+| `PUSH_TO_ECR` | `false` | skips the ECR push and both deploy stages |
+| `DOCKER_NO_CACHE` | `false` | builds with cache rather than `--no-cache` |
+
+Builds run **committed** code: Jenkins clones `file:///repo`, so uncommitted
+edits — including edits to the `Jenkinsfile` itself — are invisible until you
+commit. See `local/jenkins/README.md`.
 
 ## Deploy
 
