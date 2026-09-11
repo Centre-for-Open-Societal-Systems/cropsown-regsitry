@@ -21,6 +21,7 @@ register model.
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` rolls an ECR build into the dev cluster |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -100,40 +101,32 @@ staging is a separate EC2 instance running its own RKE2 cluster, reached with
 gained by calling one namespace `crop-staging` — and the staging instance does
 not have a namespace by that name.
 
-**Merging a pull request into `staging` deploys it.** A green build rolls the
-images it just pushed into `crop` on the staging instance, under the release name
-`cropsown-stg`. The stage runs on the same agent as the build, which needs `helm`
-and `kubectl` on PATH.
+**Merging a pull request into `develop` or `staging` deploys it.** A green build
+rolls the images it just pushed into `crop` on that branch's cluster — release
+`cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
+`cropsown-stg` on the staging instance. Both deploy stages run on the same agent
+as the build, which needs `helm` and `kubectl` on PATH. Neither asks for a
+labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
+an unsatisfiable label does not fail a build — it queues until the 90-minute
+timeout, which is how a successful build ended up red.
 
-The dev deploy is still gated off, so a `develop` build ends after the ECR push
-and the images wait there for a deploy by hand. That stage runs on an agent
-labelled `vpn-deploy-agent`, which reaches the dev cluster over the VPN; no node
-currently carries that label, and an unsatisfiable label does not fail a build —
-it queues until the 90-minute timeout, which is how a successful build ends up
-red. So:
+The dev deploy is `ci/deploy-dev.sh`; the Jenkinsfile only hands it the
+credentials and the image tag. To deploy by hand, run the same script against
+any tag already in ECR, with your kubeconfig pointing at the dev cluster:
+
+```sh
+AWS_ACCOUNT_ID=<account> ./ci/deploy-dev.sh develop-42
+```
+
+Use a build-numbered tag rather than `develop`: a release already on `develop`
+renders the same manifests again, so nothing rolls. The script prints the
+kube context before it changes anything; `./ci/deploy-dev.sh` with no tag prints
+its usage, and the header lists the defaults it shares with the pipeline.
 
 | Gate | Effect |
 |---|---|
-| `DEV_DEPLOY=true` | turn on once a node labelled `vpn-deploy-agent`, with `helm` and `kubectl`, is online |
+| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy with `ci/deploy-dev.sh` |
 | `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy to the staging instance by hand |
-branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
-to `crop-staging`.
-
-A green `develop` build deploys: the dev stage runs on the same agent as the
-build and rolls the images it just pushed into the `crop` namespace, which is
-the `crop` deployments view in Rancher. That agent must carry `helm` and
-`kubectl`, and the `gen2-kubeconfig` credential must point at the cluster
-behind `rancher.openg2p.test`.
-
-The staging deploy is still gated off, and still asks for an agent labelled
-`vpn-deploy-agent` that reaches the cluster over the VPN. No node carries that
-label, and an unsatisfiable label does not fail a build — it queues until the
-90-minute timeout, which is how a successful build ends up red. So:
-
-| Gate | Effect |
-|---|---|
-| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy to `crop` by hand |
-| `STAGING_DEPLOY=true` | turn on once the staging cluster exists **and** the `staging-kubeconfig` credential is added, on a node labelled `vpn-deploy-agent` |
 
 Both are set on the controller. The Staff Portal UI is
 deliberately not built here: the chart consumes it as-is from the platform base

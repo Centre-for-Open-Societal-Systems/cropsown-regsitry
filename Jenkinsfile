@@ -222,19 +222,15 @@ pipeline {
             // and the `gen2-kubeconfig` credential must point at the cluster
             // behind rancher.openg2p.test.
             //
-            // DEV_DEPLOY gates the stage OFF by default — unlike the staging
-            // stage below, which deploys unless STAGING_DEPLOY says otherwise,
-            // because the instance behind it is provisioned and this cluster's
-            // deploy agent is not. No node currently carries the
-            // vpn-deploy-agent label, and an unsatisfiable label does not fail —
-            // it QUEUES, so the build sat at "'vpn-deploy-agent' is offline"
-            // until someone aborted it or the 90-minute timeout fired. That
-            // turned a run whose images built and pushed cleanly into a red
-            // build, and buried the deploy's real blocker under a timeout.
-            // DEV_DEPLOY is now an opt-OUT: set it to 'false' on the controller
-            // to hold a develop build at the push and deploy by hand. Local runs
-            // are already excluded by PUSH_TO_ECR=false (local/jenkins), so they
-            // need no second flag.
+            // The deploy itself is ci/deploy-dev.sh; this stage only supplies
+            // the credentials and the tag. It lives in a script so that
+            // "deploy by hand" is the same command the pipeline runs, not a
+            // helm invocation retyped from this file.
+            //
+            // DEV_DEPLOY is an opt-OUT, matching STAGING_DEPLOY: set it to
+            // 'false' on the controller to hold a develop build at the push and
+            // run ci/deploy-dev.sh by hand. Local runs are already excluded by
+            // PUSH_TO_ECR=false (local/jenkins), so they need no second flag.
             //
             // beforeAgent is kept so the conditions are evaluated before a node
             // is allocated.
@@ -249,55 +245,9 @@ pipeline {
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
-                    sh '''
-                        set -eu
-                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
-
-                        echo "=== Deploying ${RELEASE_NAME} to namespace ${NAMESPACE} ==="
-
-                        # The wrapper chart owns no templates; every manifest comes
-                        # from the pinned openg2p-registry subchart, so the
-                        # dependency must be present before install.
-                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-                        helm repo update openg2p || true
-                        helm dependency build ./${CHART_DIR}
-
-                        # NB the sanity values live UNDER the subchart alias
-                        # (registry.sanity.*), not at the top level — see
-                        # CHART_IMAGE_PATHS in .gitlab-ci.yml. Setting a top-level
-                        # `sanity.image.*` writes a key the chart never reads, so the
-                        # sanity Job would silently keep the values.yaml default tag.
-                        helm upgrade --install "${RELEASE_NAME}" ./${CHART_DIR} \
-                            --namespace "${NAMESPACE}" \
-                            --create-namespace \
-                            --timeout 10m \
-                            --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
-                            --set registry.staffApi.image.tag=${TAG} \
-                            --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
-                            --set registry.partnerApi.image.tag=${TAG} \
-                            --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryWorker.image.tag=${TAG} \
-                            --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryBeat.image.tag=${TAG} \
-                            --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
-                            --set registry.dbSeed.image.tag=${TAG} \
-                            --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
-                            --set registry.sanity.image.tag=${TAG}
-
-                        echo "=== Waiting for rollout ==="
-                        # staff-portal-api, not staff-api: the subchart sets
-                        # staffApi.nameOverride=staff-portal-api, so that is the
-                        # Deployment the chart actually creates. The old name matched
-                        # nothing, and `|| true` swallowed the error — this step
-                        # reported success without ever waiting for a rollout.
-                        kubectl rollout status "deployment/${RELEASE_NAME}-staff-portal-api" \
-                            -n "${NAMESPACE}" --timeout=120s || true
-
-                        echo "=== Deployment status ==="
-                        kubectl get pods -n "${NAMESPACE}" | grep "${RELEASE_NAME}" || true
-                    '''
+                    // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
+                    // reach the script through the environment block above.
+                    sh './ci/deploy-dev.sh "${BRANCH_NAME}-${BUILD_NUMBER}"'
                 }
             }
         }
