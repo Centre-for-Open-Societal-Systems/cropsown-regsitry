@@ -13,6 +13,9 @@
 #
 # The images must already be in ECR — this builds nothing.
 #
+# ci/deploy-staging.sh runs this same deploy under the staging release name, so a
+# change here reaches both environments.
+#
 # Usage:
 #   ./ci/deploy-dev.sh <tag>
 #   TAG=<tag> ./ci/deploy-dev.sh

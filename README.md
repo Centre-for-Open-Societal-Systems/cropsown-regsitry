@@ -21,7 +21,7 @@ register model.
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
-| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` rolls an ECR build into the dev cluster |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -105,9 +105,9 @@ not have a namespace by that name.
 rolls the images it just pushed into `crop` on that branch's cluster — release
 `cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
 `cropsown-stg` on the staging instance. Both deploy stages run on the same agent
-as the build. That agent has no `helm` or `kubectl`: `ci/deploy-dev.sh` fetches
-pinned, checksum-verified copies into `.tools/` when they are missing, while the
-staging stage still needs them on PATH. Neither asks for a
+as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
+pinned, checksum-verified copies into `.tools/` when they are missing. Neither
+stage asks for a
 labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
 an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
@@ -119,23 +119,27 @@ as the fallback. The trigger is registered by a build that reads the
 Jenkinsfile, so the first build of each branch after the polling change is
 started by hand.
 
-The dev deploy is `ci/deploy-dev.sh`; the Jenkinsfile only hands it the
-credentials and the image tag. To deploy by hand, run the same script against
-any tag already in ECR, with your kubeconfig pointing at the dev cluster:
+The deploys are `ci/deploy-dev.sh` and `ci/deploy-staging.sh`; the Jenkinsfile
+only hands them the credentials and the image tag. The staging script is the
+dev one under the `cropsown-stg` release name, so the two cannot drift. To
+deploy by hand, run the same script against any tag already in ECR, with your
+kubeconfig pointing at that environment's cluster:
 
 ```sh
 AWS_ACCOUNT_ID=<account> ./ci/deploy-dev.sh develop-42
+AWS_ACCOUNT_ID=<account> KUBECONFIG=~/.kube/staging ./ci/deploy-staging.sh staging-7
 ```
 
-Use a build-numbered tag rather than `develop`: a release already on `develop`
-renders the same manifests again, so nothing rolls. The script prints the
-kube context before it changes anything; `./ci/deploy-dev.sh` with no tag prints
-its usage, and the header lists the defaults it shares with the pipeline.
+Use a build-numbered tag rather than `develop` or `staging`: a release already on
+the branch tag renders the same manifests again, so nothing rolls. The scripts
+print the kube context before they change anything; either one with no tag
+prints its usage, and `ci/deploy-dev.sh`'s header lists the defaults it shares
+with the pipeline.
 
 | Gate | Effect |
 |---|---|
 | `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy with `ci/deploy-dev.sh` |
-| `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy to the staging instance by hand |
+| `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy with `ci/deploy-staging.sh` |
 
 Both are set on the controller. The Staff Portal UI is
 deliberately not built here: the chart consumes it as-is from the platform base
