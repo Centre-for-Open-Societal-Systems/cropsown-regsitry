@@ -110,6 +110,13 @@ labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, an
 an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
 
+Nobody has to start that build. `develop` and `staging` poll the repository every
+five minutes and build any new commit; a GitHub webhook to
+`https://jenkins.oanstaging.com/github-webhook/` starts it at once, with polling
+as the fallback. The trigger is registered by a build that reads the
+Jenkinsfile, so the first build of each branch after the polling change is
+started by hand.
+
 The dev deploy is `ci/deploy-dev.sh`; the Jenkinsfile only hands it the
 credentials and the image tag. To deploy by hand, run the same script against
 any tag already in ECR, with your kubeconfig pointing at the dev cluster:

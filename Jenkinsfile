@@ -67,6 +67,23 @@ pipeline {
         timeout(time: 90, unit: 'MINUTES')
     }
 
+    // A merged pull request builds and deploys without anyone pressing Build
+    // Now: develop and staging poll the repository and build any new commit.
+    // A GitHub webhook to https://jenkins.oanstaging.com/github-webhook/ starts
+    // the build at once; polling is what guarantees it when the webhook is
+    // missing or a delivery is dropped, and costs one `git ls-remote` per poll.
+    //
+    // Only the two branches that deploy poll. Every other branch job, and the
+    // local controller (PUSH_TO_ECR=false, local/jenkins), gets an empty spec,
+    // which registers no trigger — a commit on the laptop does not start six
+    // image builds against the local Docker daemon.
+    //
+    // A trigger is registered when a build reads this file, so the first build
+    // of a branch after this lands has to be started once by hand.
+    triggers {
+        pollSCM(['develop', 'staging'].contains(env.BRANCH_NAME) && env.PUSH_TO_ECR != 'false' ? 'H/5 * * * *' : '')
+    }
+
     stages {
         stage('Checkout') {
             steps { checkout scm }
