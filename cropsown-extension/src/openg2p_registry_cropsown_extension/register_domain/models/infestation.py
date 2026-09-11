@@ -10,48 +10,78 @@ from datetime import date
 
 from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import G2PRegister, G2PRegisterHistory
-from sqlalchemy import Boolean, Date, Integer, Numeric, String, select
+from sqlalchemy import Boolean, Date, Integer, Numeric, String, select, event, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+import datetime
 
 from ..services import G2PRegisterDomainServiceInfestation
 from .enums import GrowthStageEnum, SeverityLevelEnum
 
 
 class G2PInfestation:
-
-    land_uuid: Mapped[str] = mapped_column(String, nullable=True)
+    infestation_id: Mapped[str] = mapped_column(String, nullable=True)
     # ── Plot: each line records the land it was worked on (Gen1 puts
     # land_info_id and its attributes on the line, not the header) ───────────
     land_id: Mapped[str] = mapped_column(String, nullable=True)
-    is_land_registered: Mapped[bool] = mapped_column(Boolean, nullable=True)
-    ownership_type: Mapped[str] = mapped_column(String, nullable=True)        # Attribute lookup (OWNERSHIP_TYPE)
-    soil_fertility_type: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SOIL_FERTILITY)
-    plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
-    land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
-    unit: Mapped[str] = mapped_column(String, nullable=True)                  # LandSizeUnitEnum
-    sub_kebele: Mapped[str] = mapped_column(String, nullable=True)
     commodity: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (CROP_COMMODITY)
     growth_stage: Mapped[GrowthStageEnum] = mapped_column(String, nullable=True) # GrowthStageEnum
+    cluster_status: Mapped[str] = mapped_column(String, nullable=True)
     infestation_type: Mapped[str] = mapped_column(String, nullable=True)      # Attribute lookup (INFESTATION_TYPE)
     pest_name: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (PEST)
     weed_name: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (WEED)
     disease_name: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (CROP_DISEASE)
-    chemical_used: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (AGRO_CHEMICAL)
+    disease_type: Mapped[str] = mapped_column(String, nullable=True)
+    disease_control_method: Mapped[str] = mapped_column(String, nullable=True)
+    disease_frequency_of_application: Mapped[str] = mapped_column(String, nullable=True)
+    
+    pest_type: Mapped[str] = mapped_column(String, nullable=True)
+    pesticide_name: Mapped[str] = mapped_column(String, nullable=True)
+    pesticide_type: Mapped[str] = mapped_column(String, nullable=True)
+    pesticide_method: Mapped[str] = mapped_column(String, nullable=True)
+    pesticide_frequency: Mapped[str] = mapped_column(String, nullable=True)
+    
+    weed_type: Mapped[str] = mapped_column(String, nullable=True)
+    weed_control_method: Mapped[str] = mapped_column(String, nullable=True)
+    weedicide_name: Mapped[str] = mapped_column(String, nullable=True)
+    weedicide_type: Mapped[str] = mapped_column(String, nullable=True)
+    weedicide_frequency: Mapped[str] = mapped_column(String, nullable=True)
+    
+    fungicide_name: Mapped[str] = mapped_column(String, nullable=True)
+    fungicide_type: Mapped[str] = mapped_column(String, nullable=True)
+
+    nutrient_type: Mapped[str] = mapped_column(String, nullable=True)
+    nutrient_name: Mapped[str] = mapped_column(String, nullable=True)
+    nutrient_control_method: Mapped[str] = mapped_column(String, nullable=True)
+    nutrient_fertilizer_type: Mapped[str] = mapped_column(String, nullable=True)
+    nutrient_fertilizer_name: Mapped[str] = mapped_column(String, nullable=True)
+    nutrient_frequency_of_application: Mapped[str] = mapped_column(String, nullable=True)
+
+    shock_type: Mapped[str] = mapped_column(String, nullable=True)
+    shock_event_name: Mapped[str] = mapped_column(String, nullable=True)
+    climate_control_method: Mapped[str] = mapped_column(String, nullable=True)
+    recovery_input_type: Mapped[str] = mapped_column(String, nullable=True)
+    recovery_input_name: Mapped[str] = mapped_column(String, nullable=True)
+    climate_frequency_of_application: Mapped[str] = mapped_column(String, nullable=True)
+
     severity_level: Mapped[SeverityLevelEnum] = mapped_column(String, nullable=True) # SeverityLevelEnum
-    estimated_damage_pct: Mapped[float] = mapped_column(Numeric, nullable=True)
+    estimated_damage_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
     observation_date: Mapped[str] = mapped_column(Date, nullable=True)
     geo_tagged_photo_document_id: Mapped[str] = mapped_column(String, nullable=True)
     action_taken: Mapped[str] = mapped_column(String, nullable=True)
 
-    is_plot_not_registered: Mapped[bool] = mapped_column(Boolean, nullable=True)
     temporary_land_id: Mapped[str] = mapped_column(String, nullable=True)
     sync_id: Mapped[str] = mapped_column(String, nullable=True, index=True)
     observation_date_ec: Mapped[str] = mapped_column(String, nullable=True)
 
 
+
+
+
 # All Register classes should have the prefix G2PRegister
 class G2PRegisterInfestation(G2PRegister, G2PInfestation):
     __tablename__ = "g2p_register_infestations"
+    __table_args__ = {"extend_existing": True}
 
     def get_search_text_fields(self) -> str:
         """Return infestation incident fields used to build search_text."""
@@ -65,11 +95,13 @@ class G2PRegisterInfestation(G2PRegister, G2PInfestation):
 # All Register History classes should have the prefix G2PRegisterHistory
 class G2PRegisterHistoryInfestation(G2PRegisterHistory, G2PInfestation):
     __tablename__ = "g2p_register_history_infestations"
+    __table_args__ = {"extend_existing": True}
 
 
 # All Intake Form classes should have the prefix G2PIntakeForm
 class G2PIntakeFormInfestation(G2PIntakeForm, G2PRegister, G2PInfestation):
     __tablename__ = "g2p_intake_form_infestations"
+    __table_args__ = {"extend_existing": True}
 
     async def get_link_internal_record_id(self, session):
         from .crop_sown import G2PIntakeFormCropSown
@@ -89,3 +121,26 @@ class G2PIntakeFormInfestation(G2PIntakeForm, G2PRegister, G2PInfestation):
     def get_record_name_fields(self) -> str:
         """Return infestation incident record_name from domain service implementation."""
         return G2PRegisterDomainServiceInfestation().construct_record_name(self.to_dict())
+
+def generate_infestation_id(mapper, connection, target):
+    if not getattr(target, 'infestation_id', None):
+        current_year = datetime.date.today().year
+        prefix = f"PI/{current_year}/"
+        
+        table = target.__table__
+        stmt = select(func.max(table.c.infestation_id)).where(table.c.infestation_id.like(f"{prefix}%"))
+        
+        result = connection.execute(stmt).scalar()
+        if result:
+            try:
+                last_seq = int(result.split("/")[-1])
+                new_seq = last_seq + 1
+            except ValueError:
+                new_seq = 1
+        else:
+            new_seq = 1
+            
+        target.infestation_id = f"{prefix}{new_seq:05d}"
+
+event.listen(G2PRegisterInfestation, 'before_insert', generate_infestation_id)
+event.listen(G2PIntakeFormInfestation, 'before_insert', generate_infestation_id)

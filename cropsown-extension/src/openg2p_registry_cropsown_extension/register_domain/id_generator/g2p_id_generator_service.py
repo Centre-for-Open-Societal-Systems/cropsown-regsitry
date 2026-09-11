@@ -33,14 +33,16 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
     # rains, then irrigated and perennial cropping.
     SEASON_NUMBERS = {
         "CROP_SEASON_MEHER": 1,
+        "MEHER": 1,
         "CROP_SEASON_BELG": 2,
-        "CROP_SEASON_IRRIGATION": 3,
-        "CROP_SEASON_PERENNIAL": 4,
+        "BELG": 2,
+        "CROP_SEASON_BEGA": 3,
+        "BEGA": 3,
     }
 
     @classmethod
     def season_segment(cls, season: str | None) -> str:
-        """`CROP_SEASON_MEHER` -> `S1/`, unknown or missing -> `` (no segment)."""
+        """`CROP_SEASON_MEHER` / `MEHER` -> `S1/`, unknown or missing -> `` (no segment)."""
         number = cls.SEASON_NUMBERS.get(str(season or "").strip().upper())
         return f"S{number}/" if number else ""
 
@@ -48,7 +50,14 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
         self, g2p_register: G2PRegister, register_mnemonic: str
     ) -> IdAffix:
         mnemonic = (register_mnemonic or "").lower()
-        season = self.season_segment(getattr(g2p_register, "season", None))
+        if isinstance(g2p_register, dict):
+            season_val = g2p_register.get("production_season") or g2p_register.get("season")
+        else:
+            season_val = (
+                getattr(g2p_register, "production_season", None)
+                or getattr(g2p_register, "season", None)
+            )
+        season = self.season_segment(season_val)
         year = date.today().year
 
         prefix = self.PREFIXES.get(mnemonic)

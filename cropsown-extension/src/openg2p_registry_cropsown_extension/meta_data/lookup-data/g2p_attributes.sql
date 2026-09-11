@@ -10,6 +10,8 @@ INSERT INTO "public"."g2p_attributes" ("attribute_id","attribute_code","attribut
 ('APPROVAL_STATUS','APPROVAL_STATUS','Approval / Workflow Status','FALSE'),
 ('LAND_PREP_METHOD','LAND_PREP_METHOD','Land Preparation Method','FALSE'),
 ('WATER_SOURCE','WATER_SOURCE','Water Source','FALSE'),
+('WATER_SOURCE_METHOD','WATER_SOURCE_METHOD','Water Source Method','FALSE'),
+('WATER_SOURCE_FREQUENCY','WATER_SOURCE_FREQUENCY','Water Source Frequency','FALSE'),
 ('INFESTATION_TYPE','INFESTATION_TYPE','Infestation Type','FALSE'),
 ('CLUSTER_STATUS','CLUSTER_STATUS','Cluster Status','FALSE'),
 ('MACHINERY','MACHINERY','Machinery / Cultivation Type','FALSE'),
@@ -21,3 +23,8 @@ INSERT INTO "public"."g2p_attributes" ("attribute_id","attribute_code","attribut
 ('ZONE','ZONE','Zone','TRUE'),
 ('WOREDA','WOREDA','Woreda','TRUE'),
 ('KEBELE','KEBELE','Kebele','TRUE');
+
+
+-- Seed Variety catalogue (static snapshot from catalogue-service, release ETH-catalogue-v9)
+INSERT INTO "public"."g2p_attributes" ("attribute_id","attribute_code","attribute_display","is_hierarchical") VALUES
+('SEED_VARIETY','SEED_VARIETY','Seed Variety','FALSE');

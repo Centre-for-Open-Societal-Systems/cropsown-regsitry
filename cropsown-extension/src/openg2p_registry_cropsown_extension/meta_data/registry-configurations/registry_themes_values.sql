@@ -21,7 +21,7 @@ INSERT INTO "public"."registry_theme_values" ("theme_value_id","theme_id","attri
 ('a3396a7c-1c13-52fa-b136-741049885405','9d109f28-ab6a-5617-bf27-649b0f92aa5a','primary_color_2','#91AC34'),
 ('8e351fc9-0ad8-5772-8a22-940d0bff0d88','9d109f28-ab6a-5617-bf27-649b0f92aa5a','secondary_color_1','#EEF2E1'),
 ('c6b7a11a-0b99-5938-81fc-85d11c1cb0a3','9d109f28-ab6a-5617-bf27-649b0f92aa5a','secondary_color_2','#FFDB00'),
-('80e6df41-9407-5fcc-b2f6-62c0e8f30faa','9d109f28-ab6a-5617-bf27-649b0f92aa5a','secondary_color_3','#000000'),
+('80e6df41-9407-5fcc-b2f6-62c0e8f30faa','9d109f28-ab6a-5617-bf27-649b0f92aa5a','secondary_color_3','#A1A1A1'),
 ('670bf2f9-146a-5925-a12b-395de462b484','b6df9c20-df62-549c-8147-2f872c4fced0','font_family',''),
 ('19fc7410-c5f0-51ff-bc8a-8d2c53aec1da','b6df9c20-df62-549c-8147-2f872c4fced0','font_url',''),
 ('6cf537e1-75b7-588a-b0bb-54e019d8d6b3','b6df9c20-df62-549c-8147-2f872c4fced0','neutral_color_1','#000000'),

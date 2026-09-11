@@ -18,10 +18,11 @@ from .register_domain.models import (
     G2PRegisterHarvest, G2PRegisterHistoryHarvest,
     G2PRegisterInfestation, G2PRegisterHistoryInfestation,
     G2PRegisterCluster, G2PRegisterHistoryCluster,
+    G2PRegisterCultivationCluster, G2PRegisterHistoryCultivationCluster,
     G2PIntakeFormCropSown,
     G2PIntakeFormPlanning, G2PIntakeFormCultivation, G2PIntakeFormSowing,
     G2PIntakeFormProduction, G2PIntakeFormHarvest, G2PIntakeFormInfestation,
-    G2PIntakeFormCluster,
+    G2PIntakeFormCluster, G2PIntakeFormCultivationCluster,
 )
 from .register_domain.factory import G2PRegisterDomainFactory
 from .register_domain.services import (
@@ -81,5 +82,9 @@ class Initializer(BaseInitializer):
             await G2PRegisterCluster.create_migrate()
             await G2PRegisterHistoryCluster.create_migrate()
             await G2PIntakeFormCluster.create_migrate()
+
+            await G2PRegisterCultivationCluster.create_migrate()
+            await G2PRegisterHistoryCultivationCluster.create_migrate()
+            await G2PIntakeFormCultivationCluster.create_migrate()
 
         asyncio.run(migrate())

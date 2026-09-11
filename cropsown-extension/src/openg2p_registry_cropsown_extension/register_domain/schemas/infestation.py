@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 
 from openg2p_registry_core.schemas import (
     G2PRegisterBaseSchema,
@@ -11,31 +11,51 @@ from ..models.enums import GrowthStageEnum, SeverityLevelEnum
 
 class G2PSchemaInfestation:
 
-    is_plot_not_registered: Optional[bool] = None
+    infestation_id: Optional[str] = None
     temporary_land_id: Optional[str] = None
     sync_id: Optional[str] = None
     observation_date_ec: Optional[str] = None
-    land_uuid: Optional[str] = None
     land_id: Optional[str] = None
-    is_land_registered: Optional[bool] = None
-    ownership_type: Optional[str] = None
-    soil_fertility_type: Optional[str] = None
-    plot_category: Optional[str] = None
-    land_area: Optional[float] = None
-    unit: Optional[str] = None
-    sub_kebele: Optional[str] = None
     commodity: Optional[str] = None
     growth_stage: Optional[GrowthStageEnum] = None
+    cluster_status: Optional[str] = None
     infestation_type: Optional[str] = None
     pest_name: Optional[str] = None
     weed_name: Optional[str] = None
     disease_name: Optional[str] = None
-    chemical_used: Optional[str] = None
+    disease_type: Optional[str] = None
+    disease_control_method: Optional[str] = None
+    disease_frequency_of_application: Optional[str] = None
+    pest_type: Optional[str] = None
+    pesticide_name: Optional[str] = None
+    pesticide_type: Optional[str] = None
+    pesticide_method: Optional[str] = None
+    pesticide_frequency: Optional[str] = None
+    weed_type: Optional[str] = None
+    weed_control_method: Optional[str] = None
+    weedicide_name: Optional[str] = None
+    weedicide_type: Optional[str] = None
+    weedicide_frequency: Optional[str] = None
+    fungicide_name: Optional[str] = None
+    fungicide_type: Optional[str] = None
+    nutrient_type: Optional[str] = None
+    nutrient_name: Optional[str] = None
+    nutrient_control_method: Optional[str] = None
+    nutrient_fertilizer_type: Optional[str] = None
+    nutrient_fertilizer_name: Optional[str] = None
+    nutrient_frequency_of_application: Optional[str] = None
+    shock_type: Optional[str] = None
+    shock_event_name: Optional[str] = None
+    climate_control_method: Optional[str] = None
+    recovery_input_type: Optional[str] = None
+    recovery_input_name: Optional[str] = None
+    climate_frequency_of_application: Optional[str] = None
     severity_level: Optional[SeverityLevelEnum] = None
-    estimated_damage_pct: Optional[float] = None
+    estimated_damage_pct: Optional[str] = None
     observation_date: Optional[date] = None
     geo_tagged_photo_document_id: Optional[str] = None
     action_taken: Optional[str] = None
+
 
 
 class G2PRegisterSchemaInfestation(G2PRegisterBaseSchema, G2PSchemaInfestation):
@@ -46,7 +66,7 @@ class G2PRegisterSchemaInfestation(G2PRegisterBaseSchema, G2PSchemaInfestation):
     """
 
 
-class G2PRegisterHistorySchemaInfestation(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaInfestation(G2PRegisterHistorySchema, G2PSchemaInfestation):
     """
     Schema for Infestation Incident history.
     Inherits fields from G2PRegisterHistorySchema.

@@ -16,6 +16,8 @@ where the farmer is: the administrative address (region / zone / woreda /
 kebele) and a GPS reading.
 """
 
+from typing import Optional
+
 from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import (
     G2PRegister, G2PRegisterHistory, G2PGeo, G2PGeoHistory
@@ -24,7 +26,6 @@ from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..services import G2PRegisterDomainServiceCropSown
-from .enums import EditStateEnum, LifecycleStageEnum, RejectedAtStageEnum, StageStateEnum
 
 
 class G2PCropSown:
@@ -34,8 +35,9 @@ class G2PCropSown:
     farmer_id: Mapped[str] = mapped_column(String, nullable=True)
     fayda_fan_id: Mapped[str] = mapped_column(String, nullable=True)
     farmer_name: Mapped[str] = mapped_column(String, nullable=True)
-    farmer_odk_ack_id: Mapped[str] = mapped_column(String, nullable=True)
-
+    land_id: Mapped[str] = mapped_column(String, nullable=True)
+    # farmer_photo_upload: Mapped[str] = mapped_column(String, nullable=True)
+    record_image_document_id: Mapped[str] = mapped_column(String, nullable=True)
     # ── Address: the admin hierarchy, from the master-data catalog ────────────
     region: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (REGION)
     zone: Mapped[str] = mapped_column(String, nullable=True)                  # Attribute lookup (ZONE)
@@ -56,33 +58,22 @@ class G2PCropSown:
 
     # ── Record lifecycle & field staff ────────────────────────────────────────
     status: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (APPROVAL_STATUS)
-    production_year: Mapped[str] = mapped_column(String, nullable=True)
+    crop_year: Mapped[str] = mapped_column(String, nullable=True)
     # A registration covers one cropping season, and the season is part of the
     # functional id (REG/S1/2026/00001), so it has to live on the root record —
     # the id is minted before any crop line exists to derive it from.
-    season: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (CROP_SEASON)
-    lifecycle_stage: Mapped[LifecycleStageEnum] = mapped_column(String, nullable=True)  # LifecycleStageEnum
+    production_season: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (CROP_SEASON)
+    lifecycle_stage: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # ── Per-stage approval state, as the Odoo registry tracks it ─────────────
-    planning_state: Mapped[StageStateEnum] = mapped_column(String, nullable=True)
-    cultivation_state: Mapped[StageStateEnum] = mapped_column(String, nullable=True)
-    sowing_state: Mapped[StageStateEnum] = mapped_column(String, nullable=True)
-    harvesting_state: Mapped[StageStateEnum] = mapped_column(String, nullable=True)
-
-    # ── Rejection tracking and edit locking ─────────────────────────────────
+    # ── Rejection tracking ──────────────────────────────────────────────────
     rejection_reason: Mapped[str] = mapped_column(Text, nullable=True)
-    rejected_at_stage: Mapped[RejectedAtStageEnum] = mapped_column(String, nullable=True)
-    edit_state: Mapped[EditStateEnum] = mapped_column(String, nullable=True)
     edit_count: Mapped[int] = mapped_column(Integer, nullable=True)
-    surveyor_name: Mapped[str] = mapped_column(String, nullable=True)
-    surveyor_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
-    supervisor_name: Mapped[str] = mapped_column(String, nullable=True)
-    supervisor_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
 
 
 # All Register classes should have the prefix G2PRegister
 class G2PRegisterCropSown(G2PRegister, G2PGeo, G2PCropSown):
     __tablename__ = "g2p_register_crop_sowns"
+    __table_args__ = {"extend_existing": True}
 
     def get_search_text_fields(self) -> str:
         """Return crop sown fields used to build search_text."""
@@ -96,11 +87,13 @@ class G2PRegisterCropSown(G2PRegister, G2PGeo, G2PCropSown):
 # All Register History classes should have the prefix G2PRegisterHistory
 class G2PRegisterHistoryCropSown(G2PRegisterHistory, G2PGeoHistory, G2PCropSown):
     __tablename__ = "g2p_register_history_crop_sowns"
+    __table_args__ = {"extend_existing": True}
 
 
 # All Intake Form classes should have the prefix G2PIntakeForm
 class G2PIntakeFormCropSown(G2PIntakeForm, G2PRegister, G2PGeo, G2PCropSown):
     __tablename__ = "g2p_intake_form_crop_sowns"
+    __table_args__ = {"extend_existing": True}
 
     def get_search_text_fields(self) -> str:
         """Return crop sown fields used to build search_text."""

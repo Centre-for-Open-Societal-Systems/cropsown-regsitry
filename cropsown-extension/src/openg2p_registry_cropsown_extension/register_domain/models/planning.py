@@ -12,24 +12,26 @@ from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import G2PRegister, G2PRegisterHistory
 from sqlalchemy import Boolean, Date, Integer, Numeric, String, select
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
+from typing import Any
 
 from ..services import G2PRegisterDomainServicePlanning
 from .enums import CroppingSystemEnum, SeedClassEnum, SeedSourceEnum
 
 
 class G2PPlanning:
-
-    land_uuid: Mapped[str] = mapped_column(String, nullable=True)
     # ── Plot: each line records the land it was worked on (Gen1 puts
     # land_info_id and its attributes on the line, not the header) ───────────
     land_id: Mapped[str] = mapped_column(String, nullable=True)
-    is_land_registered: Mapped[bool] = mapped_column(Boolean, nullable=True)
     ownership_type: Mapped[str] = mapped_column(String, nullable=True)        # Attribute lookup (OWNERSHIP_TYPE)
     soil_fertility_type: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SOIL_FERTILITY)
     plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
-    unit: Mapped[str] = mapped_column(String, nullable=True)                  # LandSizeUnitEnum
-    sub_kebele: Mapped[str] = mapped_column(String, nullable=True)
+    region: Mapped[str] = mapped_column(String, nullable=True)
+    zone: Mapped[str] = mapped_column(String, nullable=True)
+    woreda: Mapped[str] = mapped_column(String, nullable=True)
+    kebele: Mapped[str] = mapped_column(String, nullable=True)
+    gps_coordinate: Mapped[str] = mapped_column(String, nullable=True)
     season: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (CROP_SEASON)
     commodity: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (CROP_COMMODITY)
     crop_variety: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (CROP_VARIETY)
@@ -44,13 +46,15 @@ class G2PPlanning:
     expected_yield: Mapped[float] = mapped_column(Numeric, nullable=True)
     seed_class: Mapped[SeedClassEnum] = mapped_column(String, nullable=True)  # SeedClassEnum
     seed_source: Mapped[SeedSourceEnum] = mapped_column(String, nullable=True) # SeedSourceEnum
-    seed_variety: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SEED_VARIETY)
+    seed_variety: Mapped[str] = mapped_column(String, nullable=True)
     planned_seed_qty: Mapped[float] = mapped_column(Numeric, nullable=True)
     planned_fertilizer_type: Mapped[str] = mapped_column(String, nullable=True) # Attribute lookup (FERTILIZER_TYPE)
     planned_fertilizer_qty: Mapped[float] = mapped_column(Numeric, nullable=True)
     planned_labor: Mapped[int] = mapped_column(Integer, nullable=True)
     water_source: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (WATER_SOURCE)
-    cluster_status: Mapped[str] = mapped_column(String, nullable=True)        # Attribute lookup (CLUSTER_STATUS)
+    water_source_method: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (WATER_SOURCE_METHOD)
+    water_source_frequency: Mapped[str] = mapped_column(String, nullable=True) # Attribute lookup (WATER_SOURCE_FREQUENCY)
+   
 
     is_plot_not_registered: Mapped[bool] = mapped_column(Boolean, nullable=True)
     temporary_land_id: Mapped[str] = mapped_column(String, nullable=True)
@@ -64,13 +68,19 @@ class G2PPlanning:
     end_month: Mapped[int] = mapped_column(Integer, nullable=True)
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
     planned_date_ec: Mapped[str] = mapped_column(String, nullable=True)
-    planned_fertilizer_sack: Mapped[float] = mapped_column(Numeric, nullable=True)
-    has_cluster_farming: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
+    cluster_details: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+
+
+    da_name: Mapped[str] = mapped_column(String, nullable=True)
+    da_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
+    supervisor_name: Mapped[str] = mapped_column(String, nullable=True)
+    supervisor_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
 
 # All Register classes should have the prefix G2PRegister
 class G2PRegisterPlanning(G2PRegister, G2PPlanning):
     __tablename__ = "g2p_register_plannings"
+    __table_args__ = {"extend_existing": True}
 
     def get_search_text_fields(self) -> str:
         """Return crop planning fields used to build search_text."""
@@ -84,11 +94,13 @@ class G2PRegisterPlanning(G2PRegister, G2PPlanning):
 # All Register History classes should have the prefix G2PRegisterHistory
 class G2PRegisterHistoryPlanning(G2PRegisterHistory, G2PPlanning):
     __tablename__ = "g2p_register_history_plannings"
+    __table_args__ = {"extend_existing": True}
 
 
 # All Intake Form classes should have the prefix G2PIntakeForm
 class G2PIntakeFormPlanning(G2PIntakeForm, G2PRegister, G2PPlanning):
     __tablename__ = "g2p_intake_form_plannings"
+    __table_args__ = {"extend_existing": True}
 
     async def get_link_internal_record_id(self, session):
         from .crop_sown import G2PIntakeFormCropSown
