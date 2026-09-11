@@ -41,6 +41,15 @@
 #
 # Requires: helm and kubectl, or — on Linux — curl, tar and sha256sum to fetch
 # them.
+#
+# Exit status:
+#   0  deployed
+#   2  usage
+#   3  the API server could not be reached over the network — nothing was
+#      touched. The Jenkinsfile turns this one into an UNSTABLE build rather
+#      than a failed one: the images built and pushed, and what is missing is a
+#      route from the agent to the cluster, not a fix to the code.
+#   1  anything else — a refused login, a bad chart, a helm error
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -149,11 +158,21 @@ echo "images:   ${ECR_REGISTRY}/${ECR_BASE}/*:${TAG}"
 # that API server answers only over the openg2p-Gen2 WireGuard VPN.
 server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)"
 echo "server:   ${server:-(none in KUBECONFIG)}"
+# Before the connect check: with no server, kubectl falls back to localhost:8080
+# and reports a refused connection — which would pass for a network problem.
+[ -n "$server" ] || die "KUBECONFIG names no cluster (KUBECONFIG=${KUBECONFIG:-unset})"
 if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; then
-  die "the Kubernetes API at ${server:-<none>} did not answer from $(hostname): ${err}
-  A timeout here means this machine has no route to the cluster. The dev cluster
-  is reachable only over the openg2p-Gen2 WireGuard VPN; put the agent on it with
-  ci/setup-agent-vpn.sh (see its header)."
+  # Only a failure to CONNECT gets exit 3. An API server that answers and
+  # refuses (Unauthorized, a bad certificate) is a broken credential, which is
+  # a real failure and keeps exit 1.
+  if grep -Eqi 'i/o timeout|deadline exceeded|Client\.Timeout|connection refused|was refused|no route to host|network is unreachable|no such host' <<<"$err"; then
+    echo "ERROR: cannot reach the Kubernetes API at ${server:-<none>} from $(hostname): ${err}" >&2
+    echo "  Nothing was deployed; the images are in ECR under :${TAG}. The dev cluster" >&2
+    echo "  is reachable only over the openg2p-Gen2 WireGuard VPN — put the agent on it" >&2
+    echo "  with ci/setup-agent-vpn.sh (see its header), then re-run the build." >&2
+    exit 3
+  fi
+  die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"
 fi
 
 # The wrapper chart owns no templates; every manifest comes from the pinned

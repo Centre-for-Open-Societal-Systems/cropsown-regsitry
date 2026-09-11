@@ -127,7 +127,11 @@ sudo ./ci/setup-agent-vpn.sh jenkins-agent.conf
 
 It narrows the tunnel to the API server (`10.15.0.1/32`), so CI reaches that and
 nothing else on the dev network, enables it across reboots, and checks the API
-server answers. The deploy scripts check the same before running helm.
+server answers. The deploy scripts check the same before running helm, and
+when they cannot connect the build ends **UNSTABLE** rather than failed: the
+images are in ECR, nothing was deployed, and a "built, not deployed" mail goes
+out. Any other deploy error — a rejected login, a helm failure — still fails the
+build.
 
 Nobody has to start that build. `develop` and `staging` poll the repository every
 five minutes and build any new commit; a GitHub webhook to

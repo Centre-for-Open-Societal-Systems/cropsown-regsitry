@@ -244,9 +244,11 @@ pipeline {
             // That cluster's API server (10.15.0.1:6443) is routable only over
             // the openg2p-Gen2 WireGuard VPN, so the agent must be a peer on it
             // — ci/setup-agent-vpn.sh does that, once, as root on the agent.
-            // Off the VPN the deploy dies on an i/o timeout; the script checks
-            // the API server first so it says so, rather than leaving helm to
-            // time out after the dependency steps.
+            // Off the VPN the API server times out. The script checks it before
+            // helm runs and exits 3 when it cannot connect; runDeploy (bottom of
+            // this file) turns that into a FAILED stage in an UNSTABLE build,
+            // since the images did build and push and the missing piece is a
+            // route, not code. The unstable{} post block mails it.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
@@ -273,7 +275,7 @@ pipeline {
                 ]) {
                     // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
                     // reach the script through the environment block above.
-                    sh './ci/deploy-dev.sh "${BRANCH_NAME}-${BUILD_NUMBER}"'
+                    script { runDeploy('./ci/deploy-dev.sh', 'dev') }
                 }
             }
         }
@@ -320,7 +322,7 @@ pipeline {
                     // STAGING_RELEASE and STAGING_NAMESPACE, plus the shared
                     // AWS_REGION, ECR_BASE and CHART_DIR, reach the script
                     // through the environment block above.
-                    sh './ci/deploy-staging.sh "${BRANCH_NAME}-${BUILD_NUMBER}"'
+                    script { runDeploy('./ci/deploy-staging.sh', 'staging') }
                 }
             }
         }
@@ -371,6 +373,56 @@ Jenkins
                 )
             }
         }
+        // UNSTABLE is what runDeploy leaves when the cluster could not be
+        // reached: neither success{} nor failure{} fires for it, and a deploy
+        // that silently did not happen is the one outcome that must be mailed.
+        unstable {
+            script {
+                def to = notifyList()
+                mailQuietly(
+                    to: to,
+                    subject: "⚠️ Build UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER} — built, not deployed",
+                    body: """
+Crop Sown Registry images built and were pushed to ECR, but the deploy could not
+reach the cluster, so nothing was deployed.
+
+Job:        ${env.JOB_NAME}
+Branch:     ${env.BRANCH_NAME}
+Build:      #${env.BUILD_NUMBER}
+Image tag:  ${env.BRANCH_NAME}-${env.BUILD_NUMBER}
+URL:        ${env.BUILD_URL}
+
+Console:    ${env.BUILD_URL}console
+
+The dev cluster answers only over the openg2p-Gen2 WireGuard VPN; put the agent
+on it with ci/setup-agent-vpn.sh, then re-run the build — or deploy this tag by
+hand from a machine on the VPN with ci/deploy-dev.sh.
+
+Regards,
+Jenkins
+"""
+                )
+            }
+        }
+    }
+}
+
+// Run a deploy script against this build's image tag.
+//
+// Exit 3 is the scripts' "could not reach the API server": nothing was
+// touched, the images are already in ECR, and the fix is a network route (the
+// agent on the cluster's VPN), not code. That marks the stage FAILED but leaves
+// the build UNSTABLE, so a push that succeeded does not read as a broken build.
+// Every other non-zero exit — a refused login, a helm error — still fails it.
+def runDeploy(String deployScript, String cluster) {
+    // Single-quoted tail: the shell, not Groovy, expands the tag.
+    def rc = sh(returnStatus: true, script: deployScript + ' "${BRANCH_NAME}-${BUILD_NUMBER}"')
+    if (rc == 3) {
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+            error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR (see ci/setup-agent-vpn.sh)"
+        }
+    } else if (rc != 0) {
+        error "${deployScript} failed (exit ${rc})"
     }
 }
 
