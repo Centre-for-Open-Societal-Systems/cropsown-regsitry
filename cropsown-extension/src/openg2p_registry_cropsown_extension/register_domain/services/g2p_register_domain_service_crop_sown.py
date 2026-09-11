@@ -13,7 +13,7 @@ from .domain_validation_utils import as_float, as_int, validation_error
 _logger = logging.getLogger("g2p-register-domain-service")
 
 
-_MOBILE_NUMBER_PATTERN = re.compile(r"^\+?[0-9][0-9\- ]{5,19}$")
+_MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
 
 # Farmer ids are issued by the farmer registry as FR- followed by ten digits.
 _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{10}$")

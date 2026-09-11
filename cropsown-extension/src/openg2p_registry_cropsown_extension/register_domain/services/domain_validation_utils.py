@@ -87,8 +87,13 @@ def validate_mobile_number(value, field_name: str) -> None:
     if is_blank(value):
         return
     import re
-    if not re.match(r"^\+?[0-9]+$", str(value).strip()):
-        validation_error(f"{field_name} must contain only digits, optionally starting with +")
+    # Ethiopian mobile numbers: +251 or 0 prefix, then 7/9, then 8 digits
+    # (e.g. +251911234567 or 0911234567).
+    if not re.match(r"^(\+251[79]\d{8}|0[79]\d{8})$", str(value).strip()):
+        validation_error(
+            f"{field_name} must be a valid Ethiopian mobile number "
+            f"(e.g. +251911234567 or 0911234567)"
+        )
 
 
 
