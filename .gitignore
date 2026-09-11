@@ -272,3 +272,6 @@ master-dat-service-api-responses
 # local-only dev credentials and is the documented entry point for the stack
 # (`docker compose --env-file local/.env up -d --build`).
 !local/.env
+
+# Pinned helm/kubectl that ci/deploy-dev.sh fetches when the agent has none.
+.tools/

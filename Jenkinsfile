@@ -235,9 +235,11 @@ pipeline {
             // deploy off dodged the queue but left every green develop build
             // stopping at the push, so the images sat in ECR and the crop
             // namespace never moved. The stage now runs where the rest of the
-            // pipeline already runs; that node needs helm and kubectl on PATH,
-            // and the `gen2-kubeconfig` credential must point at the cluster
-            // behind rancher.openg2p.test.
+            // pipeline already runs. That node has neither helm nor kubectl, so
+            // ci/deploy-dev.sh fetches pinned, checksummed copies into the
+            // workspace when they are missing (and uses the node's own if it
+            // ever gets them). The `gen2-kubeconfig` credential must point at
+            // the cluster behind rancher.openg2p.test.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
@@ -280,7 +282,12 @@ pipeline {
             //     until the 90-minute timeout turned a run whose images built
             //     and pushed cleanly into a red build. It runs on the same agent
             //     as the build, which reaches the staging API server through the
-            //     kubeconfig below; that agent needs helm and kubectl on PATH.
+            //     kubeconfig below.
+            //   - It runs ci/deploy-staging.sh, which is ci/deploy-dev.sh under
+            //     the staging release name. This stage used to carry its own copy
+            //     of the helm command, and the copy missed the dev deploy's fix
+            //     for the agent having no helm or kubectl — the script fetches
+            //     pinned copies — so one script now serves both.
             //   - The credential is `staging-rke2-kubeconfig`, the kubeconfig for
             //     that instance's RKE2 cluster, rather than the
             //     `staging-kubeconfig` that was never added to the controller.
@@ -303,42 +310,10 @@ pipeline {
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
-                    sh '''
-                        set -eu
-                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
-
-                        echo "=== Deploying ${STAGING_RELEASE} to namespace ${STAGING_NAMESPACE} on the staging cluster ==="
-
-                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-                        helm repo update openg2p || true
-                        helm dependency build ./${CHART_DIR}
-
-                        helm upgrade --install "${STAGING_RELEASE}" ./${CHART_DIR} \
-                            --namespace "${STAGING_NAMESPACE}" \
-                            --create-namespace \
-                            --timeout 10m \
-                            --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
-                            --set registry.staffApi.image.tag=${TAG} \
-                            --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
-                            --set registry.partnerApi.image.tag=${TAG} \
-                            --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryWorker.image.tag=${TAG} \
-                            --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryBeat.image.tag=${TAG} \
-                            --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
-                            --set registry.dbSeed.image.tag=${TAG} \
-                            --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
-                            --set registry.sanity.image.tag=${TAG}
-
-                        echo "=== Waiting for rollout ==="
-                        kubectl rollout status "deployment/${STAGING_RELEASE}-staff-portal-api" \
-                            -n "${STAGING_NAMESPACE}" --timeout=120s || true
-
-                        echo "=== Deployment status ==="
-                        kubectl get pods -n "${STAGING_NAMESPACE}" | grep "${STAGING_RELEASE}" || true
-                    '''
+                    // STAGING_RELEASE and STAGING_NAMESPACE, plus the shared
+                    // AWS_REGION, ECR_BASE and CHART_DIR, reach the script
+                    // through the environment block above.
+                    sh './ci/deploy-staging.sh "${BRANCH_NAME}-${BUILD_NUMBER}"'
                 }
             }
         }
