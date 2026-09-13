@@ -276,3 +276,7 @@ local/
 
 # JetBrains / IDE project files
 .idea/
+
+# WireGuard peer configs carry a private key. ci/setup-agent-vpn.sh reads one,
+# and the README example keeps it in the repo root — never commit it.
+/*.conf
