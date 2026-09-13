@@ -68,8 +68,8 @@ const SCOPE = `
   )
 `
 
-/** Owner-occupied land, as the ownership lookup spells it. */
-const OWNED = `s.ownership_type = 'OWNERSHIP_TYPE_OWNER'`
+/** Owner-occupied land, as the ownership value is stored on the record. */
+const OWNED = `s.ownership_type = 'OWNER'`
 
 /**
  * Area rolled up to one administrative level.
