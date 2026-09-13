@@ -52,7 +52,7 @@ pipeline {
         // at a namespace the staging instance does not use.
         STAGING_NAMESPACE = 'crop'
 
-        // The five images the chart deploys, matching the IMAGES list in
+        // The six images this pipeline publishes (the five the chart deploys, plus dashboard-ui), matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
         // root as context.
         SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
@@ -242,13 +242,20 @@ pipeline {
             // the cluster behind rancher.openg2p.test.
             //
             // That cluster's API server (10.15.0.1:6443) is routable only over
-            // the openg2p-Gen2 WireGuard VPN, so the agent must be a peer on it
-            // — ci/setup-agent-vpn.sh does that, once, as root on the agent.
-            // Off the VPN the API server times out. The script checks it before
-            // helm runs and exits 3 when it cannot connect; runDeploy (bottom of
-            // this file) turns that into a FAILED stage in an UNSTABLE build,
-            // since the images did build and push and the missing piece is a
-            // route, not code. The unstable{} post block mails it.
+            // the openg2p-Gen2 WireGuard VPN, and this agent is not on it — so
+            // every develop build pushed its images and then timed out on the
+            // API server. The agent cannot be put on the VPN (no root on it)
+            // and no in-cluster deploy node can be added, so the stage joins
+            // the VPN itself: ci/deploy-dev-via-vpn.sh starts a throwaway
+            // container on the agent's Docker daemon, brings a WireGuard tunnel
+            // up inside it from the `gen2-wireguard-conf` credential, and runs
+            // ci/deploy-dev.sh there. The agent's own network is never touched.
+            //
+            // When the tunnel does not come up or the API server does not
+            // answer, the script exits 3; runDeploy (bottom of this file) turns
+            // that into a FAILED stage in an UNSTABLE build, since the images
+            // did build and push and the missing piece is a route, not code.
+            // The unstable{} post block mails it.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
@@ -271,11 +278,12 @@ pipeline {
             steps {
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG')
+                    file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG'),
+                    file(credentialsId: 'gen2-wireguard-conf', variable: 'WG_CONF')
                 ]) {
                     // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
                     // reach the script through the environment block above.
-                    script { runDeploy('./ci/deploy-dev.sh', 'dev') }
+                    script { runDeploy('./ci/deploy-dev-via-vpn.sh', 'dev') }
                 }
             }
         }
@@ -394,9 +402,9 @@ URL:        ${env.BUILD_URL}
 
 Console:    ${env.BUILD_URL}console
 
-The dev cluster answers only over the openg2p-Gen2 WireGuard VPN; put the agent
-on it with ci/setup-agent-vpn.sh, then re-run the build — or deploy this tag by
-hand from a machine on the VPN with ci/deploy-dev.sh.
+The dev cluster answers only over the openg2p-Gen2 WireGuard VPN, which the
+deploy joins from a container using the gen2-wireguard-conf credential. Check the
+console for the tunnel's handshake, fix the peer config, then re-run the build.
 
 Regards,
 Jenkins
@@ -411,7 +419,7 @@ Jenkins
 //
 // Exit 3 is the scripts' "could not reach the API server": nothing was
 // touched, the images are already in ECR, and the fix is a network route (the
-// agent on the cluster's VPN), not code. That marks the stage FAILED but leaves
+// VPN tunnel the dev deploy opens), not code. That marks the stage FAILED but leaves
 // the build UNSTABLE, so a push that succeeded does not read as a broken build.
 // Every other non-zero exit — a refused login, a helm error — still fails it.
 def runDeploy(String deployScript, String cluster) {
@@ -419,7 +427,7 @@ def runDeploy(String deployScript, String cluster) {
     def rc = sh(returnStatus: true, script: deployScript + ' "${BRANCH_NAME}-${BUILD_NUMBER}"')
     if (rc == 3) {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-            error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR (see ci/setup-agent-vpn.sh)"
+            error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR (see ${deployScript})"
         }
     } else if (rc != 0) {
         error "${deployScript} failed (exit ${rc})"

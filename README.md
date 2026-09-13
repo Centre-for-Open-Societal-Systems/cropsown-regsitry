@@ -112,13 +112,19 @@ labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, an
 an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
 
-**The agent must be on the openg2p-Gen2 WireGuard VPN.** The dev cluster's API
-server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), is routable
-only over that VPN; off it, the dev deploy fails on `dial tcp 10.15.0.1:6443:
-i/o timeout`. Get a peer config issued for the agent by whoever runs the
-openg2p-Gen2 WireGuard server — not a copy of a person's, since two machines on
-one key knock each other off — and, once, as root on the agent (on the host, if
-Jenkins runs in a container):
+**The dev deploy joins the openg2p-Gen2 WireGuard VPN by itself.** The dev
+cluster's API server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to),
+is routable only over that VPN, and the build agent is not on it. So Deploy to
+Dev runs `ci/deploy-dev-via-vpn.sh`: it starts a throwaway container on the
+agent's Docker daemon, brings a tunnel up inside it (narrowed to
+`10.15.0.1/32`), and runs `ci/deploy-dev.sh` there. The agent's own network is
+never changed and nothing needs root on it. The one thing it needs is a Jenkins
+**Secret file** credential `gen2-wireguard-conf` holding a peer config issued
+for CI by whoever runs the openg2p-Gen2 WireGuard server — not a copy of a
+person's, since two machines on one key knock each other off.
+
+Alternatively, with root on the agent, put the whole agent on the VPN once (on
+the host, if Jenkins runs in a container):
 
 ```sh
 ./ci/setup-agent-vpn.sh jenkins-agent.conf --dry-run   # review; keys are hidden
