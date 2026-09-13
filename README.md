@@ -101,7 +101,19 @@ staging is a separate EC2 instance running its own RKE2 cluster, reached with
 gained by calling one namespace `crop-staging` — and the staging instance does
 not have a namespace by that name.
 
-**Merging a pull request into `develop` or `staging` deploys it.** A green build
+**A `develop` build stops at the ECR push unless `DEV_DEPLOY=true`.** No Jenkins
+agent is on the VPN described below, so the dev deploy is off by default and the
+build ends SUCCESS once the images are in ECR. Deploy `develop-<build>` into `crop`
+by hand from a machine on the VPN:
+
+```sh
+KUBECONFIG=<dev cluster kubeconfig from Rancher> \
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text) \
+  ./ci/deploy-dev.sh develop-<build>
+```
+
+**Merging a pull request into `staging` deploys it, and so does `develop` with
+`DEV_DEPLOY=true`.** A green build
 rolls the images it just pushed into `crop` on that branch's cluster — release
 `cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
 `cropsown-stg` on the staging instance. Both deploy stages run on the same agent
@@ -159,7 +171,7 @@ with the pipeline.
 
 | Gate | Effect |
 |---|---|
-| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy with `ci/deploy-dev.sh` |
+| `DEV_DEPLOY=true` | lets a `develop` build deploy dev. Unset (the default), the build stops at the ECR push, because no agent is on the VPN; deploy with `ci/deploy-dev.sh` from a machine that is |
 | `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy with `ci/deploy-staging.sh` |
 
 Both are set on the controller. The Staff Portal UI is

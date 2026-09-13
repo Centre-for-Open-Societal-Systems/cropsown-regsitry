@@ -52,7 +52,7 @@ pipeline {
         // at a namespace the staging instance does not use.
         STAGING_NAMESPACE = 'crop'
 
-        // The five images the chart deploys, matching the IMAGES list in
+        // The six images this pipeline publishes (the five the chart deploys, plus dashboard-ui), matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
         // root as context.
         SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
@@ -255,9 +255,14 @@ pipeline {
             // "deploy by hand" is the same command the pipeline runs, not a
             // helm invocation retyped from this file.
             //
-            // DEV_DEPLOY is an opt-OUT, matching STAGING_DEPLOY: set it to
-            // 'false' on the controller to hold a develop build at the push and
-            // run ci/deploy-dev.sh by hand. Local runs are already excluded by
+            // DEV_DEPLOY is an opt-IN, unlike STAGING_DEPLOY. No agent this
+            // controller runs is on the VPN, so an unset flag deploying meant
+            // every develop build pushed its images and then ended UNSTABLE on
+            // "context deadline exceeded" against 10.15.0.1:6443. Unset, the
+            // stage is skipped and the build ends SUCCESS at the ECR push;
+            // deploy develop-<build> by hand from a machine on the VPN with
+            // ci/deploy-dev.sh. Set DEV_DEPLOY=true on the controller once an
+            // agent can reach the cluster. Local runs are already excluded by
             // PUSH_TO_ECR=false (local/jenkins), so they need no second flag.
             //
             // beforeAgent is kept so the conditions are evaluated before a node
@@ -266,7 +271,7 @@ pipeline {
                 beforeAgent true
                 branch 'develop'
                 expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.DEV_DEPLOY != 'false' }
+                expression { env.DEV_DEPLOY == 'true' }
             }
             steps {
                 withCredentials([
