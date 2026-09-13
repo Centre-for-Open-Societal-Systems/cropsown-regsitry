@@ -52,6 +52,10 @@ pipeline {
         // at a namespace the staging instance does not use.
         STAGING_NAMESPACE = 'crop'
 
+        // The agent that runs inside the dev cluster and deploys it; see the
+        // Deploy to Dev stage and ci/k8s/dev-deploy-agent.yaml.
+        DEV_DEPLOY_AGENT = 'crop-dev-deployer'
+
         // The five images the chart deploys, matching the IMAGES list in
         // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
         // root as context.
@@ -226,29 +230,31 @@ pipeline {
         }
 
         stage('Deploy to Dev') {
-            // Runs on the SAME agent as the build rather than a labelled deploy
-            // node. The stage used to ask for `vpn-deploy-agent`, which no node
-            // carries — and an unsatisfiable label does not fail, it QUEUES, so
-            // the build sat at "'vpn-deploy-agent' is offline" until someone
-            // aborted it or the 90-minute timeout fired. That turned a run whose
-            // images built and pushed cleanly into a red build. Gating the
-            // deploy off dodged the queue but left every green develop build
-            // stopping at the push, so the images sat in ECR and the crop
-            // namespace never moved. The stage now runs where the rest of the
-            // pipeline already runs. That node has neither helm nor kubectl, so
-            // ci/deploy-dev.sh fetches pinned, checksummed copies into the
-            // workspace when they are missing (and uses the node's own if it
-            // ever gets them). The `gen2-kubeconfig` credential must point at
-            // the cluster behind rancher.openg2p.test.
+            // The deploy runs on the crop-dev-deployer agent, which lives INSIDE
+            // the dev cluster (ci/k8s/dev-deploy-agent.yaml), not on the build
+            // agent. The dev API server (10.15.0.1:6443) answers only on the
+            // openg2p-Gen2 WireGuard VPN, and the build agent — an EC2 box — is
+            // not on it: every develop build pushed its images and then timed out
+            // on the API server. Putting the agent on the VPN needed a peer
+            // config and root on that box. The in-cluster agent dials OUT to
+            // this controller instead, so no route into the dev network is
+            // needed, and it deploys as its own service account, so there is no
+            // kubeconfig credential to keep either.
             //
-            // That cluster's API server (10.15.0.1:6443) is routable only over
-            // the openg2p-Gen2 WireGuard VPN, so the agent must be a peer on it
-            // — ci/setup-agent-vpn.sh does that, once, as root on the agent.
-            // Off the VPN the API server times out. The script checks it before
-            // helm runs and exits 3 when it cannot connect; runDeploy (bottom of
-            // this file) turns that into a FAILED stage in an UNSTABLE build,
-            // since the images did build and push and the missing piece is a
-            // route, not code. The unstable{} post block mails it.
+            // The build agent stashes the chart and the scripts and the
+            // in-cluster agent deploys from them, so the deploy is exactly this
+            // commit and the pod needs no GitHub access. That agent has neither
+            // helm nor kubectl; ci/deploy-dev.sh fetches pinned, checksummed
+            // copies when they are missing.
+            //
+            // A label with no online node does not fail, it QUEUES — the old
+            // `vpn-deploy-agent` label, which no node carried, held builds until
+            // the 90-minute timeout. deployFromCluster (bottom of this file)
+            // bounds that wait: if the agent is not connected within 30 minutes
+            // the stage fails and the build ends UNSTABLE, as it does when the
+            // API server cannot be reached (deploy-dev.sh exit 3). Either way the
+            // images did build and push, the missing piece is infrastructure, not
+            // code, and the unstable{} post block mails it.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
@@ -269,14 +275,10 @@ pipeline {
                 expression { env.DEV_DEPLOY != 'false' }
             }
             steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG')
-                ]) {
-                    // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
-                    // reach the script through the environment block above.
-                    script { runDeploy('./ci/deploy-dev.sh', 'dev') }
-                }
+                stash name: 'deploy', includes: 'ci/**,helm/**'
+                // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
+                // reach the script through the environment block above.
+                script { deployFromCluster(env.DEV_DEPLOY_AGENT, './ci/deploy-dev.sh', 'dev') }
             }
         }
 
@@ -373,9 +375,10 @@ Jenkins
                 )
             }
         }
-        // UNSTABLE is what runDeploy leaves when the cluster could not be
-        // reached: neither success{} nor failure{} fires for it, and a deploy
-        // that silently did not happen is the one outcome that must be mailed.
+        // UNSTABLE is what runDeploy and deployFromCluster leave when the
+        // cluster could not be reached: neither success{} nor failure{} fires
+        // for it, and a deploy that silently did not happen is the one outcome
+        // that must be mailed.
         unstable {
             script {
                 def to = notifyList()
@@ -394,9 +397,11 @@ URL:        ${env.BUILD_URL}
 
 Console:    ${env.BUILD_URL}console
 
-The dev cluster answers only over the openg2p-Gen2 WireGuard VPN; put the agent
-on it with ci/setup-agent-vpn.sh, then re-run the build — or deploy this tag by
-hand from a machine on the VPN with ci/deploy-dev.sh.
+Dev is deployed by the crop-dev-deployer agent that runs inside the cluster
+(ci/k8s/dev-deploy-agent.yaml): check it shows as connected on the controller and
+its pod is running in the crop-deployer namespace, then re-run the build — or
+deploy this tag by hand from a machine on the openg2p-Gen2 VPN with
+ci/deploy-dev.sh.
 
 Regards,
 Jenkins
@@ -410,19 +415,52 @@ Jenkins
 // Run a deploy script against this build's image tag.
 //
 // Exit 3 is the scripts' "could not reach the API server": nothing was
-// touched, the images are already in ECR, and the fix is a network route (the
-// agent on the cluster's VPN), not code. That marks the stage FAILED but leaves
-// the build UNSTABLE, so a push that succeeded does not read as a broken build.
-// Every other non-zero exit — a refused login, a helm error — still fails it.
+// touched, the images are already in ECR, and the fix is a network route, not
+// code. That marks the stage FAILED but leaves the build UNSTABLE, so a push
+// that succeeded does not read as a broken build. Every other non-zero exit — a
+// refused login, a helm error — still fails it.
 def runDeploy(String deployScript, String cluster) {
     // Single-quoted tail: the shell, not Groovy, expands the tag.
     def rc = sh(returnStatus: true, script: deployScript + ' "${BRANCH_NAME}-${BUILD_NUMBER}"')
     if (rc == 3) {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-            error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR (see ci/setup-agent-vpn.sh)"
+            error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR"
         }
     } else if (rc != 0) {
         error "${deployScript} failed (exit ${rc})"
+    }
+}
+
+// Run a deploy on an agent inside the target cluster, from the 'deploy' stash.
+//
+// The wait for that agent is bounded: an agent that is not connected leaves the
+// build queued, not failed, and the 30 minutes also cover the deploy itself
+// (helm waits up to 10 for the chart's hook Jobs). A timeout before the agent
+// was reached is the missing-agent case and ends the build UNSTABLE, like an
+// unreachable API server; one during the deploy is a real hang and aborts it.
+def deployFromCluster(String label, String deployScript, String cluster) {
+    def started = false
+    try {
+        timeout(time: 30, unit: 'MINUTES') {
+            node(label) {
+                started = true
+                // The workspace outlives builds; clear what an earlier one left so
+                // a file this commit deleted cannot linger. .tools/ is kept, so
+                // helm and kubectl are fetched once per pod, not per build.
+                sh 'rm -rf ci helm'
+                unstash 'deploy'
+                withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
+                    runDeploy(deployScript, cluster)
+                }
+            }
+        }
+    } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+        if (started) {
+            throw e
+        }
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+            error "no '${label}' agent connected within 30 minutes — nothing deployed; images are in ECR (see ci/k8s/dev-deploy-agent.yaml)"
+        }
     }
 }
 

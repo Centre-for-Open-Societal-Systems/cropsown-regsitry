@@ -1,0 +1,157 @@
+# A Jenkins agent that runs INSIDE the dev cluster and deploys the crop namespace.
+#
+# The dev cluster's API server (10.15.0.1:6443, the address rancher.openg2p.test
+# resolves to) answers only on the openg2p-Gen2 WireGuard VPN, and the build
+# agent is an EC2 box that is not on it — so the Deploy to Dev stage could never
+# reach it. This turns the connection around. The agent below dials OUT to the
+# Jenkins controller (a WebSocket over HTTPS, like a browser), and the controller
+# hands it the deploy. Inside the cluster it talks to the API server through its
+# own service account, so no VPN, no kubeconfig and no route into the dev network
+# are needed.
+#
+# One-time setup, in this order:
+#
+#   1. On https://jenkins.oanstaging.com, Manage Jenkins > Nodes > New Node:
+#        name           crop-dev-deployer
+#        labels         crop-dev-deployer
+#        executors      1
+#        remote root    /home/jenkins/agent
+#        usage          "Only build jobs with label expressions matching this
+#                       node" — the Jenkinsfile's `agent any` would otherwise
+#                       land image builds here, where there is no docker
+#        launch method  "Launch agent by connecting it to the controller",
+#                       with "Use WebSocket" ticked
+#      Save it and copy the secret from the node's page.
+#
+#   2. From any machine that reaches the dev cluster (on the VPN, or kubectl
+#      shell in the Rancher UI):
+#        kubectl apply -f ci/k8s/dev-deploy-agent.yaml
+#        kubectl -n crop-deployer create secret generic jenkins-agent \
+#          --from-literal=secret=<secret from step 1>
+#      The Deployment waits for that Secret, then connects.
+#
+#   3. The node shows as connected on the controller. Re-run the develop build.
+#
+# The service account may manage the crop namespace and nothing else: the
+# built-in `admin` role there, plus the Istio routing the chart creates, which
+# `admin` does not cover. It cannot create namespaces, so crop is declared here
+# rather than left to helm's --create-namespace (ci/deploy-dev.sh drops that flag
+# when it runs in-cluster).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crop-deployer
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crop
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-deployer
+  namespace: crop-deployer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-deployer-admin
+  namespace: crop
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-deployer
+    namespace: crop-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-deployer-istio
+  namespace: crop
+rules:
+  - apiGroups: ["networking.istio.io", "security.istio.io"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-deployer-istio
+  namespace: crop
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-deployer
+    namespace: crop-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jenkins-deployer-istio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployer
+  namespace: crop-deployer
+spec:
+  replicas: 1
+  # The controller accepts one connection per node name; during a rolling
+  # update the new pod would be refused until the old one let go.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jenkins-deployer
+  template:
+    metadata:
+      labels:
+        app: jenkins-deployer
+    spec:
+      serviceAccountName: jenkins-deployer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          # Pinned: a moving tag would swap the remoting version under the
+          # controller unannounced. Debian-based, with the bash, curl, tar and
+          # sha256sum that ci/deploy-dev.sh needs to fetch helm and kubectl.
+          image: jenkins/inbound-agent:3391.va_37fa_a_305d6d-2-jdk21
+          env:
+            - name: JENKINS_URL
+              value: https://jenkins.oanstaging.com
+            - name: JENKINS_AGENT_NAME
+              value: crop-dev-deployer
+            - name: JENKINS_WEB_SOCKET
+              value: "true"
+            - name: JENKINS_AGENT_WORKDIR
+              value: /home/jenkins/agent
+            - name: JENKINS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-agent
+                  key: secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: workdir
+              mountPath: /home/jenkins/agent
+      volumes:
+        - name: workdir
+          emptyDir: {}

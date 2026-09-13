@@ -21,7 +21,7 @@ register model.
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
-| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster; `ci/setup-agent-vpn.sh` puts a Jenkins agent on the dev cluster's VPN |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster; `ci/k8s/dev-deploy-agent.yaml` is the Jenkins agent that runs inside the dev cluster and deploys it |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -95,7 +95,7 @@ branch-derived tags, and deploys both `develop` and `staging` to a `crop`
 namespace.
 
 The same namespace name, because the two land on different clusters. Dev goes to
-the cluster behind `rancher.openg2p.test` via the `gen2-kubeconfig` credential;
+the cluster behind `rancher.openg2p.test`, deployed from an agent inside it;
 staging is a separate EC2 instance running its own RKE2 cluster, reached with
 `staging-rke2-kubeconfig`. The kubeconfig is what separates them, so nothing is
 gained by calling one namespace `crop-staging` — and the staging instance does
@@ -104,34 +104,41 @@ not have a namespace by that name.
 **Merging a pull request into `develop` or `staging` deploys it.** A green build
 rolls the images it just pushed into `crop` on that branch's cluster — release
 `cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
-`cropsown-stg` on the staging instance. Both deploy stages run on the same agent
-as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
-pinned, checksum-verified copies into `.tools/` when they are missing. Neither
-stage asks for a
-labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
-an unsatisfiable label does not fail a build — it queues until the 90-minute
-timeout, which is how a successful build ended up red.
+`cropsown-stg` on the staging instance. The deploy agents have no `helm` or
+`kubectl`, so the deploy scripts fetch pinned, checksum-verified copies into
+`.tools/` when they are missing.
 
-**The agent must be on the openg2p-Gen2 WireGuard VPN.** The dev cluster's API
-server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), is routable
-only over that VPN; off it, the dev deploy fails on `dial tcp 10.15.0.1:6443:
-i/o timeout`. Get a peer config issued for the agent by whoever runs the
-openg2p-Gen2 WireGuard server — not a copy of a person's, since two machines on
-one key knock each other off — and, once, as root on the agent (on the host, if
-Jenkins runs in a container):
+**Dev is deployed from inside the cluster — no VPN.** The dev cluster's API
+server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), answers only
+on the openg2p-Gen2 WireGuard VPN, and the build agent is not on it. So the
+Deploy to Dev stage runs on `crop-dev-deployer`, a Jenkins agent that runs as a
+pod in the dev cluster, dials out to the controller over a WebSocket, and
+deploys `crop` as its own service account (the namespace's `admin` role plus
+Istio routing, nothing cluster-wide). The build agent stashes the chart and the
+scripts for it, so the deploy is exactly the commit that was built. Set it up
+once — the full steps are in the header of
+[`ci/k8s/dev-deploy-agent.yaml`](ci/k8s/dev-deploy-agent.yaml):
 
-```sh
-./ci/setup-agent-vpn.sh jenkins-agent.conf --dry-run   # review; keys are hidden
-sudo ./ci/setup-agent-vpn.sh jenkins-agent.conf
-```
+1. On the controller, add a permanent node `crop-dev-deployer` (label
+   `crop-dev-deployer`, one executor, used only for jobs that ask for its
+   label, launched by connecting to the controller over WebSocket).
+2. From a machine that reaches the dev cluster (on the VPN, or the Rancher
+   UI's kubectl shell):
 
-It narrows the tunnel to the API server (`10.15.0.1/32`), so CI reaches that and
-nothing else on the dev network, enables it across reboots, and checks the API
-server answers. The deploy scripts check the same before running helm, and
-when they cannot connect the build ends **UNSTABLE** rather than failed: the
-images are in ECR, nothing was deployed, and a "built, not deployed" mail goes
-out. Any other deploy error — a rejected login, a helm failure — still fails the
-build.
+   ```sh
+   kubectl apply -f ci/k8s/dev-deploy-agent.yaml
+   kubectl -n crop-deployer create secret generic jenkins-agent \
+     --from-literal=secret=<the node's secret>
+   ```
+
+The staging stage still runs on the build agent, which reaches the staging API
+server through the `staging-rke2-kubeconfig` credential.
+
+A deploy that cannot happen for want of infrastructure ends the build
+**UNSTABLE** rather than failed — the `crop-dev-deployer` agent not connecting
+within 30 minutes, or an API server the deploy script cannot reach. The images
+are in ECR, nothing was deployed, and a "built, not deployed" mail goes out. Any
+other deploy error — a rejected login, a helm failure — still fails the build.
 
 Nobody has to start that build. `develop` and `staging` poll the repository every
 five minutes and build any new commit; a GitHub webhook to

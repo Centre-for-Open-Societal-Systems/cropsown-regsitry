@@ -7,9 +7,12 @@
 # supplies the tag and the credentials; everything else defaults to what the
 # pipeline uses, so a manual run lands exactly where a pipeline run would.
 #
-# It deploys whatever cluster KUBECONFIG points at. In Jenkins that is the
-# gen2-kubeconfig credential (the cluster behind rancher.openg2p.test); by hand
-# it is yours, so the context is printed before anything is changed.
+# It deploys whatever cluster KUBECONFIG points at. By hand that is yours, so the
+# context is printed before anything is changed. With no cluster in KUBECONFIG
+# but running in a pod, it deploys the pod's own cluster as its service account:
+# that is how Jenkins reaches dev, from the crop-dev-deployer agent that
+# ci/k8s/dev-deploy-agent.yaml runs inside the cluster. (The dev API server
+# answers only on the openg2p-Gen2 VPN, which the build agent is not on.)
 #
 # The images must already be in ECR — this builds nothing.
 #
@@ -34,7 +37,7 @@
 #   NAMESPACE       default crop
 #   RELEASE_NAME    default cropsown-registry
 #   CHART_DIR       default helm/openg2p-cropsown-registry
-#   KUBECONFIG      the cluster to deploy to
+#   KUBECONFIG      the cluster to deploy to (unset in a pod: the pod's cluster)
 #   HELM_VERSION    helm to fetch when none is on PATH (default v4.2.4)
 #   KUBECTL_VERSION kubectl to fetch when none is on PATH (default v1.36.1)
 #   TOOLS_DIR       where fetched tools are kept (default <repo>/.tools)
@@ -48,7 +51,7 @@
 #   3  the API server could not be reached over the network — nothing was
 #      touched. The Jenkinsfile turns this one into an UNSTABLE build rather
 #      than a failed one: the images built and pushed, and what is missing is a
-#      route from the agent to the cluster, not a fix to the code.
+#      route to the cluster, not a fix to the code.
 #   1  anything else — a refused login, a bad chart, a helm error
 set -euo pipefail
 
@@ -149,15 +152,27 @@ echo "helm:     $(helm version --short 2>/dev/null || echo '?') ($(command -v he
 # sed, not head: head exits after one line, kubectl dies of SIGPIPE writing its
 # second, and pipefail turns that into a failure that appended a stray "?".
 echo "kubectl:  $(kubectl version --client 2>/dev/null | sed -n 1p || echo '?') ($(command -v kubectl))"
-echo "context:  $(kubectl config current-context 2>/dev/null || echo '(none)')"
+server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)"
+# No cluster in KUBECONFIG, inside a pod: kubectl and helm both fall back to the
+# pod's service account, so deploy the cluster the pod runs in.
+IN_CLUSTER=false
+if [ -z "$server" ] && [ -n "${KUBERNETES_SERVICE_HOST:-}" ] \
+   && [ -r /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+  IN_CLUSTER=true
+  server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT:-443}"
+  echo "context:  (in-cluster service account, namespace" \
+       "$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace 2>/dev/null || echo '?'))"
+else
+  echo "context:  $(kubectl config current-context 2>/dev/null || echo '(none)')"
+fi
 echo "images:   ${ECR_REGISTRY}/${ECR_BASE}/*:${TAG}"
+echo "server:   ${server:-(none in KUBECONFIG)}"
 
 # Reach the API server before helm does. helm's own failure ("kubernetes cluster
 # unreachable ... i/o timeout") only arrives after the repo and dependency steps,
 # and says nothing about why — and for dev the why is nearly always the network:
-# that API server answers only over the openg2p-Gen2 WireGuard VPN.
-server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)"
-echo "server:   ${server:-(none in KUBECONFIG)}"
+# that API server answers only inside its own network (the openg2p-Gen2 VPN).
+#
 # Before the connect check: with no server, kubectl falls back to localhost:8080
 # and reports a refused connection — which would pass for a network problem.
 [ -n "$server" ] || die "KUBECONFIG names no cluster (KUBECONFIG=${KUBECONFIG:-unset})"
@@ -168,8 +183,9 @@ if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; 
   if grep -Eqi 'i/o timeout|deadline exceeded|Client\.Timeout|connection refused|was refused|no route to host|network is unreachable|no such host' <<<"$err"; then
     echo "ERROR: cannot reach the Kubernetes API at ${server:-<none>} from $(hostname): ${err}" >&2
     echo "  Nothing was deployed; the images are in ECR under :${TAG}. The dev cluster" >&2
-    echo "  is reachable only over the openg2p-Gen2 WireGuard VPN — put the agent on it" >&2
-    echo "  with ci/setup-agent-vpn.sh (see its header), then re-run the build." >&2
+    echo "  answers only inside its own network (the openg2p-Gen2 VPN): Jenkins deploys" >&2
+    echo "  it from the crop-dev-deployer agent in the cluster (ci/k8s/dev-deploy-agent.yaml);" >&2
+    echo "  by hand, run this from a machine on the VPN." >&2
     exit 3
   fi
   die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"
@@ -199,9 +215,15 @@ set_image celeryBeat   celery
 set_image dbSeed       db-seed
 set_image sanity       sanity-tests
 
+# In-cluster, the service account may manage the namespace but not create one —
+# and helm's --create-namespace asks to create it even when it exists, which
+# that account is refused. ci/k8s/dev-deploy-agent.yaml declares it instead.
+NS_FLAGS=(--create-namespace)
+[ "$IN_CLUSTER" = false ] || NS_FLAGS=()
+
 helm upgrade --install "${RELEASE_NAME}" "./${CHART_DIR}" \
   --namespace "${NAMESPACE}" \
-  --create-namespace \
+  "${NS_FLAGS[@]}" \
   --timeout 10m \
   "${SETS[@]}"
 
