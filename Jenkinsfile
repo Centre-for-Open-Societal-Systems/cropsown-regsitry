@@ -13,6 +13,7 @@
 //   RUN_DB_SEED  (on)   run the db-seed hook Job; untick for an images-only deploy
 //   RUN_SANITY   (off)  run the sanity seed + e2e hook Jobs
 //   RUN_IAM_REGISTER (off) re-register the app in IAM (needs Keycloak reachable in-cluster)
+//   SEED_MINIO_ASSETS (off) db-seed also uploads images/templates (needs MinIO reachable in-cluster)
 //
 // Controller environment (optional):
 //   DEV_DEPLOY=false          build and push develop without deploying
@@ -36,6 +37,10 @@ pipeline {
         // retries 30 times and holds the deploy. The app is already registered.
         booleanParam(name: 'RUN_IAM_REGISTER', defaultValue: false,
             description: 'Deploy to Dev: re-run the IAM registration Job.')
+        // db-seed's image/template loaders upload to the public MinIO host, which
+        // pods cannot reach; off, db-seed loads SQL metadata and geo data only.
+        booleanParam(name: 'SEED_MINIO_ASSETS', defaultValue: false,
+            description: 'Deploy to Dev: let db-seed upload images and templates to MinIO.')
     }
 
     environment {
@@ -182,7 +187,8 @@ pipeline {
                             withEnv([
                                 "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
                                 "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}",
-                                "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}"
+                                "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}",
+                                "SEED_MINIO_ASSETS=${params.SEED_MINIO_ASSETS == null ? false : params.SEED_MINIO_ASSETS}"
                             ]) {
                                 sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }

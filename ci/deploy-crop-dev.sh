@@ -35,6 +35,7 @@
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
+#   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
 #   HELM_TIMEOUT     default 40m
 set -euo pipefail
 
@@ -54,6 +55,12 @@ RUN_SANITY="${RUN_SANITY:-false}"
 # (https://keycloak.<namespace>.openg2p.test), which pods cannot reach here, so
 # it retries 30 times and holds the deploy. The app is registered already.
 RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
+# db-seed's image and template loaders upload to MinIO at global.minioHost, the
+# PUBLIC host (minio-api.<namespace>.openg2p.test, https), which pods cannot
+# reach here either — locally the same loaders use minio:9000. The host has to
+# stay public for the APIs' browser pre-signed URLs, so db-seed skips those two
+# loaders by default and loads only SQL metadata, geo data and AWE config.
+SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-false}"
 HELM_TIMEOUT="${HELM_TIMEOUT:-40m}"
 ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
 
@@ -126,6 +133,8 @@ registry:
     image: {repository: '${ECR}/celery', tag: '${TAG}'}
   dbSeed:
     enabled: ${RUN_DB_SEED}
+    loadImages: ${SEED_MINIO_ASSETS}
+    loadTemplates: ${SEED_MINIO_ASSETS}
     image: {repository: '${ECR}/db-seed', tag: '${TAG}'}
   sanity:
     enabled: ${RUN_SANITY}
@@ -133,7 +142,7 @@ registry:
   iamRegister:
     enabled: ${RUN_IAM_REGISTER}
 EOF
-echo "hooks: db-seed=${RUN_DB_SEED}  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}"
+echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
 # Only a missing release — a first install — may go ahead without them.
