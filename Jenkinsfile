@@ -41,6 +41,13 @@ pipeline {
         // a wrong pick is obvious.
         choice(name: 'DEV_KUBECONFIG', choices: ['crop-dev-kubeconfig', 'gen2-kubeconfig', 'staging-farmer-kubeconfig'],
             description: 'Kubeconfig credential for Deploy to Dev (crop namespace).')
+
+        // db-seed is a post-upgrade hook: helm waits for it before the deploy
+        // counts as done, and on this environment it runs long. Untick to roll out
+        // the new images without re-seeding (the database keeps what earlier
+        // seeds loaded); keycloak-init still runs.
+        booleanParam(name: 'RUN_DB_SEED', defaultValue: true,
+            description: 'Run the db-seed Job during Deploy to Dev. Untick to deploy images only.')
     }
 
     environment {
@@ -77,7 +84,9 @@ pipeline {
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '30'))
-        timeout(time: 90, unit: 'MINUTES')
+        // Seven no-cache image builds plus a deploy whose db-seed hook alone can
+        // take tens of minutes; 90 cut builds off mid-seed.
+        timeout(time: 150, unit: 'MINUTES')
     }
 
     // develop and staging poll for new commits; every other branch, and the
@@ -352,8 +361,14 @@ EOF
                         # When helm fails — most often a post-upgrade hook Job such as
                         # db-seed hitting BackoffLimitExceeded — print why, from the
                         # cluster, into this log.
+                        SEED_FLAG=""
+                        if [ "${RUN_DB_SEED:-true}" = "false" ]; then
+                            echo "RUN_DB_SEED=false: deploying without the db-seed Job"
+                            SEED_FLAG="--set registry.dbSeed.enabled=false"
+                        fi
+                        echo "helm upgrade started $(date -u +%H:%M:%S) UTC (waits up to 40m for hooks)"
                         if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
-                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" --timeout 20m; then
+                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" ${SEED_FLAG} --timeout 40m; then
                             kill "$WATCHER" 2>/dev/null || true
                             for F in "$LOGDIR"/*.log; do
                                 [ -f "$F" ] || continue
