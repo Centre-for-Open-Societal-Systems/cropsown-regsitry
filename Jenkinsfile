@@ -241,8 +241,9 @@ pipeline {
             // deploys from them, so the deploy is exactly this commit. The
             // images are already in ECR, so vpn-agent2 needs no docker or aws
             // CLI; ci/deploy-dev.sh fetches pinned, checksummed helm and kubectl
-            // when the node has none. The `gen2-kubeconfig` credential must point
-            // at the dev cluster.
+            // when the node has none. The kubeconfig is `staging-farmer-kubeconfig`,
+            // the one farmer-registry's pipeline deploys its `far` namespace with
+            // from this same node: crop lives on that cluster too.
             //
             // A node that is offline does not fail a stage, it QUEUES — that is
             // how the old `vpn-deploy-agent` label held builds until the
@@ -446,7 +447,7 @@ def deployOnNode(String label, String deployScript, String cluster) {
                 unstash 'deploy'
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG')
+                    file(credentialsId: 'staging-farmer-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
                     runDeploy(deployScript, cluster)
                 }
