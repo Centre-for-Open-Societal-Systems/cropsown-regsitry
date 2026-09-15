@@ -1,21 +1,18 @@
 // Crop Sown Registry — build, publish to ECR and deploy to Kubernetes.
 //
-// Laid out like farmer-registry's Jenkinsfile, whose deploy works: build and
-// push on the build agent, stash the chart, then deploy with plain helm on the
-// `vpn-agent2` node (the one on the openg2p-Gen2 VPN) using the
-// `staging-farmer-kubeconfig` credential. The differences are cropsown's own:
-// the images and ECR path, the `crop` namespace, the openg2p-registry pin guard,
-// and the staging deploy and mails this pipeline already had.
+// Laid out like farmer-registry's Jenkinsfile: build and push on the build
+// agent, stash the chart, then deploy with plain helm on the `vpn-agent2` node,
+// keeping the live release's values and changing only the image tags. The
+// differences are cropsown's own: the images and ECR path, the `crop` namespace,
+// the openg2p-registry pin guard, and the staging deploy and mails.
 //
-// That kubeconfig signs in as system:serviceaccount:far:farmer-ci. farmer-registry
-// deploys into `far`, where that account has rights; cropsown deploys into
-// `crop`, where it has none until a cluster admin applies, once:
-//
-//   kubectl apply -f ci/k8s/crop-deploy-rbac.yaml
-//
-// Until then Deploy to Dev fails on "secrets is forbidden ... in the namespace
-// crop". The namespace is created by that manifest, not by helm: farmer-ci
-// cannot create namespaces.
+// The kubeconfig is the DEV_KUBECONFIG build parameter. farmer-registry's
+// staging-farmer-kubeconfig reaches its own cluster (10.0.1.212), where
+// far:farmer-ci has no rights in crop, so every deploy with it stopped at
+// "secrets is forbidden". crop and its commons live on the Gen2 cluster
+// (10.15.0.1), which gen2-kubeconfig points at; that is the default. Before helm
+// runs, the stage prints the server, identity and `kubectl auth can-i` answers,
+// and stops if the account cannot deploy crop (helm needs to LIST secrets).
 //
 // The Staff Portal UI is not built: the chart consumes staffUi as-is from the
 // platform base image. dashboard-ui is built and pushed but not deployed; the
@@ -27,6 +24,17 @@
 pipeline {
     agent any
 
+    parameters {
+        // Which Jenkins kubeconfig credential Deploy to Dev uses. The crop namespace
+        // (with its commons: postgres, keycloak wiring) lives on the Gen2 cluster
+        // (API 10.15.0.1:6443, reached from vpn-agent2), which gen2-kubeconfig
+        // points at. staging-farmer-kubeconfig points at farmer-registry's cluster
+        // (10.0.1.212), which has no rights in crop. The Deploy target block in
+        // the log names the server and the rights, so a wrong pick is obvious.
+        choice(name: 'DEV_KUBECONFIG', choices: ['gen2-kubeconfig', 'staging-farmer-kubeconfig'],
+            description: 'Kubeconfig credential for Deploy to Dev (crop namespace).')
+    }
+
     environment {
         AWS_REGION   = 'ap-south-1'
         ECR_BASE     = 'gen2/cropsown-registry'
@@ -34,6 +42,10 @@ pipeline {
         HELM_RELEASE   = 'cropsown-registry'
         HELM_NAMESPACE = 'crop'
         HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
+
+        // The DEV_KUBECONFIG parameter; the default covers the first build after
+        // this file lands, before Jenkins has registered the parameter.
+        DEV_KUBECONFIG = "${params.DEV_KUBECONFIG ?: 'gen2-kubeconfig'}"
 
         // Staging: its own RKE2 instance, deployed from the build agent by
         // ci/deploy-staging.sh. The subchart rejects release names over 18
@@ -168,7 +180,7 @@ pipeline {
                 unstash 'cropsown-chart'
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'staging-farmer-kubeconfig', variable: 'KUBECONFIG')
+                    file(credentialsId: env.DEV_KUBECONFIG, variable: 'KUBECONFIG')
                 ]) {
                     sh '''
                         set -eu
@@ -194,9 +206,9 @@ pipeline {
                             [ "$ANSWER" = "yes" ] || MISSING="${MISSING} '${CHECK}'"
                         done
                         if [ -n "$MISSING" ]; then
-                            echo "ERROR: this kubeconfig may not${MISSING} in namespace ${HELM_NAMESPACE} on the server above." >&2
-                            echo "  Apply ci/k8s/crop-deploy-rbac.yaml as a cluster admin on THAT cluster (the one whose" >&2
-                            echo "  API server is printed above and which has the far namespace), then re-run." >&2
+                            echo "ERROR: kubeconfig '${DEV_KUBECONFIG}' may not${MISSING} in namespace ${HELM_NAMESPACE} on the server above." >&2
+                            echo "  Either pick a credential for the cluster that holds ${HELM_NAMESPACE} (build parameter" >&2
+                            echo "  DEV_KUBECONFIG), or have that cluster's admin grant this account ci/k8s/crop-deploy-rbac.yaml." >&2
                             exit 1
                         fi
 
@@ -233,8 +245,22 @@ registry:
       tag: "${IMAGE_TAG}"
 EOF
 
+                        # Keep the release's own values (hostnames, Keycloak and IAM
+                        # wiring) and change only what this build owns, as
+                        # farmer-registry's pipeline does: the chart defaults render
+                        # placeholder *.openg2p.org hosts, so upgrading from the CI
+                        # file alone would reset the live environment to them. Only
+                        # a missing release (first install) may go ahead without.
+                        CURRENT="$(mktemp)"; CURRENT_ERR="$(mktemp)"
+                        trap 'rm -f "$VALUES" "$CURRENT" "$CURRENT_ERR"' EXIT
+                        if ! helm get values "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" -o yaml > "$CURRENT" 2> "$CURRENT_ERR"; then
+                            grep -q 'release: not found' "$CURRENT_ERR" || { cat "$CURRENT_ERR" >&2; exit 1; }
+                            echo "No ${HELM_RELEASE} release in ${HELM_NAMESPACE} yet -- installing with the chart defaults."
+                            : > "$CURRENT"
+                        fi
+
                         helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
-                            -n "${HELM_NAMESPACE}" -f "$VALUES" --timeout 20m
+                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" --timeout 20m
 
                         for D in staff-portal-api partner-api celery-worker celery-beat-producer; do
                             kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
