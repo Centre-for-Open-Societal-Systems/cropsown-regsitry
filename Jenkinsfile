@@ -176,6 +176,30 @@ pipeline {
                         VALUES="$(mktemp)"
                         trap 'rm -f "$VALUES"' EXIT
 
+                        # Preflight: name the cluster and account this credential
+                        # really uses, and stop before helm if that account cannot
+                        # deploy the namespace — so a missing or misplaced
+                        # ci/k8s/crop-deploy-rbac.yaml reads as such, with the
+                        # server to match against Rancher, not as a helm error.
+                        echo "=== Deploy target ==="
+                        echo "server:    $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+                        echo "context:   $(kubectl config current-context 2>/dev/null || echo '(none)')"
+                        echo "namespace: ${HELM_NAMESPACE}"
+                        kubectl auth whoami 2>/dev/null || true
+                        kubectl get ns far "${HELM_NAMESPACE}" 2>&1 || true
+                        MISSING=""
+                        for CHECK in "list secrets" "create secrets" "create deployments" "create jobs"; do
+                            ANSWER="$(kubectl auth can-i ${CHECK} -n "${HELM_NAMESPACE}" 2>&1 || true)"
+                            echo "can-i ${CHECK} -n ${HELM_NAMESPACE}: ${ANSWER}"
+                            [ "$ANSWER" = "yes" ] || MISSING="${MISSING} '${CHECK}'"
+                        done
+                        if [ -n "$MISSING" ]; then
+                            echo "ERROR: this kubeconfig may not${MISSING} in namespace ${HELM_NAMESPACE} on the server above." >&2
+                            echo "  Apply ci/k8s/crop-deploy-rbac.yaml as a cluster admin on THAT cluster (the one whose" >&2
+                            echo "  API server is printed above and which has the far namespace), then re-run." >&2
+                            exit 1
+                        fi
+
                         helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
                         helm repo update openg2p
                         helm dependency build "${HELM_CHART_DIR}"
