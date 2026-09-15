@@ -2,20 +2,21 @@
 //
 // Laid out like farmer-registry's Jenkinsfile, whose deploy works: build and
 // push on the build agent, stash the chart, then deploy with plain helm on the
-// `vpn-agent2` node (the one on the openg2p-Gen2 VPN) using the
-// `staging-farmer-kubeconfig` credential. The differences are cropsown's own:
-// the images and ECR path, the `crop` namespace, the openg2p-registry pin guard,
-// and the staging deploy and mails this pipeline already had.
+// `vpn-agent2` node using the `staging-farmer-kubeconfig` credential, into the
+// cluster at https://10.0.1.212:6443. The differences are cropsown's own: the
+// images and ECR path, the openg2p-registry pin guard, and the staging deploy
+// and mails this pipeline already had.
 //
-// That kubeconfig signs in as system:serviceaccount:far:farmer-ci. farmer-registry
-// deploys into `far`, where that account has rights; cropsown deploys into
-// `crop`, where it has none until a cluster admin applies, once:
+// Dev deploys into the `far` namespace, next to farmer-registry. That kubeconfig
+// signs in as system:serviceaccount:far:farmer-ci, which may deploy `far` and
+// nothing else: every deploy into `crop` failed on "secrets is forbidden", and
+// granting it `crop` (ci/k8s/crop-deploy-rbac.yaml) needs a cluster admin on
+// 10.0.1.212. The two releases do not collide: the chart names every resource,
+// hostname and registry database after the release (cropsown-registry vs
+// farmer-registry). The openg2p master-data database is shared between them.
 //
-//   kubectl apply -f ci/k8s/crop-deploy-rbac.yaml
-//
-// Until then Deploy to Dev fails on "secrets is forbidden ... in the namespace
-// crop". The namespace is created by that manifest, not by helm: farmer-ci
-// cannot create namespaces.
+// To move to a namespace of its own later: have that cluster's admin apply
+// ci/k8s/crop-deploy-rbac.yaml, then set HELM_NAMESPACE back to 'crop'.
 //
 // The Staff Portal UI is not built: the chart consumes staffUi as-is from the
 // platform base image. dashboard-ui is built and pushed but not deployed; the
@@ -32,7 +33,7 @@ pipeline {
         ECR_BASE     = 'gen2/cropsown-registry'
 
         HELM_RELEASE   = 'cropsown-registry'
-        HELM_NAMESPACE = 'crop'
+        HELM_NAMESPACE = 'far'
         HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
 
         // Staging: its own RKE2 instance, deployed from the build agent by
@@ -156,7 +157,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to Dev (crop namespace)') {
+        stage('Deploy to Dev (far namespace)') {
             when {
                 beforeAgent true
                 branch 'develop'
@@ -303,8 +304,8 @@ Branch:     ${env.BRANCH_NAME}
 Build:      #${env.BUILD_NUMBER}
 Console:    ${env.BUILD_URL}console
 
-A "secrets is forbidden ... in the namespace crop" error means the one-time
-kubectl apply -f ci/k8s/crop-deploy-rbac.yaml has not been run by a cluster admin.
+If Deploy to Dev failed at "Deploy target", the staging-farmer-kubeconfig
+account lacks rights in the namespace it names.
 
 Regards,
 Jenkins
