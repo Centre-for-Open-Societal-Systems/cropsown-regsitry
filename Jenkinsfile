@@ -47,6 +47,12 @@ pipeline {
         // this file lands, before Jenkins has registered the parameter.
         DEV_KUBECONFIG = "${params.DEV_KUBECONFIG ?: 'gen2-kubeconfig'}"
 
+        // With gen2-kubeconfig, reach the Gen2 API server on its VPC address rather
+        // than the WireGuard one in the kubeconfig (see the Deploy to Dev stage).
+        // Empty for any other credential, which is then used as-is.
+        DEV_API_SERVER      = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
+        DEV_TLS_SERVER_NAME = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? '10.15.0.1' : ''}"
+
         // Staging: its own RKE2 instance, deployed from the build agent by
         // ci/deploy-staging.sh. The subchart rejects release names over 18
         // characters, hence cropsown-stg.
@@ -188,6 +194,32 @@ pipeline {
                         VALUES="$(mktemp)"
                         trap 'rm -f "$VALUES"' EXIT
 
+                        # gen2-kubeconfig names the Gen2 API server by its WireGuard
+                        # address, 10.15.0.1, which vpn-agent2 cannot route to (every
+                        # call timed out). The same RKE2 server listens on its VPC
+                        # address, 10.0.1.166, which vpn-agent2 does reach — it deploys
+                        # 10.0.1.212 in that VPC. So dial the VPC address on a private
+                        # copy of the kubeconfig, and keep verifying the certificate
+                        # against the name it was issued for (10.15.0.1).
+                        if [ -n "${DEV_API_SERVER:-}" ]; then
+                            KCOPY="$(mktemp)"
+                            trap 'rm -f "$VALUES" "$KCOPY"' EXIT
+                            cp "$KUBECONFIG" "$KCOPY"; export KUBECONFIG="$KCOPY"
+                            CLUSTER="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}')"
+                            kubectl config set-cluster "$CLUSTER" --server="${DEV_API_SERVER}" >/dev/null
+                            [ -z "${DEV_TLS_SERVER_NAME:-}" ] || \
+                                kubectl config set-cluster "$CLUSTER" --tls-server-name="${DEV_TLS_SERVER_NAME}" >/dev/null
+                        fi
+
+                        # Fail fast on no route, instead of four can-i calls each
+                        # retrying for minutes.
+                        if ! CONN="$(kubectl get --raw /version --request-timeout=15s 2>&1)"; then
+                            echo "ERROR: cannot reach $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}') from $(hostname):" >&2
+                            echo "$CONN" | tail -3 >&2
+                            echo "  Check that vpn-agent2 can reach that address on TCP 6443 (security group / VPN)." >&2
+                            exit 1
+                        fi
+
                         # Preflight: name the cluster and account this credential
                         # really uses, and stop before helm if that account cannot
                         # deploy the namespace — so a missing or misplaced
@@ -252,7 +284,7 @@ EOF
                         # file alone would reset the live environment to them. Only
                         # a missing release (first install) may go ahead without.
                         CURRENT="$(mktemp)"; CURRENT_ERR="$(mktemp)"
-                        trap 'rm -f "$VALUES" "$CURRENT" "$CURRENT_ERR"' EXIT
+                        trap 'rm -f "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}"' EXIT
                         if ! helm get values "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" -o yaml > "$CURRENT" 2> "$CURRENT_ERR"; then
                             grep -q 'release: not found' "$CURRENT_ERR" || { cat "$CURRENT_ERR" >&2; exit 1; }
                             echo "No ${HELM_RELEASE} release in ${HELM_NAMESPACE} yet -- installing with the chart defaults."
