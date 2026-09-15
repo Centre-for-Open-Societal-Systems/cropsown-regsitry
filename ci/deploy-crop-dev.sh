@@ -222,6 +222,20 @@ say "helm upgrade finished $(date -u +%H:%M:%S) UTC"
 for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
   kubectl rollout status "deployment/${HELM_RELEASE}-${D}" "${NS[@]}" --timeout=180s
 done
+
+# ── 7. Schema drift gate ───────────────────────────────────────────────────────
+# The API pods run `migrate` on start, which now adds model columns an existing
+# table lacks (schema_sync). Check from inside the new staff API pod that every
+# model column is really in the database. A green deploy with a missing column
+# otherwise shows up days later as a blank page and a SQL error in the pod log.
+say "Schema drift check"
+if ! kubectl exec "deploy/${HELM_RELEASE}-staff-portal-api" -c staff-portal-api "${NS[@]}" -- \
+      python -m openg2p_registry_cropsown_extension.schema_sync --check; then
+  echo "ERROR: the database is missing columns the deployed models use (listed above)." >&2
+  echo "  The staff-portal-api pod log shows why migrate did not add them." >&2
+  exit 1
+fi
+
 say "Deployed ${TAG} to ${HELM_NAMESPACE}"
 kubectl get deploy "${NS[@]}" -o custom-columns=NAME:.metadata.name,READY:.status.readyReplicas,IMAGE:.spec.template.spec.containers[0].image \
   | grep -E "^NAME|^${HELM_RELEASE}-" || true
