@@ -25,13 +25,18 @@ pipeline {
     agent any
 
     parameters {
-        // Which Jenkins kubeconfig credential Deploy to Dev uses. The crop namespace
-        // (with its commons: postgres, keycloak wiring) lives on the Gen2 cluster
-        // (API 10.15.0.1:6443, reached from vpn-agent2), which gen2-kubeconfig
-        // points at. staging-farmer-kubeconfig points at farmer-registry's cluster
-        // (10.0.1.212), which has no rights in crop. The Deploy target block in
-        // the log names the server and the rights, so a wrong pick is obvious.
-        choice(name: 'DEV_KUBECONFIG', choices: ['gen2-kubeconfig', 'staging-farmer-kubeconfig'],
+        // Which Jenkins kubeconfig credential Deploy to Dev uses.
+        //   crop-dev-kubeconfig        the crop-ci service account of the RKE2
+        //                              cluster on 10.0.1.166, which holds crop and
+        //                              its commons, addressed by that VPC IP
+        //                              (vpn-agent2 reaches it). The default.
+        //   gen2-kubeconfig            names 10.15.0.1, which vpn-agent2 cannot
+        //                              route to; its CA does not sign 10.0.1.166.
+        //   staging-farmer-kubeconfig  farmer-registry's cluster (10.0.1.212),
+        //                              which has no crop.
+        // The Deploy target block in the log names the server and the rights, so
+        // a wrong pick is obvious.
+        choice(name: 'DEV_KUBECONFIG', choices: ['crop-dev-kubeconfig', 'gen2-kubeconfig', 'staging-farmer-kubeconfig'],
             description: 'Kubeconfig credential for Deploy to Dev (crop namespace).')
     }
 
@@ -45,12 +50,12 @@ pipeline {
 
         // The DEV_KUBECONFIG parameter; the default covers the first build after
         // this file lands, before Jenkins has registered the parameter.
-        DEV_KUBECONFIG = "${params.DEV_KUBECONFIG ?: 'gen2-kubeconfig'}"
+        DEV_KUBECONFIG = "${params.DEV_KUBECONFIG ?: 'crop-dev-kubeconfig'}"
 
         // With gen2-kubeconfig, reach the Gen2 API server on its VPC address rather
         // than the WireGuard one in the kubeconfig (see the Deploy to Dev stage).
         // Empty for any other credential, which is then used as-is.
-        DEV_API_SERVER = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
+        DEV_API_SERVER = "${params.DEV_KUBECONFIG == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
 
         // Staging: its own RKE2 instance, deployed from the build agent by
         // ci/deploy-staging.sh. The subchart rejects release names over 18
