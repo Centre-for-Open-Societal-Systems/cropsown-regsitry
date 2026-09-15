@@ -1,91 +1,55 @@
-// Crop Sown Registry — build, publish to ECR and deploy to Kubernetes.
+// Crop Sown Registry — build, push to ECR, deploy to Kubernetes.
 //
-// Laid out like farmer-registry's Jenkinsfile: build and push on the build
-// agent, stash the chart, then deploy with plain helm on the `vpn-agent2` node,
-// keeping the live release's values and changing only the image tags. The
-// differences are cropsown's own: the images and ECR path, the `crop` namespace,
-// the openg2p-registry pin guard, and the staging deploy and mails.
+//   develop  → build + push → Deploy to Dev     (namespace crop, RKE2 at 10.0.1.166)
+//   staging  → build + push → Deploy to Staging (staging RKE2 instance)
+//   other    → build only
 //
-// The kubeconfig is the DEV_KUBECONFIG build parameter. farmer-registry's
-// staging-farmer-kubeconfig reaches its own cluster (10.0.1.212), where
-// far:farmer-ci has no rights in crop, so every deploy with it stopped at
-// "secrets is forbidden". crop and its commons live on the Gen2 cluster
-// (10.15.0.1), which gen2-kubeconfig points at; that is the default. Before helm
-// runs, the stage prints the server, identity and `kubectl auth can-i` answers,
-// and stops if the account cannot deploy crop (helm needs to LIST secrets).
+// Deploy to Dev runs on the `vpn-agent2` node, which reaches the dev API server,
+// with the `crop-dev-kubeconfig` credential (the crop-ci service account, admin
+// in `crop`). The deploy itself is ci/deploy-crop-dev.sh, so a manual deploy is
+// the same command; see that script for what it does and why.
 //
-// The Staff Portal UI is built from docker/staff-ui (cropsown branding, six
-// register tabs, Dashboard button) and deployed as registry.staffUi, like
-// farmer-registry's; before this the crop namespace ran the plain platform
-// staff-ui image. Its Dashboard button target is baked in at build time from
-// DASHBOARD_URL (set it on the controller; unset, the Dockerfile's local default
-// applies). dashboard-ui is not deployed, so it is built and pushed only when
-// BUILD_DASHBOARD_UI=true is set on the controller.
+// Build parameters:
+//   RUN_DB_SEED  (on)   run the db-seed hook Job; untick for an images-only deploy
+//   RUN_SANITY   (off)  run the sanity seed + e2e hook Jobs
 //
-// To run this pipeline against your own machine, see local/jenkins/README.md: it
-// sets PUSH_TO_ECR=false, so the build runs and the push and deploy stages skip.
+// Controller environment (optional):
+//   DEV_DEPLOY=false          build and push develop without deploying
+//   STAGING_DEPLOY=false      same for staging
+//   PUSH_TO_ECR=false         build only (local/jenkins sets this)
+//   DOCKER_NO_CACHE=true      rebuild every image layer
+//   BUILD_DASHBOARD_UI=true   also build dashboard-ui (not deployed by the chart)
+//   DASHBOARD_URL             staff-ui's Dashboard button target (baked in at build)
+//   PORTAL_URL                dashboard-ui's portal origin (baked in at build)
 
 pipeline {
     agent any
 
     parameters {
-        // Which Jenkins kubeconfig credential Deploy to Dev uses.
-        //   crop-dev-kubeconfig        the crop-ci service account of the RKE2
-        //                              cluster on 10.0.1.166, which holds crop and
-        //                              its commons, addressed by that VPC IP
-        //                              (vpn-agent2 reaches it). The default.
-        //   gen2-kubeconfig            names 10.15.0.1, which vpn-agent2 cannot
-        //                              route to; its CA does not sign 10.0.1.166.
-        //   staging-farmer-kubeconfig  farmer-registry's cluster (10.0.1.212),
-        //                              which has no crop.
-        // The Deploy target block in the log names the server and the rights, so
-        // a wrong pick is obvious.
-        choice(name: 'DEV_KUBECONFIG', choices: ['crop-dev-kubeconfig', 'gen2-kubeconfig', 'staging-farmer-kubeconfig'],
-            description: 'Kubeconfig credential for Deploy to Dev (crop namespace).')
-
-        // db-seed is a post-upgrade hook: helm waits for it before the deploy
-        // counts as done, and on this environment it runs long. Untick to roll out
-        // the new images without re-seeding (the database keeps what earlier
-        // seeds loaded); keycloak-init still runs.
         booleanParam(name: 'RUN_DB_SEED', defaultValue: true,
-            description: 'Run the db-seed Job during Deploy to Dev. Untick to deploy images only.')
-
-        // The chart's sanity suite is four more post-upgrade hooks (pm-seed,
-        // cm-seed, data-seed, then the e2e test Job), and helm waits for each. Off
-        // by default so a deploy is not held by end-to-end tests.
+            description: 'Deploy to Dev: run the db-seed Job. Untick to deploy images only.')
         booleanParam(name: 'RUN_SANITY', defaultValue: false,
-            description: 'Run the sanity seed and e2e test Jobs during Deploy to Dev.')
+            description: 'Deploy to Dev: run the sanity seed and e2e test Jobs.')
     }
 
     environment {
-        AWS_REGION   = 'ap-south-1'
-        ECR_BASE     = 'gen2/cropsown-registry'
+        AWS_REGION     = 'ap-south-1'
+        ECR_BASE       = 'gen2/cropsown-registry'
 
+        // Dev deploy (ci/deploy-crop-dev.sh)
         HELM_RELEASE   = 'cropsown-registry'
         HELM_NAMESPACE = 'crop'
         HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
 
-        // The DEV_KUBECONFIG parameter; the default covers the first build after
-        // this file lands, before Jenkins has registered the parameter.
-        DEV_KUBECONFIG = "${params.DEV_KUBECONFIG ?: 'crop-dev-kubeconfig'}"
-
-        // With gen2-kubeconfig, reach the Gen2 API server on its VPC address rather
-        // than the WireGuard one in the kubeconfig (see the Deploy to Dev stage).
-        // Empty for any other credential, which is then used as-is.
-        DEV_API_SERVER = "${params.DEV_KUBECONFIG == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
-
-        // Staging: its own RKE2 instance, deployed from the build agent by
-        // ci/deploy-staging.sh. The subchart rejects release names over 18
-        // characters, hence cropsown-stg.
+        // Staging deploy (ci/deploy-staging.sh). The subchart rejects release
+        // names over 18 characters, hence cropsown-stg.
         STAGING_RELEASE   = 'cropsown-stg'
         STAGING_NAMESPACE = 'crop'
         NAMESPACE         = 'crop'
         RELEASE_NAME      = 'cropsown-registry'
         CHART_DIR         = 'helm/openg2p-cropsown-registry'
 
-        // dashboard-ui is not deployed by the chart, and its Next.js build is the
-        // slowest of all; it is built only when BUILD_DASHBOARD_UI=true is set on
-        // the controller (see Build & Push).
+        // Images built from docker/<name>/Dockerfile (repo root as context).
         SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
 
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
@@ -94,13 +58,15 @@ pipeline {
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '30'))
-        // Six image builds plus a deploy whose db-seed hook alone can
-        // take tens of minutes; 90 cut builds off mid-seed.
+        // Image builds plus a deploy that waits on the chart's hook Jobs.
         timeout(time: 150, unit: 'MINUTES')
+        // Two deploys at once leave the helm release locked ("another operation
+        // is in progress"); a second build waits for the first instead.
+        disableConcurrentBuilds()
     }
 
-    // develop and staging poll for new commits; every other branch, and the
-    // local controller, registers no trigger.
+    // develop and staging poll for new commits; other branches and the local
+    // controller register no trigger.
     triggers {
         pollSCM(['develop', 'staging'].contains(env.BRANCH_NAME) && env.PUSH_TO_ECR != 'false' ? 'H/5 * * * *' : '')
     }
@@ -111,18 +77,14 @@ pipeline {
         }
 
         stage('Guard: openg2p-registry pin lockstep') {
-            // Images built FROM one platform version while the chart pulls a
-            // subchart expecting another only shows up at deploy; this catches it
-            // in seconds. Plain python3: the agents have no working pip.
+            // Images FROM one platform version with a chart expecting another only
+            // fails at deploy; catch it here. Plain python3, no pip needed.
             steps {
-                sh '''
-                    set -eu
-                    python3 test/test_rp_pin_lockstep.py
-                '''
+                sh 'python3 test/test_rp_pin_lockstep.py'
             }
         }
 
-        stage('Resolve RP_VERSION') {
+        stage('Resolve version') {
             steps {
                 script {
                     env.RP_VERSION = sh(
@@ -133,7 +95,7 @@ pipeline {
                         error 'could not read ARG RP_VERSION from docker/staff-api/Dockerfile'
                     }
                     env.IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
-                    echo "openg2p-registry base version: ${env.RP_VERSION}, image tag: ${env.IMAGE_TAG}"
+                    echo "openg2p-registry ${env.RP_VERSION}, image tag ${env.IMAGE_TAG}"
                 }
             }
         }
@@ -146,43 +108,28 @@ pipeline {
                         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                         PUSH="${PUSH_TO_ECR:-true}"
 
-                        # Reuse the layer cache, but --pull so a moved base image tag is
-                        # still fetched fresh. --no-cache rebuilt every layer of all
-                        # six images on every run, minutes each; set
-                        # DOCKER_NO_CACHE=true on the controller to force that.
+                        # Reuse unchanged layers; --pull still refreshes moved base tags.
                         CACHE_FLAG="--pull"
-                        [ "${DOCKER_NO_CACHE:-false}" = "true" ] && CACHE_FLAG="--pull --no-cache"
+                        if [ "${DOCKER_NO_CACHE:-false}" = "true" ]; then CACHE_FLAG="--pull --no-cache"; fi
 
-                        # dashboard-ui bakes the portal origin into its bundle.
-                        PORTAL_ARG=""
-                        if [ -n "${PORTAL_URL:-}" ]; then
-                            PORTAL_ARG="--build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"
-                        else
-                            echo "WARNING: PORTAL_URL unset — dashboard-ui bakes in the local portal URL"
-                        fi
+                        BUILD_ARGS="--build-arg RP_VERSION=${RP_VERSION}"
+                        # Both are baked into client bundles at build time; the staff-ui
+                        # patch rejects an empty DASHBOARD_URL, so pass them only when set.
+                        if [ -n "${DASHBOARD_URL:-}" ]; then BUILD_ARGS="${BUILD_ARGS} --build-arg DASHBOARD_URL=${DASHBOARD_URL}"; fi
+                        if [ -n "${PORTAL_URL:-}" ]; then BUILD_ARGS="${BUILD_ARGS} --build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"; fi
 
-                        # staff-ui bakes the Dashboard button's target in; its patch
-                        # fails on an empty URL, so pass it only when set.
-                        if [ -n "${DASHBOARD_URL:-}" ]; then
-                            PORTAL_ARG="${PORTAL_ARG} --build-arg DASHBOARD_URL=${DASHBOARD_URL}"
-                        else
-                            echo "WARNING: DASHBOARD_URL unset — staff-ui's Dashboard button points at the local dashboard"
-                        fi
+                        BUILD_LIST="${SERVICES}"
+                        if [ "${BUILD_DASHBOARD_UI:-false}" = "true" ]; then BUILD_LIST="${BUILD_LIST} dashboard-ui"; fi
 
                         if [ "$PUSH" != "false" ]; then
                             aws ecr get-login-password --region "${AWS_REGION}" \
                                 | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
                         fi
 
-                        BUILD_LIST="${SERVICES}"
-                        [ "${BUILD_DASHBOARD_UI:-false}" = "true" ] && BUILD_LIST="${BUILD_LIST} dashboard-ui"
-
                         for SVC in ${BUILD_LIST}; do
                             IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
-                            docker build \
-                                --build-arg RP_VERSION="${RP_VERSION}" \
-                                ${PORTAL_ARG} ${CACHE_FLAG} \
+                            docker build ${BUILD_ARGS} ${CACHE_FLAG} \
                                 -f "docker/${SVC}/Dockerfile" \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
 
@@ -194,9 +141,7 @@ pipeline {
                                         --repository-name "${ECR_BASE}/${SVC}" >/dev/null
                                 docker push "${IMAGE}:${IMAGE_TAG}"
                                 docker push "${IMAGE}:${BRANCH_NAME}"
-                                # Drop only the build-numbered tag. The branch tag keeps the
-                                # image, and with it the layer cache the next build reuses;
-                                # the next build's push moves that tag on.
+                                # Keep the branch tag locally: it is the next build's cache.
                                 docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                             fi
                         done
@@ -205,259 +150,42 @@ pipeline {
             }
         }
 
-        stage('Stash chart') {
-            // Deploy runs on vpn-agent2; carry just the chart over.
-            when {
-                branch 'develop'
-                expression { env.PUSH_TO_ECR != 'false' }
-            }
-            steps {
-                stash name: 'cropsown-chart', includes: "${HELM_CHART_DIR}/**"
-            }
-        }
-
-        stage('Deploy to Dev (crop namespace)') {
+        stage('Deploy to Dev') {
             when {
                 beforeAgent true
                 branch 'develop'
                 expression { env.PUSH_TO_ECR != 'false' }
                 expression { env.DEV_DEPLOY != 'false' }
             }
-            agent { label 'vpn-agent2' }
             steps {
-                unstash 'cropsown-chart'
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: env.DEV_KUBECONFIG, variable: 'KUBECONFIG')
-                ]) {
-                    sh '''
-                        set -eu
-                        ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
-                        VALUES="$(mktemp)"
-                        trap 'rm -f "$VALUES"' EXIT
-
-                        # gen2-kubeconfig names the Gen2 API server by its WireGuard
-                        # address, 10.15.0.1, which vpn-agent2 cannot route to (every
-                        # call timed out). The same RKE2 server listens on its VPC
-                        # address, 10.0.1.166, which vpn-agent2 does reach — it deploys
-                        # 10.0.1.212 in that VPC. So dial the VPC address on a private
-                        # copy of the kubeconfig. The server's certificate lists
-                        # 10.0.1.166 among its names (not 10.15.0.1), so it verifies
-                        # as-is, with no TLS override.
-                        if [ -n "${DEV_API_SERVER:-}" ]; then
-                            KCOPY="$(mktemp)"
-                            trap 'rm -f "$VALUES" "$KCOPY"' EXIT
-                            cp "$KUBECONFIG" "$KCOPY"; export KUBECONFIG="$KCOPY"
-                            CLUSTER="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}')"
-                            kubectl config set-cluster "$CLUSTER" --server="${DEV_API_SERVER}" >/dev/null
-                        fi
-
-                        # Fail fast on a connection problem, instead of four can-i
-                        # calls each retrying for minutes.
-                        if ! CONN="$(kubectl get --raw /version --request-timeout=15s 2>&1)"; then
-                            echo "ERROR: cannot connect to $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}') from $(hostname):" >&2
-                            echo "$CONN" | tail -3 >&2
-                            echo "  A timeout means no route on TCP 6443 (security group / VPN); an x509 error means" >&2
-                            echo "  the certificate does not name that address; Unauthorized means a bad credential." >&2
-                            exit 1
-                        fi
-
-                        # Preflight: name the cluster and account this credential
-                        # really uses, and stop before helm if that account cannot
-                        # deploy the namespace — so a missing or misplaced
-                        # ci/k8s/crop-deploy-rbac.yaml reads as such, with the
-                        # server to match against Rancher, not as a helm error.
-                        echo "=== Deploy target ==="
-                        echo "server:    $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
-                        echo "context:   $(kubectl config current-context 2>/dev/null || echo '(none)')"
-                        echo "namespace: ${HELM_NAMESPACE}"
-                        kubectl auth whoami 2>/dev/null || true
-                        kubectl get ns far "${HELM_NAMESPACE}" 2>&1 || true
-                        MISSING=""
-                        for CHECK in "list secrets" "create secrets" "create deployments" "create jobs"; do
-                            ANSWER="$(kubectl auth can-i ${CHECK} -n "${HELM_NAMESPACE}" 2>&1 || true)"
-                            echo "can-i ${CHECK} -n ${HELM_NAMESPACE}: ${ANSWER}"
-                            [ "$ANSWER" = "yes" ] || MISSING="${MISSING} '${CHECK}'"
-                        done
-                        if [ -n "$MISSING" ]; then
-                            echo "ERROR: kubeconfig '${DEV_KUBECONFIG}' may not${MISSING} in namespace ${HELM_NAMESPACE} on the server above." >&2
-                            echo "  Either pick a credential for the cluster that holds ${HELM_NAMESPACE} (build parameter" >&2
-                            echo "  DEV_KUBECONFIG), or have that cluster's admin grant this account ci/k8s/crop-deploy-rbac.yaml." >&2
-                            exit 1
-                        fi
-
-                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-                        helm repo update openg2p
-                        helm dependency build "${HELM_CHART_DIR}"
-
-                        # Every image path is under the subchart alias (registry.*).
-                        #
-                        # Hosts: the dev environment's base domain is
-                        # <namespace>.openg2p.test (crop.openg2p.test). The subchart
-                        # defaults every public host to <namespace>.openg2p.org, a
-                        # placeholder, and these are set last so neither those
-                        # defaults nor stale release values win: with Keycloak,
-                        # MinIO and IAM on .org, keycloak-init, db-seed and both
-                        # APIs failed on every upgrade.
-                        cat > "$VALUES" <<EOF
-global:
-  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
-  keycloakBaseUrl: 'https://keycloak.{{ .Release.Namespace }}.openg2p.test'
-  minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.test'
-  idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
-  aweHostname: 'awe.{{ .Release.Namespace }}.openg2p.test'
-registry:
-  staffApi:
-    image:
-      repository: ${ECR}/staff-api
-      tag: "${IMAGE_TAG}"
-  staffUi:
-    iamPublicUrl: 'https://staff-iam.{{ .Release.Namespace }}.openg2p.test'
-    envVars:
-      COOKIE_DOMAIN: '.{{ .Release.Namespace }}.openg2p.test'
-    image:
-      repository: ${ECR}/staff-ui
-      tag: "${IMAGE_TAG}"
-  partnerApi:
-    image:
-      repository: ${ECR}/partner-api
-      tag: "${IMAGE_TAG}"
-  celeryWorker:
-    image:
-      repository: ${ECR}/celery
-      tag: "${IMAGE_TAG}"
-  celeryBeat:
-    image:
-      repository: ${ECR}/celery
-      tag: "${IMAGE_TAG}"
-  dbSeed:
-    image:
-      repository: ${ECR}/db-seed
-      tag: "${IMAGE_TAG}"
-  sanity:
-    image:
-      repository: ${ECR}/sanity-tests
-      tag: "${IMAGE_TAG}"
-EOF
-
-                        # Keep the release's own values (hostnames, Keycloak and IAM
-                        # wiring) and change only what this build owns, as
-                        # farmer-registry's pipeline does: the chart defaults render
-                        # placeholder *.openg2p.org hosts, so upgrading from the CI
-                        # file alone would reset the live environment to them. Only
-                        # a missing release (first install) may go ahead without.
-                        CURRENT="$(mktemp)"; CURRENT_ERR="$(mktemp)"
-                        trap 'rm -f "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}"' EXIT
-                        if ! helm get values "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" -o yaml > "$CURRENT" 2> "$CURRENT_ERR"; then
-                            grep -q 'release: not found' "$CURRENT_ERR" || { cat "$CURRENT_ERR" >&2; exit 1; }
-                            echo "No ${HELM_RELEASE} release in ${HELM_NAMESPACE} yet -- installing with the chart defaults."
-                            : > "$CURRENT"
-                        fi
-
-                        # Hook Jobs (db-seed, keycloak-init-<rev>) delete their pods
-                        # as soon as they hit the backoff limit, so their logs are
-                        # gone by the time helm reports the failure. Copy every
-                        # hook pod's logs into LOGDIR every few seconds while helm
-                        # runs, and print them if it fails.
-                        LOGDIR="$(mktemp -d)"
-                        trap 'rm -rf "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}" "$LOGDIR"' EXIT
-                        # Quiet (set +x): traced, this loop wrote ~40 lines to the build
-                        # log every 4 seconds. Only this release's own hook pods
-                        # (<job>-<5 chars>) are read, not leftover hand-made Jobs such
-                        # as db-seed-<timestamp> or db-seed-rerun.
-                        (
-                            set +x
-                            while :; do
-                                for P in $(kubectl get pods -n "${HELM_NAMESPACE}" -o name 2>/dev/null \
-                                        | grep -E "^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register)-[a-z0-9]{5}$"); do
-                                    N="${P#pod/}"
-                                    kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=300 \
-                                        > "$LOGDIR/$N.tmp" 2>&1 && mv "$LOGDIR/$N.tmp" "$LOGDIR/$N.log" || rm -f "$LOGDIR/$N.tmp"
-                                    kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --previous --tail=300 \
-                                        > "$LOGDIR/$N.prev.tmp" 2>&1 && mv "$LOGDIR/$N.prev.tmp" "$LOGDIR/$N.previous.log" || rm -f "$LOGDIR/$N.prev.tmp"
-                                done
-                                sleep 10
-                            done
-                        ) &
-                        WATCHER=$!
-
-                        # When helm fails — most often a post-upgrade hook Job such as
-                        # db-seed hitting BackoffLimitExceeded — print why, from the
-                        # cluster, into this log.
-                        SEED_FLAG=""
-                        if [ "${RUN_DB_SEED:-true}" = "false" ]; then
-                            echo "RUN_DB_SEED=false: deploying without the db-seed Job"
-                            SEED_FLAG="--set registry.dbSeed.enabled=false"
-                        fi
-                        if [ "${RUN_SANITY:-false}" != "true" ]; then
-                            echo "RUN_SANITY is off: deploying without the sanity seed and e2e Jobs"
-                            SEED_FLAG="${SEED_FLAG} --set registry.sanity.enabled=false"
-                        fi
-
-                        # Post-upgrade hooks run one at a time, in this order, and helm
-                        # prints nothing while it waits: db-seed (10), sanity pm/cm/data
-                        # seeds (11-13), iam-register (19-20), sanity e2e (25). Once a
-                        # minute, print this release's Jobs so the log shows which one
-                        # the deploy is waiting on.
-                        (
-                            set +x
-                            while :; do
-                                sleep 60
-                                echo "--- $(date -u +%H:%M:%S) UTC: ${HELM_RELEASE} Jobs ---"
-                                kubectl get jobs -n "${HELM_NAMESPACE}" --no-headers 2>/dev/null \
-                                    | grep -E "^${HELM_RELEASE}-(db-seed|sanity|iam-register|keycloak-init)" || true
-                            done
-                        ) &
-                        PROGRESS=$!
-                        trap 'kill "$PROGRESS" 2>/dev/null || true; rm -rf "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}" "$LOGDIR"' EXIT
-                        echo "helm upgrade started $(date -u +%H:%M:%S) UTC (waits up to 40m for hooks)"
-                        if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
-                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" ${SEED_FLAG} --timeout 40m; then
-                            kill "$WATCHER" "$PROGRESS" 2>/dev/null || true
-                            for F in "$LOGDIR"/*.log; do
-                                [ -f "$F" ] || continue
-                                echo "=== captured hook pod logs: $(basename "$F" .log) ===" >&2
-                                cat "$F" >&2
-                            done
-                            for D in staff-portal-api partner-api; do
-                                echo "=== ${HELM_RELEASE}-${D}: current pod logs ===" >&2
-                                kubectl logs "deploy/${HELM_RELEASE}-${D}" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=60 >&2 || true
-                            done
-                            echo "=== helm upgrade failed: release history ===" >&2
-                            helm history "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" --max 5 >&2 || true
-                            for JOB in db-seed sanity; do
-                                J="${HELM_RELEASE}-${JOB}"
-                                kubectl get job "$J" -n "${HELM_NAMESPACE}" >/dev/null 2>&1 || continue
-                                echo "=== Job ${J} ===" >&2
-                                kubectl get pods -n "${HELM_NAMESPACE}" -l job-name="$J" -o wide >&2 || true
-                                kubectl describe job "$J" -n "${HELM_NAMESPACE}" 2>&1 | tail -25 >&2 || true
-                                echo "--- ${J} logs (last pod, all containers) ---" >&2
-                                POD="$(kubectl get pods -n "${HELM_NAMESPACE}" -l job-name="$J" \
-                                    --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)"
-                                [ -z "$POD" ] || kubectl logs "$POD" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=200 >&2 || true
-                            done
-                            echo "=== recent warning events ===" >&2
-                            kubectl get events -n "${HELM_NAMESPACE}" --field-selector type=Warning \
-                                --sort-by=.lastTimestamp 2>/dev/null | tail -20 >&2 || true
-                            exit 1
-                        fi
-                        kill "$WATCHER" "$PROGRESS" 2>/dev/null || true
-
-                        for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
-                            kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
-                                -n "${HELM_NAMESPACE}" --timeout=180s
-                        done
-
-                        echo "=== Jobs ==="
-                        kubectl get jobs -n "${HELM_NAMESPACE}" || true
-                    '''
+                // The deploy node needs only the chart and the deploy script.
+                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**"
+                // Bounded: an offline vpn-agent2 would otherwise queue the build
+                // until the pipeline timeout. 60 minutes covers the wait for the
+                // node and the deploy (helm waits up to 40 for hooks).
+                timeout(time: 60, unit: 'MINUTES') {
+                    node('vpn-agent2') {
+                        sh 'rm -rf ci helm'
+                        unstash 'deploy'
+                        withCredentials([
+                            string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                            file(credentialsId: 'crop-dev-kubeconfig', variable: 'KUBECONFIG')
+                        ]) {
+                            // Defaults cover the first build after this file lands,
+                            // before Jenkins has registered the parameters.
+                            withEnv([
+                                "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
+                                "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}"
+                            ]) {
+                                sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                            }
+                        }
+                    }
                 }
             }
         }
 
         stage('Deploy to Staging') {
-            // Unchanged: the staging RKE2 instance, from the build agent, via
-            // ci/deploy-staging.sh with staging-rke2-kubeconfig.
             when {
                 beforeAgent true
                 branch 'staging'
@@ -469,7 +197,7 @@ EOF
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
-                    sh './ci/deploy-staging.sh "${BRANCH_NAME}-${BUILD_NUMBER}"'
+                    sh './ci/deploy-staging.sh "${IMAGE_TAG}"'
                 }
             }
         }
@@ -482,7 +210,7 @@ EOF
                     to: notifyList(),
                     subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
-Crop Sown Registry build and deployment succeeded.
+Crop Sown Registry build succeeded.
 
 Job:        ${env.JOB_NAME}
 Branch:     ${env.BRANCH_NAME}
@@ -510,8 +238,8 @@ Branch:     ${env.BRANCH_NAME}
 Build:      #${env.BUILD_NUMBER}
 Console:    ${env.BUILD_URL}console
 
-A "secrets is forbidden ... in the namespace crop" error means the one-time
-kubectl apply -f ci/k8s/crop-deploy-rbac.yaml has not been run by a cluster admin.
+A failed dev deploy prints its reason in the console: the "Deploy target" checks,
+then hook pod logs, API pod logs, release history and warning events.
 
 Regards,
 Jenkins
@@ -525,7 +253,7 @@ Jenkins
     }
 }
 
-// The DevOps list always, plus the commit author unless it is a noreply address.
+// The DevOps list, plus the commit author unless it is a noreply address.
 def notifyList() {
     def email = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
     def recipients = env.DEVOPS_EMAILS.split(',').collect { it.trim() }
