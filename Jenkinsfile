@@ -243,7 +243,12 @@ pipeline {
             // CLI; ci/deploy-dev.sh fetches pinned, checksummed helm and kubectl
             // when the node has none. The kubeconfig is `staging-farmer-kubeconfig`,
             // the one farmer-registry's pipeline deploys its `far` namespace with
-            // from this same node: crop lives on that cluster too.
+            // from this same node: crop lives on that cluster too. It signs in as
+            // system:serviceaccount:far:farmer-ci, which may deploy crop only
+            // after a cluster admin applies ci/k8s/crop-deploy-rbac.yaml once;
+            // without it helm fails on "secrets is forbidden ... in the namespace
+            // crop". That account cannot create namespaces, so the deploy runs
+            // with CREATE_NAMESPACE=false.
             //
             // A node that is offline does not fail a stage, it QUEUES — that is
             // how the old `vpn-deploy-agent` label held builds until the
@@ -449,7 +454,11 @@ def deployOnNode(String label, String deployScript, String cluster) {
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: 'staging-farmer-kubeconfig', variable: 'KUBECONFIG')
                 ]) {
-                    runDeploy(deployScript, cluster)
+                    // farmer-ci may not manage namespaces; crop is created by
+                    // ci/k8s/crop-deploy-rbac.yaml.
+                    withEnv(['CREATE_NAMESPACE=false']) {
+                        runDeploy(deployScript, cluster)
+                    }
                 }
             }
         }

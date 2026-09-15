@@ -36,6 +36,8 @@
 #   RELEASE_NAME    default cropsown-registry
 #   CHART_DIR       default helm/openg2p-cropsown-registry
 #   KUBECONFIG      the cluster to deploy to
+#   CREATE_NAMESPACE false to deploy without helm's --create-namespace, for an
+#                   account that may not manage namespaces (default true)
 #   HELM_VERSION    helm to fetch when none is on PATH (default v4.2.4)
 #   KUBECTL_VERSION kubectl to fetch when none is on PATH (default v1.36.1)
 #   TOOLS_DIR       where fetched tools are kept (default <repo>/.tools)
@@ -200,9 +202,15 @@ set_image celeryBeat   celery
 set_image dbSeed       db-seed
 set_image sanity       sanity-tests
 
+# An account scoped to one namespace (farmer-ci, see ci/k8s/crop-deploy-rbac.yaml)
+# cannot create or look up namespaces, so CREATE_NAMESPACE=false leaves the flag
+# off and relies on the namespace already existing.
+NS_FLAG=()
+[ "${CREATE_NAMESPACE:-true}" = "false" ] || NS_FLAG=(--create-namespace)
+
 helm upgrade --install "${RELEASE_NAME}" "./${CHART_DIR}" \
   --namespace "${NAMESPACE}" \
-  --create-namespace \
+  ${NS_FLAG[@]+"${NS_FLAG[@]}"} \
   --timeout 10m \
   "${SETS[@]}"
 
