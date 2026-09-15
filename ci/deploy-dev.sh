@@ -168,8 +168,8 @@ if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; 
   if grep -Eqi 'i/o timeout|deadline exceeded|Client\.Timeout|connection refused|was refused|no route to host|network is unreachable|no such host' <<<"$err"; then
     echo "ERROR: cannot reach the Kubernetes API at ${server:-<none>} from $(hostname): ${err}" >&2
     echo "  Nothing was deployed; the images are in ECR under :${TAG}. The dev cluster" >&2
-    echo "  is reachable only over the openg2p-Gen2 WireGuard VPN — put the agent on it" >&2
-    echo "  with ci/setup-agent-vpn.sh (see its header), then re-run the build." >&2
+    echo "  is reachable only over the openg2p-Gen2 WireGuard VPN — run this from a" >&2
+    echo "  machine on it (in Jenkins, the vpn-agent2 node), then re-run the build." >&2
     exit 3
   fi
   die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"
