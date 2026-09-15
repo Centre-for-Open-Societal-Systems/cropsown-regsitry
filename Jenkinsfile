@@ -49,6 +49,12 @@ pipeline {
         // seeds loaded); keycloak-init still runs.
         booleanParam(name: 'RUN_DB_SEED', defaultValue: true,
             description: 'Run the db-seed Job during Deploy to Dev. Untick to deploy images only.')
+
+        // The chart's sanity suite is four more post-upgrade hooks (pm-seed,
+        // cm-seed, data-seed, then the e2e test Job), and helm waits for each. Off
+        // by default so a deploy is not held by end-to-end tests.
+        booleanParam(name: 'RUN_SANITY', defaultValue: false,
+            description: 'Run the sanity seed and e2e test Jobs during Deploy to Dev.')
     }
 
     environment {
@@ -363,7 +369,7 @@ EOF
                             set +x
                             while :; do
                                 for P in $(kubectl get pods -n "${HELM_NAMESPACE}" -o name 2>/dev/null \
-                                        | grep -E "^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity)-[a-z0-9]{5}$"); do
+                                        | grep -E "^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register)-[a-z0-9]{5}$"); do
                                     N="${P#pod/}"
                                     kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=300 \
                                         > "$LOGDIR/$N.tmp" 2>&1 && mv "$LOGDIR/$N.tmp" "$LOGDIR/$N.log" || rm -f "$LOGDIR/$N.tmp"
@@ -383,10 +389,31 @@ EOF
                             echo "RUN_DB_SEED=false: deploying without the db-seed Job"
                             SEED_FLAG="--set registry.dbSeed.enabled=false"
                         fi
+                        if [ "${RUN_SANITY:-false}" != "true" ]; then
+                            echo "RUN_SANITY is off: deploying without the sanity seed and e2e Jobs"
+                            SEED_FLAG="${SEED_FLAG} --set registry.sanity.enabled=false"
+                        fi
+
+                        # Post-upgrade hooks run one at a time, in this order, and helm
+                        # prints nothing while it waits: db-seed (10), sanity pm/cm/data
+                        # seeds (11-13), iam-register (19-20), sanity e2e (25). Once a
+                        # minute, print this release's Jobs so the log shows which one
+                        # the deploy is waiting on.
+                        (
+                            set +x
+                            while :; do
+                                sleep 60
+                                echo "--- $(date -u +%H:%M:%S) UTC: ${HELM_RELEASE} Jobs ---"
+                                kubectl get jobs -n "${HELM_NAMESPACE}" --no-headers 2>/dev/null \
+                                    | grep -E "^${HELM_RELEASE}-(db-seed|sanity|iam-register|keycloak-init)" || true
+                            done
+                        ) &
+                        PROGRESS=$!
+                        trap 'kill "$PROGRESS" 2>/dev/null || true; rm -rf "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}" "$LOGDIR"' EXIT
                         echo "helm upgrade started $(date -u +%H:%M:%S) UTC (waits up to 40m for hooks)"
                         if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
                             -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" ${SEED_FLAG} --timeout 40m; then
-                            kill "$WATCHER" 2>/dev/null || true
+                            kill "$WATCHER" "$PROGRESS" 2>/dev/null || true
                             for F in "$LOGDIR"/*.log; do
                                 [ -f "$F" ] || continue
                                 echo "=== captured hook pod logs: $(basename "$F" .log) ===" >&2
@@ -414,7 +441,7 @@ EOF
                                 --sort-by=.lastTimestamp 2>/dev/null | tail -20 >&2 || true
                             exit 1
                         fi
-                        kill "$WATCHER" 2>/dev/null || true
+                        kill "$WATCHER" "$PROGRESS" 2>/dev/null || true
 
                         for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
                             kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
