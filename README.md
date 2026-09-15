@@ -95,7 +95,8 @@ branch-derived tags, and deploys both `develop` and `staging` to a `crop`
 namespace.
 
 The same namespace name, because the two land on different clusters. Dev goes to
-the cluster behind `rancher.openg2p.test` via the `gen2-kubeconfig` credential;
+the cluster farmer-registry's `far` namespace is on, from the `vpn-agent2` node,
+via the `staging-farmer-kubeconfig` credential;
 staging is a separate EC2 instance running its own RKE2 cluster, reached with
 `staging-rke2-kubeconfig`. The kubeconfig is what separates them, so nothing is
 gained by calling one namespace `crop-staging` — and the staging instance does

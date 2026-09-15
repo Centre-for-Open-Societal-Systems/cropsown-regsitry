@@ -8,7 +8,8 @@
 # pipeline uses, so a manual run lands exactly where a pipeline run would.
 #
 # It deploys whatever cluster KUBECONFIG points at. In Jenkins that is the
-# gen2-kubeconfig credential (the cluster behind rancher.openg2p.test); by hand
+# staging-farmer-kubeconfig credential, used from the vpn-agent2 node (the
+# cluster farmer-registry's far namespace is on); by hand
 # it is yours, so the context is printed before anything is changed.
 #
 # The images must already be in ECR — this builds nothing.
