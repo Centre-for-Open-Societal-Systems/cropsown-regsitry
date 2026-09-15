@@ -19,7 +19,8 @@
 // farmer-registry's; before this the crop namespace ran the plain platform
 // staff-ui image. Its Dashboard button target is baked in at build time from
 // DASHBOARD_URL (set it on the controller; unset, the Dockerfile's local default
-// applies). dashboard-ui is built and pushed but not deployed.
+// applies). dashboard-ui is not deployed, so it is built and pushed only when
+// BUILD_DASHBOARD_UI=true is set on the controller.
 //
 // To run this pipeline against your own machine, see local/jenkins/README.md: it
 // sets PUSH_TO_ECR=false, so the build runs and the push and deploy stages skip.
@@ -76,7 +77,10 @@ pipeline {
         RELEASE_NAME      = 'cropsown-registry'
         CHART_DIR         = 'helm/openg2p-cropsown-registry'
 
-        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests dashboard-ui'
+        // dashboard-ui is not deployed by the chart, and its Next.js build is the
+        // slowest of all; it is built only when BUILD_DASHBOARD_UI=true is set on
+        // the controller (see Build & Push).
+        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
 
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
     }
@@ -84,7 +88,7 @@ pipeline {
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '30'))
-        // Seven no-cache image builds plus a deploy whose db-seed hook alone can
+        // Six image builds plus a deploy whose db-seed hook alone can
         // take tens of minutes; 90 cut builds off mid-seed.
         timeout(time: 150, unit: 'MINUTES')
     }
@@ -136,10 +140,12 @@ pipeline {
                         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                         PUSH="${PUSH_TO_ECR:-true}"
 
-                        # Clean builds on the real controller; the local one sets
-                        # DOCKER_NO_CACHE=false to iterate faster.
-                        CACHE_FLAG="--no-cache"
-                        [ "${DOCKER_NO_CACHE:-true}" = "false" ] && CACHE_FLAG=""
+                        # Reuse the layer cache, but --pull so a moved base image tag is
+                        # still fetched fresh. --no-cache rebuilt every layer of all
+                        # six images on every run, minutes each; set
+                        # DOCKER_NO_CACHE=true on the controller to force that.
+                        CACHE_FLAG="--pull"
+                        [ "${DOCKER_NO_CACHE:-false}" = "true" ] && CACHE_FLAG="--pull --no-cache"
 
                         # dashboard-ui bakes the portal origin into its bundle.
                         PORTAL_ARG=""
@@ -162,7 +168,10 @@ pipeline {
                                 | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
                         fi
 
-                        for SVC in ${SERVICES}; do
+                        BUILD_LIST="${SERVICES}"
+                        [ "${BUILD_DASHBOARD_UI:-false}" = "true" ] && BUILD_LIST="${BUILD_LIST} dashboard-ui"
+
+                        for SVC in ${BUILD_LIST}; do
                             IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
                             docker build \
@@ -179,7 +188,10 @@ pipeline {
                                         --repository-name "${ECR_BASE}/${SVC}" >/dev/null
                                 docker push "${IMAGE}:${IMAGE_TAG}"
                                 docker push "${IMAGE}:${BRANCH_NAME}"
-                                docker rmi "${IMAGE}:${IMAGE_TAG}" "${IMAGE}:${BRANCH_NAME}" || true
+                                # Drop only the build-numbered tag. The branch tag keeps the
+                                # image, and with it the layer cache the next build reuses;
+                                # the next build's push moves that tag on.
+                                docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                             fi
                         done
                     '''
@@ -343,17 +355,22 @@ EOF
                         # runs, and print them if it fails.
                         LOGDIR="$(mktemp -d)"
                         trap 'rm -rf "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}" "$LOGDIR"' EXIT
+                        # Quiet (set +x): traced, this loop wrote ~40 lines to the build
+                        # log every 4 seconds. Only this release's own hook pods
+                        # (<job>-<5 chars>) are read, not leftover hand-made Jobs such
+                        # as db-seed-<timestamp> or db-seed-rerun.
                         (
+                            set +x
                             while :; do
                                 for P in $(kubectl get pods -n "${HELM_NAMESPACE}" -o name 2>/dev/null \
-                                        | grep -E "${HELM_RELEASE}-(db-seed|keycloak-init|sanity)"); do
+                                        | grep -E "^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity)-[a-z0-9]{5}$"); do
                                     N="${P#pod/}"
                                     kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=300 \
                                         > "$LOGDIR/$N.tmp" 2>&1 && mv "$LOGDIR/$N.tmp" "$LOGDIR/$N.log" || rm -f "$LOGDIR/$N.tmp"
                                     kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --previous --tail=300 \
                                         > "$LOGDIR/$N.prev.tmp" 2>&1 && mv "$LOGDIR/$N.prev.tmp" "$LOGDIR/$N.previous.log" || rm -f "$LOGDIR/$N.prev.tmp"
                                 done
-                                sleep 4
+                                sleep 10
                             done
                         ) &
                         WATCHER=$!
