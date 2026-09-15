@@ -12,6 +12,7 @@
 // Build parameters:
 //   RUN_DB_SEED  (on)   run the db-seed hook Job; untick for an images-only deploy
 //   RUN_SANITY   (off)  run the sanity seed + e2e hook Jobs
+//   RUN_IAM_REGISTER (off) re-register the app in IAM (needs Keycloak reachable in-cluster)
 //
 // Controller environment (optional):
 //   DEV_DEPLOY=false          build and push develop without deploying
@@ -30,6 +31,11 @@ pipeline {
             description: 'Deploy to Dev: run the db-seed Job. Untick to deploy images only.')
         booleanParam(name: 'RUN_SANITY', defaultValue: false,
             description: 'Deploy to Dev: run the sanity seed and e2e test Jobs.')
+        // iam-register fetches a token from the PUBLIC Keycloak URL
+        // (https://keycloak.crop.openg2p.test), which pods cannot reach, so it
+        // retries 30 times and holds the deploy. The app is already registered.
+        booleanParam(name: 'RUN_IAM_REGISTER', defaultValue: false,
+            description: 'Deploy to Dev: re-run the IAM registration Job.')
     }
 
     environment {
@@ -175,7 +181,8 @@ pipeline {
                             // before Jenkins has registered the parameters.
                             withEnv([
                                 "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
-                                "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}"
+                                "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}",
+                                "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}"
                             ]) {
                                 sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }

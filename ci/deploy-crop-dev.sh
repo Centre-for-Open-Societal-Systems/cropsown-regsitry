@@ -34,6 +34,7 @@
 #   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template)
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
+#   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
 #   HELM_TIMEOUT     default 40m
 set -euo pipefail
 
@@ -49,6 +50,10 @@ HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
 [ -n "${BASE_DOMAIN:-}" ] || BASE_DOMAIN='{{ .Release.Namespace }}.openg2p.test'
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
+# iam-register takes its token from the PUBLIC Keycloak URL
+# (https://keycloak.<namespace>.openg2p.test), which pods cannot reach here, so
+# it retries 30 times and holds the deploy. The app is registered already.
+RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
 HELM_TIMEOUT="${HELM_TIMEOUT:-40m}"
 ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
 
@@ -125,8 +130,10 @@ registry:
   sanity:
     enabled: ${RUN_SANITY}
     image: {repository: '${ECR}/sanity-tests', tag: '${TAG}'}
+  iamRegister:
+    enabled: ${RUN_IAM_REGISTER}
 EOF
-echo "db-seed hook: ${RUN_DB_SEED}   sanity hooks: ${RUN_SANITY}"
+echo "hooks: db-seed=${RUN_DB_SEED}  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
 # Only a missing release — a first install — may go ahead without them.
