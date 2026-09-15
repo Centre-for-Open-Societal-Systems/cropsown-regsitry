@@ -1,0 +1,2 @@
+from .g2p_register_domain_service_family import G2PRegisterDomainServiceFamily
+from .g2p_register_domain_service_family_member import G2PRegisterDomainServiceFamilyMember
