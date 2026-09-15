@@ -14,9 +14,12 @@
 // runs, the stage prints the server, identity and `kubectl auth can-i` answers,
 // and stops if the account cannot deploy crop (helm needs to LIST secrets).
 //
-// The Staff Portal UI is not built: the chart consumes staffUi as-is from the
-// platform base image. dashboard-ui is built and pushed but not deployed; the
-// chart has no value referencing it yet.
+// The Staff Portal UI is built from docker/staff-ui (cropsown branding, six
+// register tabs, Dashboard button) and deployed as registry.staffUi, like
+// farmer-registry's; before this the crop namespace ran the plain platform
+// staff-ui image. Its Dashboard button target is baked in at build time from
+// DASHBOARD_URL (set it on the controller; unset, the Dockerfile's local default
+// applies). dashboard-ui is built and pushed but not deployed.
 //
 // To run this pipeline against your own machine, see local/jenkins/README.md: it
 // sets PUSH_TO_ECR=false, so the build runs and the push and deploy stages skip.
@@ -66,7 +69,7 @@ pipeline {
         RELEASE_NAME      = 'cropsown-registry'
         CHART_DIR         = 'helm/openg2p-cropsown-registry'
 
-        SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
+        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests dashboard-ui'
 
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
     }
@@ -135,6 +138,14 @@ pipeline {
                             PORTAL_ARG="--build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"
                         else
                             echo "WARNING: PORTAL_URL unset — dashboard-ui bakes in the local portal URL"
+                        fi
+
+                        # staff-ui bakes the Dashboard button's target in; its patch
+                        # fails on an empty URL, so pass it only when set.
+                        if [ -n "${DASHBOARD_URL:-}" ]; then
+                            PORTAL_ARG="${PORTAL_ARG} --build-arg DASHBOARD_URL=${DASHBOARD_URL}"
+                        else
+                            echo "WARNING: DASHBOARD_URL unset — staff-ui's Dashboard button points at the local dashboard"
                         fi
 
                         if [ "$PUSH" != "false" ]; then
@@ -259,6 +270,10 @@ registry:
     image:
       repository: ${ECR}/staff-api
       tag: "${IMAGE_TAG}"
+  staffUi:
+    image:
+      repository: ${ECR}/staff-ui
+      tag: "${IMAGE_TAG}"
   partnerApi:
     image:
       repository: ${ECR}/partner-api
@@ -321,7 +336,7 @@ EOF
                             exit 1
                         fi
 
-                        for D in staff-portal-api partner-api celery-worker celery-beat-producer; do
+                        for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
                             kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
                                 -n "${HELM_NAMESPACE}" --timeout=180s
                         done
