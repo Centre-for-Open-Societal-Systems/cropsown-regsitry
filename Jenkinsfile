@@ -50,8 +50,7 @@ pipeline {
         // With gen2-kubeconfig, reach the Gen2 API server on its VPC address rather
         // than the WireGuard one in the kubeconfig (see the Deploy to Dev stage).
         // Empty for any other credential, which is then used as-is.
-        DEV_API_SERVER      = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
-        DEV_TLS_SERVER_NAME = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? '10.15.0.1' : ''}"
+        DEV_API_SERVER = "${(params.DEV_KUBECONFIG ?: 'gen2-kubeconfig') == 'gen2-kubeconfig' ? 'https://10.0.1.166:6443' : ''}"
 
         // Staging: its own RKE2 instance, deployed from the build agent by
         // ci/deploy-staging.sh. The subchart rejects release names over 18
@@ -199,24 +198,24 @@ pipeline {
                         # call timed out). The same RKE2 server listens on its VPC
                         # address, 10.0.1.166, which vpn-agent2 does reach — it deploys
                         # 10.0.1.212 in that VPC. So dial the VPC address on a private
-                        # copy of the kubeconfig, and keep verifying the certificate
-                        # against the name it was issued for (10.15.0.1).
+                        # copy of the kubeconfig. The server's certificate lists
+                        # 10.0.1.166 among its names (not 10.15.0.1), so it verifies
+                        # as-is, with no TLS override.
                         if [ -n "${DEV_API_SERVER:-}" ]; then
                             KCOPY="$(mktemp)"
                             trap 'rm -f "$VALUES" "$KCOPY"' EXIT
                             cp "$KUBECONFIG" "$KCOPY"; export KUBECONFIG="$KCOPY"
                             CLUSTER="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}')"
                             kubectl config set-cluster "$CLUSTER" --server="${DEV_API_SERVER}" >/dev/null
-                            [ -z "${DEV_TLS_SERVER_NAME:-}" ] || \
-                                kubectl config set-cluster "$CLUSTER" --tls-server-name="${DEV_TLS_SERVER_NAME}" >/dev/null
                         fi
 
-                        # Fail fast on no route, instead of four can-i calls each
-                        # retrying for minutes.
+                        # Fail fast on a connection problem, instead of four can-i
+                        # calls each retrying for minutes.
                         if ! CONN="$(kubectl get --raw /version --request-timeout=15s 2>&1)"; then
-                            echo "ERROR: cannot reach $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}') from $(hostname):" >&2
+                            echo "ERROR: cannot connect to $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}') from $(hostname):" >&2
                             echo "$CONN" | tail -3 >&2
-                            echo "  Check that vpn-agent2 can reach that address on TCP 6443 (security group / VPN)." >&2
+                            echo "  A timeout means no route on TCP 6443 (security group / VPN); an x509 error means" >&2
+                            echo "  the certificate does not name that address; Unauthorized means a bad credential." >&2
                             exit 1
                         fi
 
