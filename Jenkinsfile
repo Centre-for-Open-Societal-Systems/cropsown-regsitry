@@ -310,13 +310,43 @@ EOF
                             : > "$CURRENT"
                         fi
 
+                        # Hook Jobs (db-seed, keycloak-init-<rev>) delete their pods
+                        # as soon as they hit the backoff limit, so their logs are
+                        # gone by the time helm reports the failure. Copy every
+                        # hook pod's logs into LOGDIR every few seconds while helm
+                        # runs, and print them if it fails.
+                        LOGDIR="$(mktemp -d)"
+                        trap 'rm -rf "$VALUES" "$CURRENT" "$CURRENT_ERR" "${KCOPY:-}" "$LOGDIR"' EXIT
+                        (
+                            while :; do
+                                for P in $(kubectl get pods -n "${HELM_NAMESPACE}" -o name 2>/dev/null \
+                                        | grep -E "${HELM_RELEASE}-(db-seed|keycloak-init|sanity)"); do
+                                    N="${P#pod/}"
+                                    kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=300 \
+                                        > "$LOGDIR/$N.tmp" 2>&1 && mv "$LOGDIR/$N.tmp" "$LOGDIR/$N.log" || rm -f "$LOGDIR/$N.tmp"
+                                    kubectl logs "$N" -n "${HELM_NAMESPACE}" --all-containers --prefix --previous --tail=300 \
+                                        > "$LOGDIR/$N.prev.tmp" 2>&1 && mv "$LOGDIR/$N.prev.tmp" "$LOGDIR/$N.previous.log" || rm -f "$LOGDIR/$N.prev.tmp"
+                                done
+                                sleep 4
+                            done
+                        ) &
+                        WATCHER=$!
+
                         # When helm fails — most often a post-upgrade hook Job such as
                         # db-seed hitting BackoffLimitExceeded — print why, from the
-                        # cluster, into this log. The chart's hooks use
-                        # before-hook-creation, so the failed Job and its pods are
-                        # still there to read.
+                        # cluster, into this log.
                         if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
                             -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" --timeout 20m; then
+                            kill "$WATCHER" 2>/dev/null || true
+                            for F in "$LOGDIR"/*.log; do
+                                [ -f "$F" ] || continue
+                                echo "=== captured hook pod logs: $(basename "$F" .log) ===" >&2
+                                cat "$F" >&2
+                            done
+                            for D in staff-portal-api partner-api; do
+                                echo "=== ${HELM_RELEASE}-${D}: current pod logs ===" >&2
+                                kubectl logs "deploy/${HELM_RELEASE}-${D}" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=60 >&2 || true
+                            done
                             echo "=== helm upgrade failed: release history ===" >&2
                             helm history "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" --max 5 >&2 || true
                             for JOB in db-seed sanity; do
@@ -335,6 +365,7 @@ EOF
                                 --sort-by=.lastTimestamp 2>/dev/null | tail -20 >&2 || true
                             exit 1
                         fi
+                        kill "$WATCHER" 2>/dev/null || true
 
                         for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
                             kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
