@@ -12,7 +12,7 @@ INSERT INTO "public"."registry_theme_values" ("theme_value_id","theme_id","attri
 
 -- Values for the ATI brand themes. Each leads with a different brand colour
 -- and carries four more; black/white are used only for text.
-INSERT INTO "public"."registry_theme_values" ("theme_value_id","theme_id","attribute_name","attribute_value") VALUES ,
+INSERT INTO "public"."registry_theme_values" ("theme_value_id","theme_id","attribute_name","attribute_value") VALUES
 ('1bda661e-6a7f-5f71-8765-42eb9b3edac0','9d109f28-ab6a-5617-bf27-649b0f92aa5a','font_family',''),
 ('30b56789-5a9e-57d8-8c18-d44aceb80273','9d109f28-ab6a-5617-bf27-649b0f92aa5a','font_url',''),
 ('dee55a48-880f-572a-8ccb-8a5afed93eb2','9d109f28-ab6a-5617-bf27-649b0f92aa5a','neutral_color_1','#000000'),
