@@ -295,8 +295,31 @@ EOF
                             : > "$CURRENT"
                         fi
 
-                        helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
-                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" --timeout 20m
+                        # When helm fails — most often a post-upgrade hook Job such as
+                        # db-seed hitting BackoffLimitExceeded — print why, from the
+                        # cluster, into this log. The chart's hooks use
+                        # before-hook-creation, so the failed Job and its pods are
+                        # still there to read.
+                        if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_DIR}" \
+                            -n "${HELM_NAMESPACE}" -f "$CURRENT" -f "$VALUES" --timeout 20m; then
+                            echo "=== helm upgrade failed: release history ===" >&2
+                            helm history "${HELM_RELEASE}" -n "${HELM_NAMESPACE}" --max 5 >&2 || true
+                            for JOB in db-seed sanity; do
+                                J="${HELM_RELEASE}-${JOB}"
+                                kubectl get job "$J" -n "${HELM_NAMESPACE}" >/dev/null 2>&1 || continue
+                                echo "=== Job ${J} ===" >&2
+                                kubectl get pods -n "${HELM_NAMESPACE}" -l job-name="$J" -o wide >&2 || true
+                                kubectl describe job "$J" -n "${HELM_NAMESPACE}" 2>&1 | tail -25 >&2 || true
+                                echo "--- ${J} logs (last pod, all containers) ---" >&2
+                                POD="$(kubectl get pods -n "${HELM_NAMESPACE}" -l job-name="$J" \
+                                    --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)"
+                                [ -z "$POD" ] || kubectl logs "$POD" -n "${HELM_NAMESPACE}" --all-containers --prefix --tail=200 >&2 || true
+                            done
+                            echo "=== recent warning events ===" >&2
+                            kubectl get events -n "${HELM_NAMESPACE}" --field-selector type=Warning \
+                                --sort-by=.lastTimestamp 2>/dev/null | tail -20 >&2 || true
+                            exit 1
+                        fi
 
                         for D in staff-portal-api partner-api celery-worker celery-beat-producer; do
                             kubectl rollout status "deployment/${HELM_RELEASE}-${D}" \
