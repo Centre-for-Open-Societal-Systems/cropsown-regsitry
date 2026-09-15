@@ -16,8 +16,14 @@
 # ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
 global:
   registryVariant: 'cropsown-registry'
-  # Ingress host for this registry. Overrides the subchart's generic default.
-  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org'
+  # Public hosts, on the environment's base domain <namespace>.openg2p.test
+  # (crop.openg2p.test). The subchart defaults them all to <namespace>.openg2p.org,
+  # a placeholder that resolves nowhere here, which broke Keycloak, MinIO and IAM.
+  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
+  keycloakBaseUrl: 'https://keycloak.{{ .Release.Namespace }}.openg2p.test'
+  minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.test'
+  idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
+  aweHostname: 'awe.{{ .Release.Namespace }}.openg2p.test'
 
 # ── openg2p-registry subchart overrides ───────────────────────────────────────
 registry:
@@ -79,9 +85,13 @@ registry:
           infestation:
             idLength: 5
 
-  # staffUi and beneApi are consumed as-is from the openg2p-registry base images
-  # (subchart defaults already point at openg2p/openg2p-registry-*), so they are
-  # intentionally not overridden.
+  # staffUi's image is set by the pipeline (docker/staff-ui). Its browser-facing
+  # IAM URL and cookie domain are on the same .openg2p.test base domain as the
+  # globals above. beneApi is consumed as-is from the openg2p-registry base image.
+  staffUi:
+    iamPublicUrl: 'https://staff-iam.{{ .Release.Namespace }}.openg2p.test'
+    envVars:
+      COOKIE_DOMAIN: '.{{ .Release.Namespace }}.openg2p.test'
 
   # ── Crop sown e2e sanity suite (image built here; Set 2 field tests) ────────
   # The subchart ships the reference (Individual) sanity values; override them

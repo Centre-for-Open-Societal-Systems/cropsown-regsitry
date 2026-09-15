@@ -264,13 +264,30 @@ pipeline {
                         helm dependency build "${HELM_CHART_DIR}"
 
                         # Every image path is under the subchart alias (registry.*).
+                        #
+                        # Hosts: the dev environment's base domain is
+                        # <namespace>.openg2p.test (crop.openg2p.test). The subchart
+                        # defaults every public host to <namespace>.openg2p.org, a
+                        # placeholder, and these are set last so neither those
+                        # defaults nor stale release values win: with Keycloak,
+                        # MinIO and IAM on .org, keycloak-init, db-seed and both
+                        # APIs failed on every upgrade.
                         cat > "$VALUES" <<EOF
+global:
+  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
+  keycloakBaseUrl: 'https://keycloak.{{ .Release.Namespace }}.openg2p.test'
+  minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.test'
+  idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
+  aweHostname: 'awe.{{ .Release.Namespace }}.openg2p.test'
 registry:
   staffApi:
     image:
       repository: ${ECR}/staff-api
       tag: "${IMAGE_TAG}"
   staffUi:
+    iamPublicUrl: 'https://staff-iam.{{ .Release.Namespace }}.openg2p.test'
+    envVars:
+      COOKIE_DOMAIN: '.{{ .Release.Namespace }}.openg2p.test'
     image:
       repository: ${ECR}/staff-ui
       tag: "${IMAGE_TAG}"
