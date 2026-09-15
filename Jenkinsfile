@@ -245,10 +245,13 @@ pipeline {
             // the openg2p-Gen2 WireGuard VPN, so the agent must be a peer on it
             // — ci/setup-agent-vpn.sh does that, once, as root on the agent.
             // Off the VPN the API server times out. The script checks it before
-            // helm runs and exits 3 when it cannot connect; runDeploy (bottom of
-            // this file) turns that into a FAILED stage in an UNSTABLE build,
-            // since the images did build and push and the missing piece is a
-            // route, not code. The unstable{} post block mails it.
+            // helm runs and exits 3 when it cannot connect. For dev that is
+            // expected — this agent is not on the VPN, and neither root on it
+            // nor an in-cluster agent is available — so runDeploy (bottom of
+            // this file) logs it as a skipped deploy and the build stays
+            // SUCCESS: the build's job, images in ECR, is done. The success
+            // mail says the deploy was skipped and how to run it by hand, so it
+            // does not pass silently. Any other deploy failure still fails.
             //
             // The deploy itself is ci/deploy-dev.sh; this stage only supplies
             // the credentials and the tag. It lives in a script so that
@@ -275,7 +278,7 @@ pipeline {
                 ]) {
                     // AWS_REGION, ECR_BASE, NAMESPACE, RELEASE_NAME and CHART_DIR
                     // reach the script through the environment block above.
-                    script { runDeploy('./ci/deploy-dev.sh', 'dev') }
+                    script { runDeploy('./ci/deploy-dev.sh', 'dev', true) }
                 }
             }
         }
@@ -322,7 +325,7 @@ pipeline {
                     // STAGING_RELEASE and STAGING_NAMESPACE, plus the shared
                     // AWS_REGION, ECR_BASE and CHART_DIR, reach the script
                     // through the environment block above.
-                    script { runDeploy('./ci/deploy-staging.sh', 'staging') }
+                    script { runDeploy('./ci/deploy-staging.sh', 'staging', false) }
                 }
             }
         }
@@ -332,11 +335,22 @@ pipeline {
         success {
             script {
                 def to = notifyList()
+                // DEPLOY_SKIPPED is set by runDeploy when the cluster could not be
+                // reached and that was allowed; the build is green, but the mail
+                // must not claim a deployment that did not happen.
+                def skipped = env.DEPLOY_SKIPPED
+                def summary = skipped ? """Crop Sown Registry images built and were pushed to ECR. The ${skipped} deploy was
+SKIPPED: this agent cannot reach the ${skipped} cluster (openg2p-Gen2 VPN only).
+Deploy this tag by hand from a machine on the VPN:
+
+    ./ci/deploy-dev.sh ${env.BRANCH_NAME}-${env.BUILD_NUMBER}""" : 'Crop Sown Registry build and deployment succeeded.'
                 mailQuietly(
                     to: to,
-                    subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                    subject: skipped
+                        ? "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER} — pushed, ${skipped} deploy skipped"
+                        : "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
-Crop Sown Registry build and deployment succeeded.
+${summary}
 
 Job:        ${env.JOB_NAME}
 Branch:     ${env.BRANCH_NAME}
@@ -373,8 +387,8 @@ Jenkins
                 )
             }
         }
-        // UNSTABLE is what runDeploy leaves when the cluster could not be
-        // reached: neither success{} nor failure{} fires for it, and a deploy
+        // UNSTABLE is what runDeploy leaves when the staging cluster could not
+        // be reached (dev's is logged as skipped instead): neither success{} nor failure{} fires for it, and a deploy
         // that silently did not happen is the one outcome that must be mailed.
         unstable {
             script {
@@ -394,9 +408,8 @@ URL:        ${env.BUILD_URL}
 
 Console:    ${env.BUILD_URL}console
 
-The dev cluster answers only over the openg2p-Gen2 WireGuard VPN; put the agent
-on it with ci/setup-agent-vpn.sh, then re-run the build — or deploy this tag by
-hand from a machine on the VPN with ci/deploy-dev.sh.
+Check the agent can reach that cluster's API server with the deploy's
+kubeconfig credential, then re-run the build.
 
 Regards,
 Jenkins
@@ -411,13 +424,20 @@ Jenkins
 //
 // Exit 3 is the scripts' "could not reach the API server": nothing was
 // touched, the images are already in ECR, and the fix is a network route (the
-// agent on the cluster's VPN), not code. That marks the stage FAILED but leaves
-// the build UNSTABLE, so a push that succeeded does not read as a broken build.
-// Every other non-zero exit — a refused login, a helm error — still fails it.
-def runDeploy(String deployScript, String cluster) {
+// agent on the cluster's VPN), not code. With skipIfUnreachable — dev, whose
+// cluster this agent has no route to — that is logged, recorded in
+// DEPLOY_SKIPPED for the success mail, and the build stays SUCCESS. Otherwise
+// (staging) it marks the stage FAILED but leaves the build UNSTABLE, so a push
+// that succeeded does not read as a broken build. Every other non-zero exit — a
+// refused login, a helm error — still fails it.
+def runDeploy(String deployScript, String cluster, boolean skipIfUnreachable) {
     // Single-quoted tail: the shell, not Groovy, expands the tag.
     def rc = sh(returnStatus: true, script: deployScript + ' "${BRANCH_NAME}-${BUILD_NUMBER}"')
-    if (rc == 3) {
+    if (rc == 3 && skipIfUnreachable) {
+        env.DEPLOY_SKIPPED = cluster
+        echo "WARNING: ${cluster} deploy SKIPPED — cluster unreachable from this agent; images are in ECR. " +
+             "Deploy by hand from a machine on the VPN: ${deployScript} ${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+    } else if (rc == 3) {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
             error "${cluster} cluster unreachable from this agent — nothing deployed; images are in ECR (see ci/setup-agent-vpn.sh)"
         }
