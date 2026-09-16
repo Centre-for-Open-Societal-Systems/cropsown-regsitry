@@ -37,6 +37,7 @@
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
 #   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
 #   HELM_TIMEOUT     default 40m
+#   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 set -euo pipefail
 
 TAG="${1:-${TAG:-}}"
@@ -219,8 +220,20 @@ BG_PIDS=()
 say "helm upgrade finished $(date -u +%H:%M:%S) UTC"
 
 # ── 6. Rollout ─────────────────────────────────────────────────────────────────
+# 180s was not enough for staff-portal-api: its pod runs `migrate` before it
+# serves, and the old pod has to finish terminating first ("1 old replicas are
+# pending termination" until `timed out waiting for the condition`). On a
+# timeout, say which pods are in the way and why, instead of that one line.
 for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
-  kubectl rollout status "deployment/${HELM_RELEASE}-${D}" "${NS[@]}" --timeout=180s
+  if ! kubectl rollout status "deployment/${HELM_RELEASE}-${D}" "${NS[@]}" --timeout="${ROLLOUT_TIMEOUT:-420s}"; then
+    echo "ERROR: ${HELM_RELEASE}-${D} did not roll out within ${ROLLOUT_TIMEOUT:-420s}." >&2
+    kubectl get pods "${NS[@]}" -l "app.kubernetes.io/instance=${HELM_RELEASE}" -o wide >&2 || true
+    kubectl describe deploy "${HELM_RELEASE}-${D}" "${NS[@]}" 2>&1 | sed -n '/Conditions:/,$p' | head -20 >&2 || true
+    echo "--- ${D} pod logs (last 60 lines) ---" >&2
+    kubectl logs "deploy/${HELM_RELEASE}-${D}" "${NS[@]}" --all-containers --prefix --tail=60 >&2 || true
+    kubectl get events "${NS[@]}" --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null | tail -10 >&2 || true
+    exit 1
+  fi
 done
 
 # ── 7. Schema drift gate ───────────────────────────────────────────────────────
