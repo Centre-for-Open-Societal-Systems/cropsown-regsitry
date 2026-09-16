@@ -10,7 +10,7 @@
 // the same command; see that script for what it does and why.
 //
 // Build parameters:
-//   RUN_DB_SEED  (on)   run the db-seed hook Job; untick for an images-only deploy
+//   RUN_DB_SEED  (off)  also run the db-seed hook Job; a deploy is images-only
 //   RUN_SANITY   (off)  run the sanity seed + e2e hook Jobs
 //   RUN_IAM_REGISTER (off) re-register the app in IAM (needs Keycloak reachable in-cluster)
 //   SEED_MINIO_ASSETS (off) db-seed also uploads images/templates (needs MinIO reachable in-cluster)
@@ -28,8 +28,13 @@ pipeline {
     agent any
 
     parameters {
-        booleanParam(name: 'RUN_DB_SEED', defaultValue: true,
-            description: 'Deploy to Dev: run the db-seed Job. Untick to deploy images only.')
+        // db-seed is a post-upgrade hook, so when it fails the whole release
+        // fails and the images do not go live, even though they pulled and rolled
+        // out fine. It is off by default for that reason: a deploy publishes
+        // images, and seeding is a deliberate, watched run. Tick it after
+        // changing seed SQL or metadata.
+        booleanParam(name: 'RUN_DB_SEED', defaultValue: false,
+            description: 'Deploy: also run the db-seed Job (seed SQL, metadata, Ethiopia geo). Off = images only.')
         booleanParam(name: 'RUN_SANITY', defaultValue: false,
             description: 'Deploy to Dev: run the sanity seed and e2e test Jobs.')
         // iam-register fetches a token from the PUBLIC Keycloak URL
@@ -225,7 +230,7 @@ pipeline {
                             withEnv([
                                 "HELM_RELEASE=${env.DEPLOY_RELEASE}",
                                 "BASE_DOMAIN=${env.DEPLOY_BASE_DOMAIN}",
-                                "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
+                                "RUN_DB_SEED=${params.RUN_DB_SEED == null ? false : params.RUN_DB_SEED}",
                                 "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}",
                                 "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}",
                                 "SEED_MINIO_ASSETS=${params.SEED_MINIO_ASSETS == null ? false : params.SEED_MINIO_ASSETS}"

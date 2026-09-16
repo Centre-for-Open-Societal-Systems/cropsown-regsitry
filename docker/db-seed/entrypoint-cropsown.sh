@@ -19,7 +19,8 @@
 # the chart already passes to this Job.
 #
 # Env:
-#   LOAD_ETHIOPIA_GEO  false to skip this step (default true)
+#   LOAD_ETHIOPIA_GEO  false skips this step, strict makes its failure fatal
+#                      (default: run it, but never fail the Job over it)
 #   GEO_SEED_FILE      override the SQL applied
 #   MD_PGHOST/MD_PGPORT/MD_PGDATABASE/MD_PGUSER/MD_PGPASSWORD  master data DB
 set -eu
@@ -34,15 +35,25 @@ if [ "${LOAD_ETHIOPIA_GEO:-true}" = "false" ]; then
   exit 0
 fi
 
-if [ ! -f "$GEO_SEED_FILE" ]; then
-  echo "[geo-seed] ERROR: ${GEO_SEED_FILE} is not in this image" >&2
-  exit 1
-fi
+# This step is best-effort on purpose. db-seed is a post-upgrade HOOK: if this
+# script exits non-zero the whole helm release fails, so the images that already
+# pulled and rolled out do not go live either. A geo hierarchy that did not load
+# is a data problem to read in this log and fix, not a reason to fail a deploy.
+# LOAD_ETHIOPIA_GEO=strict makes it fatal again, for a run where you want that.
+geo_problem() {
+  echo "[geo-seed] WARNING: $1" >&2
+  if [ "${LOAD_ETHIOPIA_GEO:-true}" = "strict" ]; then
+    echo "[geo-seed] LOAD_ETHIOPIA_GEO=strict: failing the Job" >&2
+    exit 1
+  fi
+  echo "[geo-seed] the platform seeding above succeeded; leaving the hierarchy as it is" >&2
+  exit 0
+}
 
-if [ -z "${MD_PGDATABASE:-}" ] || [ -z "${MD_PGHOST:-}" ]; then
-  echo "[geo-seed] ERROR: MD_PGHOST/MD_PGDATABASE are not set; cannot reach the master data DB" >&2
-  exit 1
-fi
+[ -f "$GEO_SEED_FILE" ] || geo_problem "${GEO_SEED_FILE} is not in this image"
+command -v psql >/dev/null 2>&1 || geo_problem "no psql in this image"
+{ [ -n "${MD_PGDATABASE:-}" ] && [ -n "${MD_PGHOST:-}" ]; } \
+  || geo_problem "MD_PGHOST/MD_PGDATABASE are not set; cannot reach the master data DB"
 
 echo "[geo-seed] Applying the Ethiopia hierarchy to ${MD_PGDATABASE}@${MD_PGHOST}:${MD_PGPORT:-5432} ..."
 PGPASSWORD="${MD_PGPASSWORD:-}" psql \
@@ -52,10 +63,12 @@ PGPASSWORD="${MD_PGPASSWORD:-}" psql \
   --dbname "$MD_PGDATABASE" \
   --set ON_ERROR_STOP=1 \
   --quiet \
-  --file "$GEO_SEED_FILE"
+  --file "$GEO_SEED_FILE" \
+  || geo_problem "psql could not apply ${GEO_SEED_FILE} (see the error above)"
 
 PGPASSWORD="${MD_PGPASSWORD:-}" psql \
   --host "$MD_PGHOST" --port "${MD_PGPORT:-5432}" \
   --username "${MD_PGUSER:-postgres}" --dbname "$MD_PGDATABASE" \
   --tuples-only --no-align \
-  --command "SELECT '[geo-seed] ' || (SELECT count(*) FROM g2p_geo_levels) || ' geo levels, ' || (SELECT count(*) FROM g2p_geo_level_values) || ' values'"
+  --command "SELECT '[geo-seed] ' || (SELECT count(*) FROM g2p_geo_levels) || ' geo levels, ' || (SELECT count(*) FROM g2p_geo_level_values) || ' values'" \
+  || true
