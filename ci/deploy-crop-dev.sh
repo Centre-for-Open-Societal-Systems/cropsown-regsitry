@@ -49,7 +49,9 @@ ECR_BASE="${ECR_BASE:-gen2/cropsown-registry}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
-[ -n "${BASE_DOMAIN:-}" ] || BASE_DOMAIN='{{ .Release.Namespace }}.openg2p.test'
+# Unset means the dev default; set but EMPTY means "do not touch the release's
+# hosts" (staging, whose hosts are not <namespace>.openg2p.test).
+BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
 # iam-register takes its token from the PUBLIC Keycloak URL
@@ -111,7 +113,9 @@ helm repo update openg2p >/dev/null
 helm dependency build "$HELM_CHART_DIR"
 
 # ── 3. Values this build owns ──────────────────────────────────────────────────
-cat > "$WORK/ci-values.yaml" <<EOF
+VALUE_FILES=()
+if [ -n "$BASE_DOMAIN" ]; then
+  cat > "$WORK/ci-hosts.yaml" <<EOF
 global:
   registryHostname: '{{ .Release.Name }}.${BASE_DOMAIN}'
   keycloakBaseUrl: 'https://keycloak.${BASE_DOMAIN}'
@@ -119,12 +123,22 @@ global:
   idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.${BASE_DOMAIN}'
   aweHostname: 'awe.${BASE_DOMAIN}'
 registry:
-  staffApi:
-    image: {repository: '${ECR}/staff-api', tag: '${TAG}'}
   staffUi:
     iamPublicUrl: 'https://staff-iam.${BASE_DOMAIN}'
     envVars:
       COOKIE_DOMAIN: '.${BASE_DOMAIN}'
+EOF
+  VALUE_FILES+=(-f "$WORK/ci-hosts.yaml")
+else
+  # An environment whose hosts are not <namespace>.openg2p.test (staging) keeps
+  # whatever the release already carries.
+  echo "BASE_DOMAIN is empty: leaving the release's host values untouched."
+fi
+cat > "$WORK/ci-values.yaml" <<EOF
+registry:
+  staffApi:
+    image: {repository: '${ECR}/staff-api', tag: '${TAG}'}
+  staffUi:
     image: {repository: '${ECR}/staff-ui', tag: '${TAG}'}
   partnerApi:
     image: {repository: '${ECR}/partner-api', tag: '${TAG}'}
@@ -196,8 +210,15 @@ BG_PIDS+=("$!")
 
 # ── 4. Upgrade ─────────────────────────────────────────────────────────────────
 say "helm upgrade started $(date -u +%H:%M:%S) UTC (timeout ${HELM_TIMEOUT})"
+VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "-f" "$WORK/ci-values.yaml")
+
+# Render exactly what the upgrade applies, as farmer-registry's pipeline does: a
+# chart or values mistake then fails here, before anything is changed.
+helm template "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" "${VALUES[@]}" > "$WORK/rendered.yaml"
+echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
+
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
-      -f "$WORK/current-values.yaml" -f "$WORK/ci-values.yaml" --timeout "$HELM_TIMEOUT"; then
+      "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
   kill "${BG_PIDS[@]}" 2>/dev/null || true
   BG_PIDS=()
   for F in "$WORK"/logs/*.log; do
@@ -252,3 +273,11 @@ fi
 say "Deployed ${TAG} to ${HELM_NAMESPACE}"
 kubectl get deploy "${NS[@]}" -o custom-columns=NAME:.metadata.name,READY:.status.readyReplicas,IMAGE:.spec.template.spec.containers[0].image \
   | grep -E "^NAME|^${HELM_RELEASE}-" || true
+
+# The hook Jobs' own outcome, as farmer-registry's pipeline prints it: helm only
+# says the release succeeded, not whether a Job it waited on had to retry.
+for JOB in db-seed sanity iam-register; do
+  kubectl get job "${HELM_RELEASE}-${JOB}" "${NS[@]}" >/dev/null 2>&1 || continue
+  echo "${HELM_RELEASE}-${JOB}: $(kubectl get job "${HELM_RELEASE}-${JOB}" "${NS[@]}" \
+    -o jsonpath='{.status.succeeded} succeeded / {.status.failed} failed' 2>/dev/null)"
+done

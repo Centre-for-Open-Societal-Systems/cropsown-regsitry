@@ -161,12 +161,33 @@ pipeline {
             }
         }
 
-        stage('Deploy to Dev') {
+        stage('Deploy') {
+            // Like farmer-registry's single deploy stage: develop goes to dev and
+            // staging to staging, both from the vpn-agent2 node, which is the only
+            // node that reaches either API server. The kubeconfig, release,
+            // namespace and base domain are chosen by branch below; everything else
+            // is ci/deploy-crop-dev.sh, so a deploy by hand is the same command.
+            //
+            //   develop  crop-dev-kubeconfig       dev, 10.0.1.166, release
+            //                                      cropsown-registry in crop
+            //   staging  staging-rke2-kubeconfig   staging, release cropsown-stg
+            //                                      in crop (its own cluster)
             when {
                 beforeAgent true
-                branch 'develop'
+                anyOf {
+                    branch 'develop'
+                    branch 'staging'
+                }
                 expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.DEV_DEPLOY != 'false' }
+                expression { env.BRANCH_NAME == 'develop' ? env.DEV_DEPLOY != 'false' : env.STAGING_DEPLOY != 'false' }
+            }
+            environment {
+                DEPLOY_KUBECONFIG = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'crop-dev-kubeconfig'}"
+                DEPLOY_RELEASE    = "${env.BRANCH_NAME == 'staging' ? 'cropsown-stg' : 'cropsown-registry'}"
+                // Staging's hosts are whatever that release already carries: the
+                // .openg2p.test base domain is the dev environment's. Empty leaves
+                // every host value untouched.
+                DEPLOY_BASE_DOMAIN = "${env.BRANCH_NAME == 'staging' ? '' : '{{ .Release.Namespace }}.openg2p.test'}"
             }
             steps {
                 // The deploy node needs only the chart and the deploy script.
@@ -180,11 +201,13 @@ pipeline {
                         unstash 'deploy'
                         withCredentials([
                             string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                            file(credentialsId: 'crop-dev-kubeconfig', variable: 'KUBECONFIG')
+                            file(credentialsId: env.DEPLOY_KUBECONFIG, variable: 'KUBECONFIG')
                         ]) {
                             // Defaults cover the first build after this file lands,
                             // before Jenkins has registered the parameters.
                             withEnv([
+                                "HELM_RELEASE=${env.DEPLOY_RELEASE}",
+                                "BASE_DOMAIN=${env.DEPLOY_BASE_DOMAIN}",
                                 "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
                                 "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}",
                                 "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}",
@@ -198,22 +221,6 @@ pipeline {
             }
         }
 
-        stage('Deploy to Staging') {
-            when {
-                beforeAgent true
-                branch 'staging'
-                expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.STAGING_DEPLOY != 'false' }
-            }
-            steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')
-                ]) {
-                    sh './ci/deploy-staging.sh "${IMAGE_TAG}"'
-                }
-            }
-        }
     }
 
     post {
