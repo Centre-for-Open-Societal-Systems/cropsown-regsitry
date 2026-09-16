@@ -94,7 +94,17 @@ fi
 kubectl auth whoami 2>/dev/null || true
 
 MISSING=""
-for CHECK in "list secrets" "create secrets" "create deployments" "create jobs"; do
+# Every kind the chart and this script touch. A hand-written Role that covers
+# only some of them fails deep inside helm instead — the crop namespace's role
+# allowed secrets and deployments but not jobs, then not networkpolicies
+# ("cannot get resource networkpolicies", four minutes into an upgrade). A
+# namespace-scoped bind to the built-in `admin` ClusterRole covers the lot; see
+# ci/k8s/crop-deploy-rbac.yaml.
+for CHECK in "list secrets" "create secrets" "create deployments" "create statefulsets" \
+             "create jobs" "create cronjobs" "create services" "create configmaps" \
+             "create persistentvolumeclaims" "create serviceaccounts" \
+             "get networkpolicies" "create networkpolicies" "create pods/exec" \
+             "create virtualservices.networking.istio.io"; do
   # can-i exits 1 on "no"; compare the printed answer instead.
   ANSWER="$(kubectl auth can-i ${CHECK} "${NS[@]}" 2>/dev/null || true)"
   echo "can-i ${CHECK}: ${ANSWER:-error}"
