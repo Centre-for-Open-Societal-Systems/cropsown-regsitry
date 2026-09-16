@@ -5,7 +5,7 @@
 //   other    → build only
 //
 // Deploy to Dev runs on the `vpn-agent2` node, which reaches the dev API server,
-// with the `crop-dev-kubeconfig` credential (the crop-ci service account, admin
+// with the `gen2-dev-kubeconfig` credential (the crop-ci service account, admin
 // in `crop`). The deploy itself is ci/deploy-crop-dev.sh, so a manual deploy is
 // the same command; see that script for what it does and why.
 //
@@ -168,7 +168,7 @@ pipeline {
             // namespace and base domain are chosen by branch below; everything else
             // is ci/deploy-crop-dev.sh, so a deploy by hand is the same command.
             //
-            //   develop  crop-dev-kubeconfig       dev, 10.0.1.166, release
+            //   develop  gen2-dev-kubeconfig       dev, 10.0.1.166, release
             //                                      cropsown-registry in crop
             //   staging  staging-rke2-kubeconfig   staging, release cropsown-stg
             //                                      in crop (its own cluster)
@@ -182,7 +182,7 @@ pipeline {
                 expression { env.BRANCH_NAME == 'develop' ? env.DEV_DEPLOY != 'false' : env.STAGING_DEPLOY != 'false' }
             }
             environment {
-                DEPLOY_KUBECONFIG = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'crop-dev-kubeconfig'}"
+                DEPLOY_KUBECONFIG = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'gen2-dev-kubeconfig'}"
                 DEPLOY_RELEASE    = "${env.BRANCH_NAME == 'staging' ? 'cropsown-stg' : 'cropsown-registry'}"
                 // Staging's hosts are whatever that release already carries: the
                 // .openg2p.test base domain is the dev environment's. Empty leaves
