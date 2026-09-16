@@ -156,6 +156,20 @@ pipeline {
                                 docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                             fi
                         done
+
+                        # An ECR pull token for the deploy node to put in the
+                        # namespace's imagePullSecret. The cluster's own
+                        # ecr-refresh CronJob was broken (its ecr-refresh-aws
+                        # secret is missing), the 12-hour token expired, and every
+                        # pod in the release went ImagePullBackOff — db-seed
+                        # included, which is what helm reported as
+                        # BackoffLimitExceeded. Only this agent has AWS
+                        # credentials, so the token is minted here.
+                        if [ "$PUSH" != "false" ]; then
+                            umask 077
+                            aws ecr get-login-password --region "${AWS_REGION}" > .ecr-token
+                            echo "${ECR_REGISTRY}" > .ecr-registry
+                        fi
                     '''
                 }
             }
@@ -191,7 +205,10 @@ pipeline {
             }
             steps {
                 // The deploy node needs only the chart and the deploy script.
-                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**"
+                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**,.ecr-token,.ecr-registry"
+                // The token is short-lived, but it is a credential: keep it out of
+                // the build agent's workspace once it is stashed.
+                sh 'rm -f .ecr-token .ecr-registry'
                 // Bounded: an offline vpn-agent2 would otherwise queue the build
                 // until the pipeline timeout. 60 minutes covers the wait for the
                 // node and the deploy (helm waits up to 40 for hooks).
