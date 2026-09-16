@@ -136,6 +136,7 @@ if [ -r .ecr-token ]; then
     --dry-run=client -o yaml | kubectl apply "${NS[@]}" -f -
   rm -f .ecr-token .ecr-registry
   USE_PULL_SECRET=true
+  PULL_SECRET_APPLIED=true
 elif kubectl get secret "$PULL_SECRET" "${NS[@]}" >/dev/null 2>&1; then
   echo "No .ecr-token in this workspace; keeping the existing ${PULL_SECRET} secret."
   USE_PULL_SECRET=true
@@ -172,13 +173,18 @@ else
   # whatever the release already carries.
   echo "BASE_DOMAIN is empty: leaving the release's host values untouched."
 fi
+# The pull secret goes on the namespace's `default` ServiceAccount, which every
+# pod in this release uses, NOT through global.imagePullSecrets: with that value
+# set, the idgenerator subchart (0.0.0-develop.42) renders
+#   imagePullSecrets:
+#     - name: cropsown-ecraffinity:
+# because its template appends the next key without a newline, and helm stops on
+# "YAML parse error ... mapping values are not allowed in this context". The
+# service account route needs no chart support and covers hook Jobs too.
 if [ "$USE_PULL_SECRET" = "true" ]; then
-  cat > "$WORK/ci-pull-secret.yaml" <<EOF
-global:
-  imagePullSecrets:
-    - ${PULL_SECRET}
-EOF
-  VALUE_FILES+=(-f "$WORK/ci-pull-secret.yaml")
+  kubectl patch serviceaccount default "${NS[@]}" \
+    -p "{\"imagePullSecrets\":[{\"name\":\"${PULL_SECRET}\"}]}" >/dev/null
+  echo "default ServiceAccount now pulls with ${PULL_SECRET}"
 fi
 
 cat > "$WORK/ci-values.yaml" <<EOF
