@@ -38,6 +38,7 @@
 #   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
+#   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
 set -euo pipefail
 
 TAG="${1:-${TAG:-}}"
@@ -94,7 +95,17 @@ fi
 kubectl auth whoami 2>/dev/null || true
 
 MISSING=""
-for CHECK in "list secrets" "create secrets" "create deployments" "create jobs"; do
+# Every kind the chart and this script touch. A hand-written Role that covers
+# only some of them fails deep inside helm instead — the crop namespace's role
+# allowed secrets and deployments but not jobs, then not networkpolicies
+# ("cannot get resource networkpolicies", four minutes into an upgrade). A
+# namespace-scoped bind to the built-in `admin` ClusterRole covers the lot; see
+# ci/k8s/crop-deploy-rbac.yaml.
+for CHECK in "list secrets" "create secrets" "create deployments" "create statefulsets" \
+             "create jobs" "create cronjobs" "create services" "create configmaps" \
+             "create persistentvolumeclaims" "create serviceaccounts" \
+             "get networkpolicies" "create networkpolicies" "create pods/exec" \
+             "create virtualservices.networking.istio.io"; do
   # can-i exits 1 on "no"; compare the printed answer instead.
   ANSWER="$(kubectl auth can-i ${CHECK} "${NS[@]}" 2>/dev/null || true)"
   echo "can-i ${CHECK}: ${ANSWER:-error}"
@@ -104,6 +115,33 @@ if [ -n "$MISSING" ]; then
   echo "ERROR: this account may not${MISSING} in namespace ${HELM_NAMESPACE}." >&2
   echo "  Bind it to the admin ClusterRole in that namespace (see ci/k8s/crop-deploy-rbac.yaml)." >&2
   exit 1
+fi
+
+# ── 1b. ECR pull secret ────────────────────────────────────────────────────────
+# ECR tokens last 12 hours. The cluster refreshes its own with an ecr-refresh
+# CronJob, and when that broke (its ecr-refresh-aws secret was missing) the token
+# expired and every pod in the release went ImagePullBackOff — including db-seed,
+# which helm then reported as BackoffLimitExceeded. So each deploy writes a fresh
+# one: the build agent mints the token (only it has AWS credentials) and stashes
+# it as .ecr-token, and the chart is pointed at the secret through
+# global.imagePullSecrets. Without the file (a manual run), an existing secret is
+# left as it is.
+PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
+if [ -r .ecr-token ]; then
+  say "Refreshing the ${PULL_SECRET} pull secret"
+  ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
+  kubectl create secret docker-registry "$PULL_SECRET" "${NS[@]}" \
+    --docker-server="$ECR_HOST" --docker-username=AWS \
+    --docker-password="$(cat .ecr-token)" \
+    --dry-run=client -o yaml | kubectl apply "${NS[@]}" -f -
+  rm -f .ecr-token .ecr-registry
+  USE_PULL_SECRET=true
+elif kubectl get secret "$PULL_SECRET" "${NS[@]}" >/dev/null 2>&1; then
+  echo "No .ecr-token in this workspace; keeping the existing ${PULL_SECRET} secret."
+  USE_PULL_SECRET=true
+else
+  echo "No .ecr-token and no ${PULL_SECRET} secret: pods must pull ECR images by node credentials."
+  USE_PULL_SECRET=false
 fi
 
 # ── 2. Chart dependencies ──────────────────────────────────────────────────────
@@ -134,6 +172,15 @@ else
   # whatever the release already carries.
   echo "BASE_DOMAIN is empty: leaving the release's host values untouched."
 fi
+if [ "$USE_PULL_SECRET" = "true" ]; then
+  cat > "$WORK/ci-pull-secret.yaml" <<EOF
+global:
+  imagePullSecrets:
+    - ${PULL_SECRET}
+EOF
+  VALUE_FILES+=(-f "$WORK/ci-pull-secret.yaml")
+fi
+
 cat > "$WORK/ci-values.yaml" <<EOF
 registry:
   staffApi:
