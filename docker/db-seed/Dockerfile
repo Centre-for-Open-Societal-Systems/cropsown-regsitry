@@ -21,3 +21,13 @@ COPY cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/     /
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/templates/     /seed/templates/
 COPY docker/db-seed/sample-data/                                               /seed/sample-data/
+
+# The real Ethiopia region/zone/woreda/kebele hierarchy for the master data DB.
+# Only the docker-compose stack ever applied it (by hand, see
+# docker/local-dev/geo-seed/import_ethiopia_geo.py), so deployed clusters kept
+# the generic sample hierarchy from /openg2p-data and the geo dropdowns were
+# wrong. entrypoint-cropsown.sh runs the platform's seeding, then applies this.
+COPY docker/local-dev/geo-seed/ethiopia_geo_seed.sql/                          /seed/geo-seed/
+COPY docker/db-seed/entrypoint-cropsown.sh                                     /seed/entrypoint-cropsown.sh
+RUN chmod +x /seed/entrypoint-cropsown.sh
+ENTRYPOINT ["/seed/entrypoint-cropsown.sh"]
