@@ -153,7 +153,7 @@ def _ensure_core_services():
         from openg2p_registry_core.services import G2PDocumentService
         if G2PDocumentService.get_component() is None:
             from openg2p_registry_core.app import Initializer as CoreInitializer
-            CoreInitializer()
+            CoreInitializer().initialize()
             _logger.info("ODK Hook: CoreInitializer initialized core services")
     except Exception as e:
         _logger.debug("ODK Hook: Error initializing core services: %s", e)
@@ -283,6 +283,7 @@ def _patch_celery_worker():
                         dbengine.set(session.bind)
                     else:
                         _ensure_dbengine_initialized()
+                    _ensure_core_services()
                 except Exception:
                     pass
 
@@ -418,6 +419,7 @@ def _connect_celery_signals():
         @task_prerun.connect
         def on_celery_task_prerun(*args, **kwargs):
             _ensure_dbengine_initialized()
+            _ensure_core_services()
     except Exception:
         pass
 
