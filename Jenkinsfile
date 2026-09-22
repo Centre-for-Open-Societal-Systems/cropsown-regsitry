@@ -65,34 +65,20 @@ pipeline {
                 sh '''
                     set -eu
 
-                    # The guard is only a guard if pytest actually imports. An agent
-                    # without python3-pip silently skipped the install that used to
-                    # live here and then failed on the next line with "No module
-                    # named pytest" — a message that says nothing about the cause,
-                    # because the install error had been sent to /dev/null. Try the
-                    # routes that exist, then say what is missing instead of hiding
-                    # it.
-                    if ! python3 -c 'import pytest' 2>/dev/null; then
-                        python3 -m ensurepip --user >/dev/null 2>&1 || true
-                        # PEP 668 marks the system interpreter externally managed on
-                        # Ubuntu 24.04+, where --user alone is refused.
-                        python3 -m pip install --quiet --user pytest >/dev/null 2>&1 \
-                          || python3 -m pip install --quiet --user --break-system-packages pytest >/dev/null 2>&1 \
-                          || true
+                    # The pin check is stdlib-only by design, so a missing pytest is
+                    # not a reason to fail the build — run it directly instead.
+                    #
+                    # This stage used to bootstrap pytest and send the install error
+                    # to /dev/null, which turned an agent without python3-pip into a
+                    # build failure reading "No module named pytest": the symptom,
+                    # never the cause. Ubuntu 22.04 ships python3 with no pip and
+                    # ensurepip stripped out, so that agent could not self-heal.
+                    if python3 -c 'import pytest' 2>/dev/null; then
+                        python3 -m pytest test/test_rp_pin_lockstep.py -q
+                    else
+                        echo "note: pytest unavailable on this agent — running the guard directly"
+                        python3 test/test_rp_pin_lockstep.py
                     fi
-
-                    if ! python3 -c 'import pytest' 2>/dev/null; then
-                        echo "ERROR: pytest is unavailable on this agent and could not be installed."
-                        echo "       Fix it once, on the agent:"
-                        echo "           sudo apt-get install -y python3-pytest"
-                        echo "       apt is preferred over pip here: it sidesteps PEP 668."
-                        echo "       Diagnostics:"
-                        python3 --version 2>&1        | sed 's/^/           /' || true
-                        python3 -m pip --version 2>&1 | sed 's/^/           pip: /' || true
-                        exit 1
-                    fi
-
-                    python3 -m pytest test/test_rp_pin_lockstep.py -q
                 '''
             }
         }

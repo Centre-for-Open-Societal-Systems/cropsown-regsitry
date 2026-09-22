@@ -9,13 +9,19 @@ another, and the overlay lands on a harness it does not match (the failure that
 bit us repeatedly). `scripts/bump-rp-version.sh` moves them together; this test
 fails the build if anything ever splits them again.
 
-No dependencies beyond the stdlib + pytest — runs anywhere the other tests do.
+Stdlib only, and deliberately NOT importing pytest. The Jenkins agents do not all
+carry it — Ubuntu 22.04 ships python3 with no pip and ensurepip stripped out, so
+an agent cannot install it on demand — and a guard that cannot run is not a
+guard. `raise AssertionError` reads identically under pytest, so both
+
+    python3 -m pytest test/test_rp_pin_lockstep.py -q
+    python3 test/test_rp_pin_lockstep.py
+
+run this check and fail the same way.
 """
 
 import pathlib
 import re
-
-import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CHART = REPO / "helm" / "openg2p-cropsown-registry" / "Chart.yaml"
@@ -48,8 +54,15 @@ def test_rp_pin_is_in_lockstep():
     if len(all_pins) != 1:
         lines = [f"  Chart.yaml openg2p-registry dependency: {chart}"]
         lines += [f"  {p}: {v}" for p, v in docker.items()]
-        pytest.fail(
+        raise AssertionError(
             "openg2p-registry pin has SPLIT — images and chart must be identical:\n"
             + "\n".join(lines)
             + "\n\nFix with: ./scripts/bump-rp-version.sh <version>"
         )
+
+
+if __name__ == "__main__":
+    # For agents with no pytest. An AssertionError exits non-zero and prints the
+    # same message the pytest run would show.
+    test_rp_pin_is_in_lockstep()
+    print("ok: openg2p-registry pin is in lockstep")
