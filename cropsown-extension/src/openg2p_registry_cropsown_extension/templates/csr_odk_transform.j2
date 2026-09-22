@@ -858,17 +858,17 @@
     {% else %}
       {% set cs_json = '[]' %}
     {% endif %}
-    {% set h_maturity = (ih_info.get('independent_crop_maturity_status') or ih_info.get('crop_maturity_status') or 'READY_FOR_HARVEST') | upper %}
-    {% set h_date = ih_info.get('independent_harvest_date') or ih_info.get('harvest_date') or sub_dt %}
-    {% set raw_h_area = ih_info.get('independent_area_harvested') if ih_info.get('independent_area_harvested') is not none else (ih_info.get('area_harvested') if ih_info.get('area_harvested') is not none else cl_info.get('cluster_area_harvested')) %}
-    {% set h_area = (raw_h_area | float) if raw_h_area is not none and raw_h_area else 1.0 %}
-    {% if h_area <= 0 %}{% set h_area = 1.0 %}{% endif %}
-    {% set h_qty = (ih_info.get('independent_qty_harvested') or ih_info.get('qty_harvested') or cl_info.get('cluster_qty_harvested') or 0.0) | float %}
-    {% set loss_pct = (ih_info.get('independent_post_harvest_loss_pct') or ih_info.get('post_harvest_loss_pct') or cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float %}
+    {% set h_maturity = ((ih_info.get('independent_crop_maturity_status') or ih_info.get('crop_maturity_status') or 'READY_FOR_HARVEST') | upper) if has_ind else '' %}
+    {% set h_date = (ih_info.get('independent_harvest_date') or ih_info.get('harvest_date') or (sub_dt if has_ind else '')) if has_ind else '' %}
+    {% set raw_h_area = (ih_info.get('independent_area_harvested') if ih_info.get('independent_area_harvested') is not none else (ih_info.get('area_harvested') if ih_info.get('area_harvested') is not none else cl_info.get('cluster_area_harvested'))) if has_ind else 0.0 %}
+    {% set h_area = (raw_h_area | float) if (has_ind and raw_h_area is not none and raw_h_area) else (1.0 if has_ind else 0.0) %}
+    {% if has_ind and h_area <= 0 %}{% set h_area = 1.0 %}{% endif %}
+    {% set h_qty = ((ih_info.get('independent_qty_harvested') or ih_info.get('qty_harvested') or cl_info.get('cluster_qty_harvested') or 0.0) | float) if has_ind else 0.0 %}
+    {% set loss_pct = ((ih_info.get('independent_post_harvest_loss_pct') or ih_info.get('post_harvest_loss_pct') or cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float) if has_ind else 0.0 %}
     {% if loss_pct < 0 %}{% set loss_pct = 0.0 %}{% endif %}
     {% if loss_pct > 100 %}{% set loss_pct = 100.0 %}{% endif %}
-    {% set s_qty = (ih_info.get('independent_qty_stored') or ih_info.get('qty_stored') or cl_info.get('cluster_qty_stored') or 0.0) | float %}
-    {% set sold_qty = (ih_info.get('independent_qty_sold') or ih_info.get('qty_sold') or cl_info.get('cluster_qty_sold') or 0.0) | float %}
+    {% set s_qty = ((ih_info.get('independent_qty_stored') or ih_info.get('qty_stored') or cl_info.get('cluster_qty_stored') or 0.0) | float) if has_ind else 0.0 %}
+    {% set sold_qty = ((ih_info.get('independent_qty_sold') or ih_info.get('qty_sold') or cl_info.get('cluster_qty_sold') or 0.0) | float) if has_ind else 0.0 %}
     {% if (s_qty + sold_qty) > h_qty and h_qty > 0 %}
       {% if s_qty <= h_qty %}
         {% set sold_qty = h_qty - s_qty %}
@@ -880,13 +880,13 @@
       {% set s_qty = 0.0 %}
       {% set sold_qty = 0.0 %}
     {% endif %}
-    {% set cl_maturity = (cl_info.get('cluster_crop_maturity_status') or 'READY_FOR_HARVEST') | upper %}
-    {% set cl_date = cl_info.get('cluster_harvest_date') or sub_dt %}
-    {% set cl_area = (cl_info.get('cluster_area_harvested') or 0.0) | float %}
-    {% set cl_qty = (cl_info.get('cluster_qty_harvested') or 0.0) | float %}
-    {% set cl_loss_pct = (cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float %}
-    {% set cl_s_qty = (cl_info.get('cluster_qty_stored') or 0.0) | float %}
-    {% set cl_sold_qty = (cl_info.get('cluster_qty_sold') or 0.0) | float %}
+    {% set cl_maturity = ((cl_info.get('cluster_crop_maturity_status') or 'READY_FOR_HARVEST') | upper) if has_cl else '' %}
+    {% set cl_date = (cl_info.get('cluster_harvest_date') or (sub_dt if has_cl else '')) if has_cl else '' %}
+    {% set cl_area = ((cl_info.get('cluster_area_harvested') or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_qty = ((cl_info.get('cluster_qty_harvested') or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_loss_pct = ((cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_s_qty = ((cl_info.get('cluster_qty_stored') or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_sold_qty = ((cl_info.get('cluster_qty_sold') or 0.0) | float) if has_cl else 0.0 %}
     {
       "land_id": "{{ h_land_id }}",
       "cluster_status": {{ cs_json }},
