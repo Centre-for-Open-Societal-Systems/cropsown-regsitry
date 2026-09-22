@@ -64,7 +64,34 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    python3 -m pip install --quiet --user pytest 2>/dev/null || true
+
+                    # The guard is only a guard if pytest actually imports. An agent
+                    # without python3-pip silently skipped the install that used to
+                    # live here and then failed on the next line with "No module
+                    # named pytest" — a message that says nothing about the cause,
+                    # because the install error had been sent to /dev/null. Try the
+                    # routes that exist, then say what is missing instead of hiding
+                    # it.
+                    if ! python3 -c 'import pytest' 2>/dev/null; then
+                        python3 -m ensurepip --user >/dev/null 2>&1 || true
+                        # PEP 668 marks the system interpreter externally managed on
+                        # Ubuntu 24.04+, where --user alone is refused.
+                        python3 -m pip install --quiet --user pytest >/dev/null 2>&1 \
+                          || python3 -m pip install --quiet --user --break-system-packages pytest >/dev/null 2>&1 \
+                          || true
+                    fi
+
+                    if ! python3 -c 'import pytest' 2>/dev/null; then
+                        echo "ERROR: pytest is unavailable on this agent and could not be installed."
+                        echo "       Fix it once, on the agent:"
+                        echo "           sudo apt-get install -y python3-pytest"
+                        echo "       apt is preferred over pip here: it sidesteps PEP 668."
+                        echo "       Diagnostics:"
+                        python3 --version 2>&1        | sed 's/^/           /' || true
+                        python3 -m pip --version 2>&1 | sed 's/^/           pip: /' || true
+                        exit 1
+                    fi
+
                     python3 -m pytest test/test_rp_pin_lockstep.py -q
                 '''
             }
