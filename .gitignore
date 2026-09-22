@@ -271,6 +271,11 @@ master-dat-service-api-responses
 # environments do not use it, so it is not committed.
 local/
 
+# Large seeds, temporary ODK choices, and Celery beat schedules
+docker/local-dev/geo-seed/*.gz
+odk_choices/
+openg2p-connector-service/celerybeat-schedule*
+
 # Pinned helm/kubectl that ci/deploy-dev.sh fetches when the agent has none.
 .tools/
 
