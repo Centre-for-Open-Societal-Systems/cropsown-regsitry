@@ -104,8 +104,8 @@ not have a namespace by that name.
 
 **Merging a pull request into `develop` or `staging` deploys it.** A green build
 rolls the images it just pushed into `crop` on that branch's cluster — release
-`cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
-`cropsown-stg` on the staging instance. Both deploy stages run on the same agent
+`cropsown-registry` on both dev, where it is the `crop` deployments view in
+Rancher, and the staging instance. Both deploy stages run on the same agent
 as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
 pinned, checksum-verified copies into `.tools/` when they are missing. Neither
 stage asks for a
@@ -143,7 +143,7 @@ started by hand.
 
 The deploys are `ci/deploy-dev.sh` and `ci/deploy-staging.sh`; the Jenkinsfile
 only hands them the credentials and the image tag. The staging script is the
-dev one under the `cropsown-stg` release name, so the two cannot drift. To
+dev one pointed at the staging cluster, so the two cannot drift. To
 deploy by hand, run the same script against any tag already in ECR, with your
 kubeconfig pointing at that environment's cluster:
 
