@@ -58,10 +58,18 @@ if ! kubectl get --raw /version --request-timeout=15s >/dev/null 2>&1; then
   exit 3
 fi
 
+# Only a definite "not found" stops the run: the deploy node has the aws CLI but
+# no AWS credentials, and every lookup there fails.
 if command -v aws >/dev/null 2>&1; then
-  aws ecr describe-images --region "$AWS_REGION" --repository-name gen2/cropsown-registry/db-seed \
-    --image-ids imageTag="$TAG" >/dev/null 2>&1 \
-    || { echo "ERROR: ${IMAGE_REPO}:${TAG} is not in ECR" >&2; exit 1; }
+  if ! OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name gen2/cropsown-registry/db-seed \
+        --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
+    case "$OUT" in
+      *ImageNotFoundException*|*RepositoryNotFoundException*)
+        echo "ERROR: ${IMAGE_REPO}:${TAG} is not in ECR" >&2; exit 1 ;;
+      *)
+        echo "warning: could not check ${IMAGE_REPO}:${TAG} in ECR ($(echo "$OUT" | grep -m1 .)); continuing" >&2 ;;
+    esac
+  fi
 fi
 
 # Staging's own values: the same DBs, secrets and hosts as the running release.
