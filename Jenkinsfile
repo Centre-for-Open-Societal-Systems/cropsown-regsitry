@@ -208,6 +208,11 @@ pipeline {
                 // release already carries, and EMPTY tells the script to leave
                 // every host value untouched.
                 BASE_DOMAIN           = "${env.BRANCH_NAME == 'staging' ? '' : '{{ .Release.Namespace }}.openg2p.test'}"
+                // Staging is already seeded: every metadata row is there, and a
+                // failed db-seed fails the whole upgrade. When the seed data
+                // changes, run it by hand with the staging kubeconfig:
+                //   RUN_DB_SEED=true BASE_DOMAIN= bash ci/deploy-crop-dev.sh <tag>
+                RUN_DB_SEED           = "${env.BRANCH_NAME == 'staging' ? 'false' : 'true'}"
             }
             steps {
                 // The workspace outlives builds, and nothing cleans a file this
