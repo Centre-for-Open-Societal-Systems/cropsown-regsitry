@@ -1,7 +1,7 @@
 // Crop Sown Registry — build, push to ECR, deploy to Kubernetes.
 //
 //   develop  → build + push → deploy to dev      (release cropsown-registry, namespace crop)
-//   staging  → build + push → deploy to staging  (release cropsown-stg, its own cluster)
+//   staging  → build + push → deploy to staging  (release cropsown-registry, its own cluster)
 //   other    → build + push only
 //
 // Shaped after farmer-registry's Jenkinsfile: one linear pipeline, one Deploy
@@ -198,9 +198,10 @@ pipeline {
                 // develop → the dev cluster (RKE2 at 10.0.1.166), staging → its
                 // own. Each kubeconfig is the crop-ci service account there.
                 KUBECONFIG_CREDENTIAL = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'gen2-dev-kubeconfig'}"
-                // The subchart rejects release names over 18 characters, hence
-                // cropsown-stg rather than cropsown-registry-staging.
-                HELM_RELEASE          = "${env.BRANCH_NAME == 'staging' ? 'cropsown-stg' : 'cropsown-registry'}"
+                // One release name on both clusters; the kubeconfig is what keeps
+                // them apart. The subchart rejects names over 18 characters, and
+                // cropsown-registry is 17.
+                HELM_RELEASE          = 'cropsown-registry'
                 // Dev's public hosts are <namespace>.openg2p.test; the subchart
                 // defaults them to .openg2p.org placeholders, which breaks
                 // Keycloak, MinIO and IAM. Staging's hosts are whatever that
