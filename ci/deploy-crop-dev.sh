@@ -35,6 +35,7 @@
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
+#   RUN_KEYCLOAK_INIT true|false, default false run the keycloak-init hook Job
 #   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
@@ -59,6 +60,26 @@ RUN_SANITY="${RUN_SANITY:-false}"
 # (https://keycloak.<namespace>.openg2p.test), which pods cannot reach here, so
 # it retries 30 times and holds the deploy. The app is registered already.
 RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
+# keycloak-init creates the per-release staff-portal client and maps its roles,
+# and it is the hook that has been holding every deploy. It reaches Keycloak
+# in-cluster at http://commons-keycloak:80 — this is NOT the public-host problem
+# above — and the shared realm answers its admin calls with errors:
+#
+#   Error checking client: {"error":"unknown_error", ...
+#   HTTPError: 400 Client Error: Bad Request for url:
+#     http://commons-keycloak:80/admin/realms/staff/users?username=admin&exact=true
+#
+# The Job then retries to its backoff limit while helm waits on it, which is
+# what turned a deploy into a 40-minute wait and then a killed build. The realm,
+# the client and its secret already exist ("Realm 'staff' already exists") and
+# the values themselves note that `admin` is assumed to come from the commons
+# layer, so re-running this on every deploy buys nothing until the Keycloak side
+# is fixed: the 400 is raised by Keycloak, and its own error text says to read
+# the commons-keycloak server log at debug level for the cause.
+#
+# Set this true for a FRESH environment, where the client really must be
+# created, or once that server-side error is understood.
+RUN_KEYCLOAK_INIT="${RUN_KEYCLOAK_INIT:-false}"
 # db-seed's image and template loaders upload to MinIO at global.minioHost, the
 # PUBLIC host (minio-api.<namespace>.openg2p.test, https), which pods cannot
 # reach here either — locally the same loaders use minio:9000. The host has to
@@ -209,8 +230,12 @@ registry:
     image: {repository: '${ECR}/sanity-tests', tag: '${TAG}'}
   iamRegister:
     enabled: ${RUN_IAM_REGISTER}
+  # keycloak-init is a subchart of openg2p-registry, so it nests under the
+  # registry alias like everything else — not at the top level.
+  keycloak-init:
+    enabled: ${RUN_KEYCLOAK_INIT}
 EOF
-echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}"
+echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}  keycloak-init=${RUN_KEYCLOAK_INIT}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
 # Only a missing release — a first install — may go ahead without them.

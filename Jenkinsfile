@@ -217,16 +217,39 @@ pipeline {
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
                     file(credentialsId: env.KUBECONFIG_CREDENTIAL, variable: 'KUBECONFIG')
                 ]) {
-                    // catchInterruptions: if the deploy outlives the stage timeout
-                    // above, FAIL the build instead of letting the interrupt
-                    // propagate. An uncaught one ends the build ABORTED, which
-                    // reads as "a person pressed Stop" and skips post{failure}, so
-                    // the hang is never mailed — that is how a run ends with
-                    // nothing in Post Actions but `docker image prune`. The cost:
-                    // a real Stop pressed DURING a deploy now reads FAILED. A Stop
-                    // at any other point still reads ABORTED.
-                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
-                        sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                    // A deploy killed by the stage timeout must FAIL the build, not
+                    // abort it: post{failure} does not run on an abort, so the hang
+                    // is never mailed and Post Actions hold nothing but
+                    // `docker image prune`.
+                    //
+                    // catchError(catchInterruptions: true) does NOT do this. It
+                    // catches the interrupt but keeps the interrupt's own result,
+                    // so the console reads "Setting overall build result to
+                    // ABORTED" from inside the catchError block and buildResult is
+                    // ignored. The result has to be decided from what interrupted
+                    // us: the timeout step's cause reads "Timeout has been
+                    // exceeded", a person pressing Stop reads "Aborted by <user>",
+                    // and only the first is a failure. A Stop stays ABORTED,
+                    // because that is what it is.
+                    script {
+                        try {
+                            sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+                            // Reading the causes is a sandbox call the controller
+                            // may not have approved. If it is refused, the old
+                            // behaviour — rethrow, build ABORTED — stands, rather
+                            // than a second way for this to fail.
+                            def why = ''
+                            try {
+                                why = e.causes.collect { it.shortDescription }.join('; ')
+                            } catch (Exception ignored) {
+                                throw e
+                            }
+                            if (!why.toLowerCase().contains('timeout')) {
+                                throw e
+                            }
+                            error "the deploy outlived the 60-minute stage timeout (${why}) — images are in ECR as ${env.IMAGE_TAG}; the console above shows which hook or rollout it was waiting on"
+                        }
                     }
                 }
             }
