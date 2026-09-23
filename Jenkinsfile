@@ -91,7 +91,24 @@ pipeline {
             // Images FROM one platform version with a chart expecting another only
             // fails at deploy; catch it here. Plain python3, no pip needed.
             steps {
-                sh 'python3 test/test_rp_pin_lockstep.py'
+                sh '''
+                    set -eu
+
+                    # The pin check is stdlib-only by design, so a missing pytest is
+                    # not a reason to fail the build — run it directly instead.
+                    #
+                    # This stage used to bootstrap pytest and send the install error
+                    # to /dev/null, which turned an agent without python3-pip into a
+                    # build failure reading "No module named pytest": the symptom,
+                    # never the cause. Ubuntu 22.04 ships python3 with no pip and
+                    # ensurepip stripped out, so that agent could not self-heal.
+                    if python3 -c 'import pytest' 2>/dev/null; then
+                        python3 -m pytest test/test_rp_pin_lockstep.py -q
+                    else
+                        echo "note: pytest unavailable on this agent — running the guard directly"
+                        python3 test/test_rp_pin_lockstep.py
+                    fi
+                '''
             }
         }
 
