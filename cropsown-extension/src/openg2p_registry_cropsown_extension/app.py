@@ -40,6 +40,8 @@ class Initializer(BaseInitializer):
         super().initialize()
         CoreInitializer().initialize()
 
+        from . import odk_ingest_hooks  # noqa: F401
+
         G2PRegisterDomainFactory()
         G2PRegisterDomainServiceCropSown()
         G2PRegisterDomainServiceSowing()
