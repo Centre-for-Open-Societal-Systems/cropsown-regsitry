@@ -67,16 +67,24 @@ if ! kubectl get --raw /version --request-timeout=15s >/dev/null 2>&1; then
   exit 3
 fi
 
-# Where aws is available (by hand), check every image exists before changing
-# anything. In CI the build pushed them moments ago, and the deploy node has no aws.
+# Check every image exists before changing anything. Only a definite "not found"
+# stops the run: the deploy node has the aws CLI but no AWS credentials, and every
+# lookup there fails, though the build pushed the images moments before.
+check_image() {  # <repo suffix>
+  local OUT
+  if OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "gen2/cropsown-registry/$1" \
+        --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
+    return 0
+  fi
+  case "$OUT" in
+    *ImageNotFoundException*|*RepositoryNotFoundException*)
+      echo "ERROR: ${ECR}/$1:${TAG} is not in ECR" >&2; exit 1 ;;
+    *)
+      echo "warning: could not check ${ECR}/$1:${TAG} in ECR ($(echo "$OUT" | grep -m1 .)); continuing" >&2 ;;
+  esac
+}
 if command -v aws >/dev/null 2>&1; then
-  for PAIR in $MAP; do
-    IMG="${PAIR#*=}"
-    aws ecr describe-images --region "$AWS_REGION" --repository-name "gen2/cropsown-registry/${IMG}" \
-      --image-ids imageTag="$TAG" >/dev/null 2>&1 \
-      || { echo "ERROR: ${ECR}/${IMG}:${TAG} is not in ECR" >&2; exit 1; }
-  done
-  echo "all images for ${TAG} are in ECR"
+  for PAIR in $MAP; do check_image "${PAIR#*=}"; done
 fi
 
 say "Pull secret ${PULL_SECRET}"
