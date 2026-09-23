@@ -21,6 +21,7 @@ register model.
 | `helm/openg2p-cropsown-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the crop sown values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the service configs — Postgres bootstrap, Keycloak realm, IAM login provider and role catalog, id-generator pools) |
 | `Jenkinsfile`, `local/jenkins/` | The self-hosted CI pipeline, and a local Jenkins controller that runs it against your own Docker daemon |
+| `ci/` | Scripts the pipeline runs that are also run by hand — `ci/deploy-dev.sh` and `ci/deploy-staging.sh` roll an ECR build into the dev or staging cluster; `ci/setup-agent-vpn.sh` puts a Jenkins agent on the dev cluster's VPN |
 | `test/sanity/` | The crop sown **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
 
 ## Registers
@@ -90,10 +91,79 @@ pieces fit together.
 `Jenkinsfile` is the self-hosted pipeline. It builds six images from
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
-branch-derived tags, and deploys `develop` to the `crop` namespace and `staging`
-to `crop-staging`. The staging cluster is not provisioned yet, so that deploy
-is gated off — set `STAGING_DEPLOY=true` on the controller, and add the
-`staging-kubeconfig` credential, once it exists. The Staff Portal UI is
+branch-derived tags, and deploys both `develop` and `staging` to a `crop`
+namespace.
+
+The same namespace name, because the two land on different clusters. Dev goes to
+the cluster farmer-registry's `far` namespace is on, from the `vpn-agent2` node,
+via the `staging-farmer-kubeconfig` credential;
+staging is a separate EC2 instance running its own RKE2 cluster, reached with
+`staging-rke2-kubeconfig`. The kubeconfig is what separates them, so nothing is
+gained by calling one namespace `crop-staging` — and the staging instance does
+not have a namespace by that name.
+
+**Merging a pull request into `develop` or `staging` deploys it.** A green build
+rolls the images it just pushed into `crop` on that branch's cluster — release
+`cropsown-registry` on dev, which is the `crop` deployments view in Rancher, and
+`cropsown-stg` on the staging instance. Both deploy stages run on the same agent
+as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
+pinned, checksum-verified copies into `.tools/` when they are missing. Neither
+stage asks for a
+labelled deploy node: the old `vpn-deploy-agent` label is carried by no node, and
+an unsatisfiable label does not fail a build — it queues until the 90-minute
+timeout, which is how a successful build ended up red.
+
+**The agent must be on the openg2p-Gen2 WireGuard VPN.** The dev cluster's API
+server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), is routable
+only over that VPN; off it, the dev deploy fails on `dial tcp 10.15.0.1:6443:
+i/o timeout`. Get a peer config issued for the agent by whoever runs the
+openg2p-Gen2 WireGuard server — not a copy of a person's, since two machines on
+one key knock each other off — and, once, as root on the agent (on the host, if
+Jenkins runs in a container):
+
+```sh
+./ci/setup-agent-vpn.sh jenkins-agent.conf --dry-run   # review; keys are hidden
+sudo ./ci/setup-agent-vpn.sh jenkins-agent.conf
+```
+
+It narrows the tunnel to the API server (`10.15.0.1/32`), so CI reaches that and
+nothing else on the dev network, enables it across reboots, and checks the API
+server answers. The deploy scripts check the same before running helm, and
+when they cannot connect the build ends **UNSTABLE** rather than failed: the
+images are in ECR, nothing was deployed, and a "built, not deployed" mail goes
+out. Any other deploy error — a rejected login, a helm failure — still fails the
+build.
+
+Nobody has to start that build. `develop` and `staging` poll the repository every
+five minutes and build any new commit; a GitHub webhook to
+`https://jenkins.oanstaging.com/github-webhook/` starts it at once, with polling
+as the fallback. The trigger is registered by a build that reads the
+Jenkinsfile, so the first build of each branch after the polling change is
+started by hand.
+
+The deploys are `ci/deploy-dev.sh` and `ci/deploy-staging.sh`; the Jenkinsfile
+only hands them the credentials and the image tag. The staging script is the
+dev one under the `cropsown-stg` release name, so the two cannot drift. To
+deploy by hand, run the same script against any tag already in ECR, with your
+kubeconfig pointing at that environment's cluster:
+
+```sh
+AWS_ACCOUNT_ID=<account> ./ci/deploy-dev.sh develop-42
+AWS_ACCOUNT_ID=<account> KUBECONFIG=~/.kube/staging ./ci/deploy-staging.sh staging-7
+```
+
+Use a build-numbered tag rather than `develop` or `staging`: a release already on
+the branch tag renders the same manifests again, so nothing rolls. The scripts
+print the kube context before they change anything; either one with no tag
+prints its usage, and `ci/deploy-dev.sh`'s header lists the defaults it shares
+with the pipeline.
+
+| Gate | Effect |
+|---|---|
+| `DEV_DEPLOY=false` | holds a `develop` build at the ECR push; deploy with `ci/deploy-dev.sh` |
+| `STAGING_DEPLOY=false` | holds a `staging` build at the ECR push; deploy with `ci/deploy-staging.sh` |
+
+Both are set on the controller. The Staff Portal UI is
 deliberately not built here: the chart consumes it as-is from the platform base
 image, so a build of it would produce an image nothing deploys.
 

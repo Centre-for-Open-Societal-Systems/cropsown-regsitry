@@ -1,54 +1,85 @@
-// Crop Sown Registry — build, publish to ECR and deploy to Kubernetes.
+// Crop Sown Registry — build, push to ECR, deploy to Kubernetes.
 //
-// This is the SELF-HOSTED pipeline. It is not the same road as .gitlab-ci.yml:
-// that one delegates to openg2p/packaging@v1, derives one version per commit and
-// publishes to the shared OpenG2P registry + Helm catalogue. This pipeline
-// publishes branch-tagged images to a private ECR and rolls them straight into a
-// cluster, which is what the dev/staging environments here consume.
+//   develop  → build + push → Deploy to Dev     (namespace crop, RKE2 at 10.0.1.166)
+//   staging  → build + push → Deploy to Staging (staging RKE2 instance)
+//   other    → build only
 //
-// Both build exactly the images the Helm chart references, from the same
-// docker/*/Dockerfile definitions, so the two never disagree about what the
-// registry IS — only about where the artefacts land.
+// Deploy to Dev runs on the `vpn-agent2` node, which reaches the dev API server,
+// with the `gen2-dev-kubeconfig` credential (the crop-ci service account, admin
+// in `crop`). The deploy itself is ci/deploy-crop-dev.sh, so a manual deploy is
+// the same command; see that script for what it does and why.
 //
-// To run this pipeline against your own machine instead of jenkins.oanstaging.com,
-// see local/jenkins/README.md: it stands up a controller wired to the local Docker
-// daemon with PUSH_TO_ECR=false, so the Build stage runs for real and the ECR/deploy
-// stages are skipped until you turn them on.
+// Build parameters:
+//   RUN_DB_SEED  (on)   run the db-seed hook Job; untick for an images-only deploy
+//   RUN_SANITY   (off)  run the sanity seed + e2e hook Jobs
+//   RUN_IAM_REGISTER (off) re-register the app in IAM (needs Keycloak reachable in-cluster)
+//   SEED_MINIO_ASSETS (off) db-seed also uploads images/templates (needs MinIO reachable in-cluster)
 //
-// The Staff Portal UI is deliberately NOT built here:
-// helm/openg2p-cropsown-registry/values.yaml consumes staffUi as-is from the
-// platform base image, so it has no chart value to point at a build and
-// publishing it would produce an image nothing deploys. docker/staff-ui is
-// still built by docker-compose.yml for the local stack.
-//
-// dashboard-ui IS built and published, even though the chart has no value
-// referencing it — the analytics dashboard is currently a Compose-only service.
-// The image is published so it is ready ahead of the dashboard being deployed;
-// until then nothing pulls it.
+// Controller environment (optional):
+//   DEV_DEPLOY=false          build and push develop without deploying
+//   STAGING_DEPLOY=false      same for staging
+//   PUSH_TO_ECR=false         build only (local/jenkins sets this)
+//   DOCKER_NO_CACHE=true      rebuild every image layer
+//   BUILD_DASHBOARD_UI=true   also build dashboard-ui (not deployed by the chart)
+//   DASHBOARD_URL             staff-ui's Dashboard button target (baked in at build)
+//   PORTAL_URL                dashboard-ui's portal origin (baked in at build)
 
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(name: 'RUN_DB_SEED', defaultValue: true,
+            description: 'Deploy to Dev: run the db-seed Job. Untick to deploy images only.')
+        booleanParam(name: 'RUN_SANITY', defaultValue: false,
+            description: 'Deploy to Dev: run the sanity seed and e2e test Jobs.')
+        // iam-register fetches a token from the PUBLIC Keycloak URL
+        // (https://keycloak.crop.openg2p.test), which pods cannot reach, so it
+        // retries 30 times and holds the deploy. The app is already registered.
+        booleanParam(name: 'RUN_IAM_REGISTER', defaultValue: false,
+            description: 'Deploy to Dev: re-run the IAM registration Job.')
+        // db-seed's image/template loaders upload to the public MinIO host, which
+        // pods cannot reach; off, db-seed loads SQL metadata and geo data only.
+        booleanParam(name: 'SEED_MINIO_ASSETS', defaultValue: false,
+            description: 'Deploy to Dev: let db-seed upload images and templates to MinIO.')
+    }
+
     environment {
-        AWS_REGION   = 'ap-south-1'
-        ECR_BASE     = 'gen2/cropsown-registry'
-        NAMESPACE    = 'crop'
-        RELEASE_NAME = 'cropsown-registry'
-        CHART_DIR    = 'helm/openg2p-cropsown-registry'
+        AWS_REGION     = 'ap-south-1'
+        ECR_BASE       = 'gen2/cropsown-registry'
 
-        // The five images the chart deploys, matching the IMAGES list in
-        // .gitlab-ci.yml. Each builds from docker/<name>/Dockerfile with the repo
-        // root as context.
-        SERVICES = 'staff-api partner-api celery db-seed sanity-tests dashboard-ui'
+        // Dev deploy (ci/deploy-crop-dev.sh)
+        HELM_RELEASE   = 'cropsown-registry'
+        HELM_NAMESPACE = 'crop'
+        HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
 
-        // Always notified, on success and on failure, alongside the commit author.
+        // Staging deploy (ci/deploy-staging.sh). The subchart rejects release
+        // names over 18 characters, hence cropsown-stg.
+        STAGING_RELEASE   = 'cropsown-stg'
+        STAGING_NAMESPACE = 'crop'
+        NAMESPACE         = 'crop'
+        RELEASE_NAME      = 'cropsown-registry'
+        CHART_DIR         = 'helm/openg2p-cropsown-registry'
+
+        // Images built from docker/<name>/Dockerfile (repo root as context).
+        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
+
         DEVOPS_EMAILS = 'simretyibeltal@gmail.com, pavanns.ns@gmail.com'
     }
 
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '30'))
-        timeout(time: 90, unit: 'MINUTES')
+        // Image builds plus a deploy that waits on the chart's hook Jobs.
+        timeout(time: 150, unit: 'MINUTES')
+        // Two deploys at once leave the helm release locked ("another operation
+        // is in progress"); a second build waits for the first instead.
+        disableConcurrentBuilds()
+    }
+
+    // develop and staging poll for new commits; other branches and the local
+    // controller register no trigger.
+    triggers {
+        pollSCM(['develop', 'staging'].contains(env.BRANCH_NAME) && env.PUSH_TO_ECR != 'false' ? 'H/5 * * * *' : '')
     }
 
     stages {
@@ -57,10 +88,8 @@ pipeline {
         }
 
         stage('Guard: openg2p-registry pin lockstep') {
-            // The same check .github/workflows/checks.yml runs. It costs seconds
-            // and catches the failure that is otherwise invisible until deploy:
-            // images built FROM one platform version while the chart pulls a
-            // subchart expecting another.
+            // Images FROM one platform version with a chart expecting another only
+            // fails at deploy; catch it here. Plain python3, no pip needed.
             steps {
                 sh '''
                     set -eu
@@ -83,10 +112,7 @@ pipeline {
             }
         }
 
-        stage('Resolve RP_VERSION') {
-            // Read the pin rather than restating it. A hardcoded copy here would
-            // be a fourth place to keep in step with the Dockerfiles, the chart
-            // dependency and local/.env — and the one place no test guards.
+        stage('Resolve version') {
             steps {
                 script {
                     env.RP_VERSION = sh(
@@ -96,243 +122,154 @@ pipeline {
                     if (!env.RP_VERSION) {
                         error 'could not read ARG RP_VERSION from docker/staff-api/Dockerfile'
                     }
-                    echo "openg2p-registry base version: ${env.RP_VERSION}"
+                    env.IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+                    echo "openg2p-registry ${env.RP_VERSION}, image tag ${env.IMAGE_TAG}"
                 }
             }
         }
 
-        stage('Build Images') {
+        stage('Build & Push') {
             steps {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     sh '''
                         set -eu
                         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
+                        PUSH="${PUSH_TO_ECR:-true}"
 
-                        # The real controller builds clean so a moved base image
-                        # tag is never silently reused. That is minutes per image
-                        # per run, which is unaffordable when you are iterating
-                        # locally, so the local controller sets DOCKER_NO_CACHE
-                        # false. Absent (the real controller), it stays on.
-                        CACHE_FLAG="--no-cache"
-                        if [ "${DOCKER_NO_CACHE:-true}" = "false" ]; then
-                            CACHE_FLAG=""
-                            echo "note: building WITH cache (DOCKER_NO_CACHE=false)"
+                        # Reuse unchanged layers; --pull still refreshes moved base tags.
+                        CACHE_FLAG="--pull"
+                        if [ "${DOCKER_NO_CACHE:-false}" = "true" ]; then CACHE_FLAG="--pull --no-cache"; fi
+
+                        BUILD_ARGS="--build-arg RP_VERSION=${RP_VERSION}"
+                        # Both are baked into client bundles at build time; the staff-ui
+                        # patch rejects an empty DASHBOARD_URL, so pass them only when set.
+                        if [ -n "${DASHBOARD_URL:-}" ]; then BUILD_ARGS="${BUILD_ARGS} --build-arg DASHBOARD_URL=${DASHBOARD_URL}"; fi
+                        if [ -n "${PORTAL_URL:-}" ]; then BUILD_ARGS="${BUILD_ARGS} --build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"; fi
+
+                        BUILD_LIST="${SERVICES}"
+                        if [ "${BUILD_DASHBOARD_UI:-false}" = "true" ]; then BUILD_LIST="${BUILD_LIST} dashboard-ui"; fi
+
+                        if [ "$PUSH" != "false" ]; then
+                            aws ecr get-login-password --region "${AWS_REGION}" \
+                                | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
                         fi
 
-                        # dashboard-ui compiles the portal origin into its client
-                        # bundle at build time (docker/dashboard-ui/Dockerfile,
-                        # ARG NEXT_PUBLIC_PORTAL_URL), so the image is only correct
-                        # for the environment named here. Unset, the Dockerfile
-                        # default applies — the LOCAL portal — which is wrong for
-                        # anything this pipeline publishes.
-                        PORTAL_ARG=""
-                        if [ -n "${PORTAL_URL:-}" ]; then
-                            PORTAL_ARG="--build-arg NEXT_PUBLIC_PORTAL_URL=${PORTAL_URL}"
-                        else
-                            echo "WARNING: PORTAL_URL unset — dashboard-ui bakes in the local portal URL"
+                        for SVC in ${BUILD_LIST}; do
+                            IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
+                            echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
+                            docker build ${BUILD_ARGS} ${CACHE_FLAG} \
+                                -f "docker/${SVC}/Dockerfile" \
+                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
+
+                            if [ "$PUSH" != "false" ]; then
+                                # ECR does not create repositories on push.
+                                aws ecr describe-repositories --region "${AWS_REGION}" \
+                                    --repository-names "${ECR_BASE}/${SVC}" >/dev/null 2>&1 \
+                                  || aws ecr create-repository --region "${AWS_REGION}" \
+                                        --repository-name "${ECR_BASE}/${SVC}" >/dev/null
+                                docker push "${IMAGE}:${IMAGE_TAG}"
+                                docker push "${IMAGE}:${BRANCH_NAME}"
+                                # Keep the branch tag locally: it is the next build's cache.
+                                docker rmi "${IMAGE}:${IMAGE_TAG}" || true
+                            fi
+                        done
+
+                        # An ECR pull token for the deploy node to put in the
+                        # namespace's imagePullSecret. The cluster's own
+                        # ecr-refresh CronJob was broken (its ecr-refresh-aws
+                        # secret is missing), the 12-hour token expired, and every
+                        # pod in the release went ImagePullBackOff — db-seed
+                        # included, which is what helm reported as
+                        # BackoffLimitExceeded. Only this agent has AWS
+                        # credentials, so the token is minted here.
+                        if [ "$PUSH" != "false" ]; then
+                            umask 077
+                            aws ecr get-login-password --region "${AWS_REGION}" > .ecr-token
+                            echo "${ECR_REGISTRY}" > .ecr-registry
                         fi
-
-                        echo "=== Building images for branch: ${BRANCH} tag: ${TAG} (RP ${RP_VERSION}) ==="
-
-                        for SVC in ${SERVICES}; do
-                            echo "--- ${SVC} ---"
-                            docker build \
-                                --build-arg RP_VERSION="${RP_VERSION}" \
-                                --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${TAG}" \
-                                --tag "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${BRANCH}" \
-                                --file "docker/${SVC}/Dockerfile" \
-                                ${PORTAL_ARG} ${CACHE_FLAG} .
-                        done
-
-                        echo "=== All images built ==="
                     '''
                 }
             }
         }
 
-        stage('Push to ECR') {
-            // A local run builds and stops there: local/jenkins sets
-            // PUSH_TO_ECR=false. Unset — which is every run on the real
-            // controller — means push, so this changes nothing there.
-            when { expression { env.PUSH_TO_ECR != 'false' } }
-            steps {
-                withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
-                    sh '''
-                        set -eu
-                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
-
-                        echo "=== Logging in to ECR ==="
-                        aws ecr get-login-password --region "${AWS_REGION}" \
-                            | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
-
-                        echo "=== Pushing images ==="
-                        for SVC in ${SERVICES}; do
-                            # Each repository must already exist; ECR does not create
-                            # them on push. Created here so a new service does not
-                            # fail the first build that adds it.
-                            aws ecr describe-repositories \
-                                --region "${AWS_REGION}" \
-                                --repository-names "${ECR_BASE}/${SVC}" >/dev/null 2>&1 \
-                              || aws ecr create-repository \
-                                    --region "${AWS_REGION}" \
-                                    --repository-name "${ECR_BASE}/${SVC}" >/dev/null
-
-                            docker push "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${TAG}"
-                            docker push "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${BRANCH}"
-                            echo "Pushed ${SVC}:${TAG}"
-                        done
-
-                        echo "=== Cleanup local images ==="
-                        for SVC in ${SERVICES}; do
-                            docker rmi "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${TAG}" || true
-                            docker rmi "${ECR_REGISTRY}/${ECR_BASE}/${SVC}:${BRANCH}" || true
-                        done
-                        docker system prune -f || true
-
-                        echo "=== All images pushed ==="
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy to Dev') {
-            // beforeAgent matters: without it Jenkins tries to allocate the
-            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
-            // would queue forever waiting for a label that does not exist here.
-            when {
-                beforeAgent true
-                branch 'develop'
-                expression { env.PUSH_TO_ECR != 'false' }
-            }
-            agent { label 'vpn-deploy-agent' }
-            steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'gen2-kubeconfig', variable: 'KUBECONFIG')
-                ]) {
-                    sh '''
-                        set -eu
-                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
-
-                        echo "=== Deploying ${RELEASE_NAME} to namespace ${NAMESPACE} ==="
-
-                        # The wrapper chart owns no templates; every manifest comes
-                        # from the pinned openg2p-registry subchart, so the
-                        # dependency must be present before install.
-                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-                        helm repo update openg2p || true
-                        helm dependency build ./${CHART_DIR}
-
-                        # NB the sanity values live UNDER the subchart alias
-                        # (registry.sanity.*), not at the top level — see
-                        # CHART_IMAGE_PATHS in .gitlab-ci.yml. Setting a top-level
-                        # `sanity.image.*` writes a key the chart never reads, so the
-                        # sanity Job would silently keep the values.yaml default tag.
-                        helm upgrade --install "${RELEASE_NAME}" ./${CHART_DIR} \
-                            --namespace "crop" \
-                            --create-namespace \
-                            --timeout 10m \
-                            --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
-                            --set registry.staffApi.image.tag=${TAG} \
-                            --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
-                            --set registry.partnerApi.image.tag=${TAG} \
-                            --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryWorker.image.tag=${TAG} \
-                            --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryBeat.image.tag=${TAG} \
-                            --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
-                            --set registry.dbSeed.image.tag=${TAG} \
-                            --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
-                            --set registry.sanity.image.tag=${TAG}
-
-                        echo "=== Waiting for rollout ==="
-                        kubectl rollout status "deployment/${RELEASE_NAME}-staff-api" \
-                            -n "${NAMESPACE}" --timeout=120s || true
-
-                        echo "=== Deployment status ==="
-                        kubectl get pods -n "${NAMESPACE}" | grep "${RELEASE_NAME}" || true
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy to Staging') {
-            // beforeAgent matters: without it Jenkins tries to allocate the
-            // vpn-deploy-agent BEFORE evaluating the condition, so a local run
-            // would queue forever waiting for a label that does not exist here.
+        stage('Deploy') {
+            // Like farmer-registry's single deploy stage: develop goes to dev and
+            // staging to staging, both from the vpn-agent2 node, which is the only
+            // node that reaches either API server. The kubeconfig, release,
+            // namespace and base domain are chosen by branch below; everything else
+            // is ci/deploy-crop-dev.sh, so a deploy by hand is the same command.
             //
-            // STAGING_DEPLOY gates the stage OFF by default: the staging cluster
-            // is not provisioned yet, and without it the stage fails on the
-            // missing staging-kubeconfig credential, turning every staging build
-            // red for a deployment nobody expects to work. Set STAGING_DEPLOY=true
-            // on the controller once the cluster and that credential exist.
+            //   develop  gen2-dev-kubeconfig       dev, 10.0.1.166, release
+            //                                      cropsown-registry in crop
+            //   staging  staging-rke2-kubeconfig   staging, release cropsown-stg
+            //                                      in crop (its own cluster)
             when {
                 beforeAgent true
-                branch 'staging'
+                anyOf {
+                    branch 'develop'
+                    branch 'staging'
+                }
                 expression { env.PUSH_TO_ECR != 'false' }
-                expression { env.STAGING_DEPLOY == 'true' }
+                expression { env.BRANCH_NAME == 'develop' ? env.DEV_DEPLOY != 'false' : env.STAGING_DEPLOY != 'false' }
             }
-            agent { label 'vpn-deploy-agent' }
+            environment {
+                DEPLOY_KUBECONFIG = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'gen2-dev-kubeconfig'}"
+                DEPLOY_RELEASE    = "${env.BRANCH_NAME == 'staging' ? 'cropsown-stg' : 'cropsown-registry'}"
+                // Staging's hosts are whatever that release already carries: the
+                // .openg2p.test base domain is the dev environment's. Empty leaves
+                // every host value untouched.
+                DEPLOY_BASE_DOMAIN = "${env.BRANCH_NAME == 'staging' ? '' : '{{ .Release.Namespace }}.openg2p.test'}"
+            }
             steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-                    file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')
-                ]) {
-                    sh '''
-                        set -eu
-                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        BRANCH="${BRANCH_NAME}"
-                        TAG="${BRANCH}-${BUILD_NUMBER}"
-
-                        helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-                        helm dependency build ./${CHART_DIR}
-
-                        helm upgrade --install "${RELEASE_NAME}-staging" ./${CHART_DIR} \
-                            --namespace "crop-staging" \
-                            --create-namespace \
-                            --timeout 10m \
-                            --set registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/staff-api \
-                            --set registry.staffApi.image.tag=${TAG} \
-                            --set registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_BASE}/partner-api \
-                            --set registry.partnerApi.image.tag=${TAG} \
-                            --set registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryWorker.image.tag=${TAG} \
-                            --set registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_BASE}/celery \
-                            --set registry.celeryBeat.image.tag=${TAG} \
-                            --set registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_BASE}/db-seed \
-                            --set registry.dbSeed.image.tag=${TAG} \
-                            --set registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_BASE}/sanity-tests \
-                            --set registry.sanity.image.tag=${TAG}
-
-                        kubectl rollout status "deployment/${RELEASE_NAME}-staging-staff-api" \
-                            -n "${NAMESPACE}-staging" --timeout=120s || true
-                        kubectl get pods -n "${NAMESPACE}-staging" | grep "${RELEASE_NAME}-staging" || true
-                    '''
+                // The deploy node needs only the chart and the deploy script.
+                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**,.ecr-token,.ecr-registry"
+                // The token is short-lived, but it is a credential: keep it out of
+                // the build agent's workspace once it is stashed.
+                sh 'rm -f .ecr-token .ecr-registry'
+                // Bounded: an offline vpn-agent2 would otherwise queue the build
+                // until the pipeline timeout. 60 minutes covers the wait for the
+                // node and the deploy (helm waits up to 40 for hooks).
+                timeout(time: 60, unit: 'MINUTES') {
+                    node('vpn-agent2') {
+                        sh 'rm -rf ci helm'
+                        unstash 'deploy'
+                        withCredentials([
+                            string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                            file(credentialsId: env.DEPLOY_KUBECONFIG, variable: 'KUBECONFIG')
+                        ]) {
+                            // Defaults cover the first build after this file lands,
+                            // before Jenkins has registered the parameters.
+                            withEnv([
+                                "HELM_RELEASE=${env.DEPLOY_RELEASE}",
+                                "BASE_DOMAIN=${env.DEPLOY_BASE_DOMAIN}",
+                                "RUN_DB_SEED=${params.RUN_DB_SEED == null ? true : params.RUN_DB_SEED}",
+                                "RUN_SANITY=${params.RUN_SANITY == null ? false : params.RUN_SANITY}",
+                                "RUN_IAM_REGISTER=${params.RUN_IAM_REGISTER == null ? false : params.RUN_IAM_REGISTER}",
+                                "SEED_MINIO_ASSETS=${params.SEED_MINIO_ASSETS == null ? false : params.SEED_MINIO_ASSETS}"
+                            ]) {
+                                sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                            }
+                        }
+                    }
                 }
             }
         }
+
     }
 
     post {
         success {
             script {
-                def to = notifyList()
                 mailQuietly(
-                    to: to,
+                    to: notifyList(),
                     subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
-Crop Sown Registry build and deployment succeeded.
+Crop Sown Registry build succeeded.
 
 Job:        ${env.JOB_NAME}
 Branch:     ${env.BRANCH_NAME}
 Build:      #${env.BUILD_NUMBER}
-Image tag:  ${env.BRANCH_NAME}-${env.BUILD_NUMBER}
+Image tag:  ${env.IMAGE_TAG}
 Platform:   openg2p-registry ${env.RP_VERSION}
 URL:        ${env.BUILD_URL}
 
@@ -344,9 +281,8 @@ Jenkins
         }
         failure {
             script {
-                def to = notifyList()
                 mailQuietly(
-                    to: to,
+                    to: notifyList(),
                     subject: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
 Crop Sown Registry build or deployment failed.
@@ -354,9 +290,10 @@ Crop Sown Registry build or deployment failed.
 Job:        ${env.JOB_NAME}
 Branch:     ${env.BRANCH_NAME}
 Build:      #${env.BUILD_NUMBER}
-URL:        ${env.BUILD_URL}
-
 Console:    ${env.BUILD_URL}console
+
+A failed dev deploy prints its reason in the console: the "Deploy target" checks,
+then hook pod logs, API pod logs, release history and warning events.
 
 Regards,
 Jenkins
@@ -364,12 +301,13 @@ Jenkins
                 )
             }
         }
+        always {
+            sh 'docker image prune -f || true'
+        }
     }
 }
 
-// The DevOps list always, plus the commit author when the commit carries a
-// usable address. A `noreply` address bounces, so a bot commit notifies the
-// list alone rather than mailing into a void.
+// The DevOps list, plus the commit author unless it is a noreply address.
 def notifyList() {
     def email = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
     def recipients = env.DEVOPS_EMAILS.split(',').collect { it.trim() }
@@ -379,10 +317,7 @@ def notifyList() {
     return recipients.unique().join(', ')
 }
 
-// Local controllers (local/jenkins) have no SMTP, and an unconfigured `mail`
-// step throws — which in post{} turns an otherwise green build red. A
-// notification that could not be sent has never been a build failure, so it is
-// logged and swallowed.
+// A controller without SMTP must not turn a green build red.
 def mailQuietly(Map args) {
     try {
         mail(args)
@@ -390,4 +325,3 @@ def mailQuietly(Map args) {
         echo "notification not sent: ${err.message}"
     }
 }
-

@@ -13,6 +13,7 @@ FROM openg2p/openg2p-registry-partner-api:${RP_VERSION}
 ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension
 
 COPY cropsown-extension/ /app/cropsown-extension/
+COPY core_pkg/ /usr/local/lib/python3.12/site-packages/openg2p_registry_core/
 # Build-only escape hatch for networks that intercept TLS (corporate proxy, AV,
 # some WSL setups): pip then sees a self-signed root CA and cannot verify
 # pypi.org. Empty by default, so CI and Helm builds are unchanged. Locally:
