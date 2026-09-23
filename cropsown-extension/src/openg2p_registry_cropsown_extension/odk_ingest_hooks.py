@@ -14,44 +14,55 @@ from contextvars import ContextVar
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
 _active_session: ContextVar = ContextVar("odk_active_session", default=None)
 
+# Every service's settings prefix, most specific shared one first. Each pod sets
+# only its own prefix (the staff API sets REGISTRY_STAFF_PORTAL_API_*, the beat
+# producer REGISTRY_CELERY_BEAT_*, ...), so every setting must be looked up
+# under all of them — a lookup that skips a prefix silently falls through.
+_SETTING_PREFIXES = (
+    "COMMON_",
+    "REGISTRY_CORE_",
+    "REGISTRY_PARTNER_API_",
+    "REGISTRY_CELERY_WORKERS_",
+    "REGISTRY_CELERY_BEAT_",
+    "REGISTRY_STAFF_PORTAL_API_",
+)
+
+
+def _setting(name, default=None):
+    """First non-empty <prefix><name> across the service prefixes, else default."""
+    for prefix in _SETTING_PREFIXES:
+        value = os.environ.get(prefix + name)
+        if value:
+            return value
+    return default
+
+
+def _db_dsn(kind, db_prefix):
+    """Build a DSN from <prefix><db_prefix>_* settings, or None when any credential is missing.
+
+    There are deliberately no credential defaults: a guessed user or password
+    (the old "cropsown_user"/"master_data_pass") only turns a missing setting into
+    a login failure far from its cause, so the platform's own engine is kept instead.
+    """
+    hostname = _setting(f"{db_prefix}_HOSTNAME")
+    dbname = _setting(f"{db_prefix}_DBNAME")
+    username = _setting(f"{db_prefix}_USERNAME")
+    password = _setting(f"{db_prefix}_PASSWORD")
+    port = _setting(f"{db_prefix}_PORT", "5432")
+    missing = [n for n, v in (("HOSTNAME", hostname), ("DBNAME", dbname),
+                              ("USERNAME", username), ("PASSWORD", password)) if not v]
+    if missing:
+        _logger.warning("ODK Hook: %s DB settings missing (%s_%s); keeping the platform engine",
+                        kind, db_prefix, "/".join(missing))
+        return None
+    return f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
+
 
 def _get_registry_engine():
     """Construct an AsyncEngine connected to the primary registry database."""
     from sqlalchemy.ext.asyncio import create_async_engine
-    hostname = (
-        os.environ.get("COMMON_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME")
-        or "postgres"
-    )
-    port = (
-        os.environ.get("COMMON_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PORT")
-        or "5432"
-    )
-    dbname = (
-        os.environ.get("COMMON_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_DBNAME")
-        or "cropsown"
-    )
-    username = (
-        os.environ.get("COMMON_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_USERNAME")
-        or "cropsown_user"
-    )
-    password = (
-        os.environ.get("COMMON_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PASSWORD")
-        or "cropsown_pass"
-    )
-    dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
-    return create_async_engine(dsn)
+    dsn = _db_dsn("registry", "DB")
+    return create_async_engine(dsn) if dsn else None
 
 
 def _ensure_dbengine_initialized():
@@ -101,31 +112,16 @@ def _patch_document_handler():
         from openg2p_registry_core.helpers.document.document_handlers import DocumentHandler
         from openg2p_fastapi_common.component import component_registry
 
+        endpoint = _setting("MINIO_ENDPOINT")
+        access_key = _setting("MINIO_ACCESS_KEY")
+        secret_key = _setting("MINIO_SECRET_KEY")
+        secure = _setting("MINIO_SECURE", "false").lower() == "true"
+        if not (endpoint and access_key and secret_key):
+            # No "minioadmin" guess: wrong keys surface later as S3 AccessDenied.
+            _logger.warning("ODK Hook: MinIO endpoint/keys not set; keeping the platform DocumentHandler")
+            return
+
         def make_minio_client():
-            endpoint = (
-                os.environ.get("REGISTRY_CORE_MINIO_ENDPOINT")
-                or os.environ.get("REGISTRY_CELERY_WORKERS_MINIO_ENDPOINT")
-                or os.environ.get("REGISTRY_PARTNER_API_MINIO_ENDPOINT")
-                or os.environ.get("REGISTRY_STAFF_PORTAL_API_MINIO_ENDPOINT")
-                or "minio:9000"
-            )
-            access_key = (
-                os.environ.get("REGISTRY_CORE_MINIO_ACCESS_KEY")
-                or os.environ.get("REGISTRY_CELERY_WORKERS_MINIO_ACCESS_KEY")
-                or os.environ.get("REGISTRY_PARTNER_API_MINIO_ACCESS_KEY")
-                or "minioadmin"
-            )
-            secret_key = (
-                os.environ.get("REGISTRY_CORE_MINIO_SECRET_KEY")
-                or os.environ.get("REGISTRY_CELERY_WORKERS_MINIO_SECRET_KEY")
-                or os.environ.get("REGISTRY_PARTNER_API_MINIO_SECRET_KEY")
-                or "minioadmin"
-            )
-            secure = (
-                os.environ.get("REGISTRY_CORE_MINIO_SECURE")
-                or os.environ.get("REGISTRY_CELERY_WORKERS_MINIO_SECURE")
-                or "false"
-            ).lower() == "true"
             return MinioClient(
                 endpoint=endpoint,
                 access_key=access_key,
@@ -166,43 +162,15 @@ def _ensure_master_data_engine():
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.pool import NullPool
 
-        hostname = (
-            os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
-            or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
-            or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
-            or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
-            or "postgres"
-        )
-        username = (
-            os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
-            or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
-            or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
-            or "master_data_user"
-        )
-        password = (
-            os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
-            or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
-            or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
-            or "master_data_pass"
-        )
-        dbname = (
-            os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
-            or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
-            or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
-            or "master_data"
-        )
-        port = (
-            os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
-            or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
-            or "5432"
-        )
-        driver = "postgresql+asyncpg"
-        dsn = f"{driver}://{username}:{password}@{hostname}:{port}/{dbname}"
+        dsn = _db_dsn("master data", "MASTER_DATA_DB")
+        if dsn is None:
+            return
         eng = create_async_engine(dsn, poolclass=NullPool)
         if engine._engines is None:
             engine._engines = {}
         engine._engines["db_engine_master_data"] = eng
-        _logger.info("ODK Hook: Initialized db_engine_master_data to %s", dsn)
+        # eng.url masks the password; the raw dsn must never be logged.
+        _logger.info("ODK Hook: Initialized db_engine_master_data to %s", eng.url)
     except Exception as e:
         _logger.debug("ODK Hook: Error initializing master data engine: %s", e)
 
