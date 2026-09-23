@@ -414,8 +414,9 @@ pieces fit together.
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
 branch-derived tags, and deploys `develop` to the dev cluster's `crop`
-namespace. A `staging` build only builds and pushes its images: staging is
-deployed by hand from a `staging-<n>` tag (see below).
+namespace. A `staging` build pushes its images and then moves staging's app
+Deployments onto them with `ci/staging-set-images.sh`: images only, no helm
+upgrade (see below).
 
 The same namespace name, because the two land on different clusters. Dev goes to
 the cluster farmer-registry's `far` namespace is on, from the `vpn-agent2` node,
@@ -425,12 +426,16 @@ staging is a separate EC2 instance running its own RKE2 cluster, reached with
 gained by calling one namespace `crop-staging` — and the staging instance does
 not have a namespace by that name.
 
-**Merging a pull request into `develop` deploys it; merging into `staging` does
-not.** A green `develop` build rolls the images it just pushed into release
+**Merging a pull request into `develop` or `staging` puts it live, in two
+different ways.** A green `develop` build helm-upgrades release
 `cropsown-registry` in `crop` on dev, the `crop` deployments view in Rancher. A
-`staging` build stops at the ECR push: its automatic helm upgrade once replaced
+green `staging` build only changes the image of each app Deployment on staging
+(`kubectl set image`, via `ci/staging-set-images.sh`) and undoes them all if any
+rollout fails, then runs its db-seed as a plain Job rendered with staging's own
+release values (`ci/staging-run-db-seed.sh`). It never runs helm upgrade there: an automatic one once replaced
 staging's live release (chart, hostnames, a db-seed against its data) and took
-the site down. The deploy stage runs on the same agent
+the site down. Staging's chart, values and hostnames are changed by hand. The
+new API images do run their database migrations on start. The deploy stage runs on the same agent
 as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
 pinned, checksum-verified copies into `.tools/` when they are missing. Neither
 stage asks for a

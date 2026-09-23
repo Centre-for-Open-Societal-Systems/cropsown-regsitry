@@ -1,7 +1,8 @@
 // Crop Sown Registry — build, push to ECR, deploy to Kubernetes.
 //
 //   develop  → build + push → deploy to dev      (release cropsown-registry, namespace crop)
-//   staging  → build + push only; staging is deployed by hand, not by CI
+//   staging  → build + push → move staging's app Deployments to the new images
+//              (kubectl set image; no helm upgrade, hostnames untouched)
 //   other    → build + push only
 //
 // Shaped after farmer-registry's Jenkinsfile: one linear pipeline, one Deploy
@@ -177,10 +178,10 @@ pipeline {
         }
 
         stage('Deploy') {
-            // develop only. A staging build stops at the ECR push: its automatic
+            // develop only. Staging is never helm-upgraded by CI: its automatic
             // helm upgrade replaced staging's live release (chart, hosts, a
-            // db-seed against its data) and took the site down, so staging is
-            // deployed by hand from a pushed staging-<n> tag.
+            // db-seed against its data) and took the site down. A staging build
+            // updates images only, in the next stage.
             //
             // beforeAgent: decide before asking for vpn-agent2, so a build of any
             // other branch never waits on that node.
@@ -227,6 +228,43 @@ pipeline {
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                    }
+                }
+            }
+        }
+
+        stage('Update staging images') {
+            // staging only, and never helm upgrade, so staging's release, chart,
+            // values and hostnames are untouched:
+            //   1. ci/staging-set-images.sh moves each app Deployment to this
+            //      build's staging-<n> image (kubectl set image), and undoes them
+            //      all if a rollout fails;
+            //   2. ci/staging-run-db-seed.sh then runs this build's db-seed as a
+            //      plain Job, rendered with staging's own release values, so the
+            //      seed data on this branch reaches staging's databases.
+            // A db-seed failure fails the build; the new images stay.
+            when {
+                beforeAgent true
+                branch 'staging'
+            }
+            agent { label 'vpn-agent2' }
+            options {
+                // Five rollouts at up to 7 minutes each, db-seed's 15, and the wait
+                // for the node.
+                timeout(time: 60, unit: 'MINUTES')
+            }
+            steps {
+                sh 'rm -rf ci helm'
+                unstash 'deploy'
+                withCredentials([
+                    string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                    file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')
+                ]) {
+                    // As in Deploy: a timeout FAILS the build rather than ending it
+                    // ABORTED, so the failure mail goes out.
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
+                        sh 'bash ci/staging-set-images.sh "${IMAGE_TAG}" --apply'
+                        sh 'bash ci/staging-run-db-seed.sh "${IMAGE_TAG}" --apply'
                     }
                 }
             }
