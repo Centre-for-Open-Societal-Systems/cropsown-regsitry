@@ -32,6 +32,8 @@
 #   HELM_NAMESPACE   default crop
 #   HELM_CHART_DIR   default helm/openg2p-cropsown-registry
 #   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template)
+#   REGISTRY_HOST, KEYCLOAK_URL, MINIO_HOST, IDGEN_HOST, AWE_HOST, IAM_URL,
+#   COOKIE_DOMAIN    one host each, overriding what BASE_DOMAIN derives
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
@@ -154,18 +156,28 @@ helm dependency build "$HELM_CHART_DIR"
 # ── 3. Values this build owns ──────────────────────────────────────────────────
 VALUE_FILES=()
 if [ -n "$BASE_DOMAIN" ]; then
+  # Each host defaults to the BASE_DOMAIN pattern; an environment whose
+  # hosts do not follow it (staging) names them one by one.
+  RELEASE_NAME_TPL='{{ .Release.Name }}'
+  REGISTRY_HOST="${REGISTRY_HOST:-${RELEASE_NAME_TPL}.${BASE_DOMAIN}}"
+  KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.${BASE_DOMAIN}}"
+  MINIO_HOST="${MINIO_HOST:-minio-api.${BASE_DOMAIN}}"
+  IDGEN_HOST="${IDGEN_HOST:-idgenerator-${RELEASE_NAME_TPL}.${BASE_DOMAIN}}"
+  AWE_HOST="${AWE_HOST:-awe.${BASE_DOMAIN}}"
+  IAM_URL="${IAM_URL:-https://staff-iam.${BASE_DOMAIN}}"
+  COOKIE_DOMAIN="${COOKIE_DOMAIN:-.${BASE_DOMAIN}}"
   cat > "$WORK/ci-hosts.yaml" <<EOF
 global:
-  registryHostname: '{{ .Release.Name }}.${BASE_DOMAIN}'
-  keycloakBaseUrl: 'https://keycloak.${BASE_DOMAIN}'
-  minioHost: 'minio-api.${BASE_DOMAIN}'
-  idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.${BASE_DOMAIN}'
-  aweHostname: 'awe.${BASE_DOMAIN}'
+  registryHostname: '${REGISTRY_HOST}'
+  keycloakBaseUrl: '${KEYCLOAK_URL}'
+  minioHost: '${MINIO_HOST}'
+  idGeneratorHostname: '${IDGEN_HOST}'
+  aweHostname: '${AWE_HOST}'
 registry:
   staffUi:
-    iamPublicUrl: 'https://staff-iam.${BASE_DOMAIN}'
+    iamPublicUrl: '${IAM_URL}'
     envVars:
-      COOKIE_DOMAIN: '.${BASE_DOMAIN}'
+      COOKIE_DOMAIN: '${COOKIE_DOMAIN}'
 EOF
   VALUE_FILES+=(-f "$WORK/ci-hosts.yaml")
 else
