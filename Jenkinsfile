@@ -1,7 +1,7 @@
 // Crop Sown Registry — build, push to ECR, deploy to Kubernetes.
 //
 //   develop  → build + push → deploy to dev      (release cropsown-registry, namespace crop)
-//   staging  → build + push → deploy to staging  (release cropsown-registry, its own cluster)
+//   staging  → build + push only; staging is deployed by hand, not by CI
 //   other    → build + push only
 //
 // Shaped after farmer-registry's Jenkinsfile: one linear pipeline, one Deploy
@@ -177,14 +177,16 @@ pipeline {
         }
 
         stage('Deploy') {
+            // develop only. A staging build stops at the ECR push: its automatic
+            // helm upgrade replaced staging's live release (chart, hosts, a
+            // db-seed against its data) and took the site down, so staging is
+            // deployed by hand from a pushed staging-<n> tag.
+            //
             // beforeAgent: decide before asking for vpn-agent2, so a build of any
             // other branch never waits on that node.
             when {
                 beforeAgent true
-                anyOf {
-                    branch 'develop'
-                    branch 'staging'
-                }
+                branch 'develop'
             }
             agent { label 'vpn-agent2' }
             options {
@@ -195,19 +197,16 @@ pipeline {
                 timeout(time: 60, unit: 'MINUTES')
             }
             environment {
-                // develop → the dev cluster (RKE2 at 10.0.1.166), staging → its
-                // own. Each kubeconfig is the crop-ci service account there.
-                KUBECONFIG_CREDENTIAL = "${env.BRANCH_NAME == 'staging' ? 'staging-rke2-kubeconfig' : 'gen2-dev-kubeconfig'}"
-                // One release name on both clusters; the kubeconfig is what keeps
-                // them apart. The subchart rejects names over 18 characters, and
+                // The dev cluster (RKE2 at 10.0.1.166), as its crop-ci service
+                // account.
+                KUBECONFIG_CREDENTIAL = 'gen2-dev-kubeconfig'
+                // The subchart rejects release names over 18 characters, and
                 // cropsown-registry is 17.
                 HELM_RELEASE          = 'cropsown-registry'
                 // Dev's public hosts are <namespace>.openg2p.test; the subchart
                 // defaults them to .openg2p.org placeholders, which breaks
-                // Keycloak, MinIO and IAM. Staging's hosts are whatever that
-                // release already carries, and EMPTY tells the script to leave
-                // every host value untouched.
-                BASE_DOMAIN           = "${env.BRANCH_NAME == 'staging' ? '' : '{{ .Release.Namespace }}.openg2p.test'}"
+                // Keycloak, MinIO and IAM.
+                BASE_DOMAIN           = '{{ .Release.Namespace }}.openg2p.test'
             }
             steps {
                 // The workspace outlives builds, and nothing cleans a file this

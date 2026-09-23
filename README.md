@@ -91,8 +91,9 @@ pieces fit together.
 `Jenkinsfile` is the self-hosted pipeline. It builds six images from
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
 `sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
-branch-derived tags, and deploys both `develop` and `staging` to a `crop`
-namespace.
+branch-derived tags, and deploys `develop` to the dev cluster's `crop`
+namespace. A `staging` build only builds and pushes its images: staging is
+deployed by hand from a `staging-<n>` tag (see below).
 
 The same namespace name, because the two land on different clusters. Dev goes to
 the cluster farmer-registry's `far` namespace is on, from the `vpn-agent2` node,
@@ -102,10 +103,12 @@ staging is a separate EC2 instance running its own RKE2 cluster, reached with
 gained by calling one namespace `crop-staging` — and the staging instance does
 not have a namespace by that name.
 
-**Merging a pull request into `develop` or `staging` deploys it.** A green build
-rolls the images it just pushed into `crop` on that branch's cluster — release
-`cropsown-registry` on both dev, where it is the `crop` deployments view in
-Rancher, and the staging instance. Both deploy stages run on the same agent
+**Merging a pull request into `develop` deploys it; merging into `staging` does
+not.** A green `develop` build rolls the images it just pushed into release
+`cropsown-registry` in `crop` on dev, the `crop` deployments view in Rancher. A
+`staging` build stops at the ECR push: its automatic helm upgrade once replaced
+staging's live release (chart, hostnames, a db-seed against its data) and took
+the site down. The deploy stage runs on the same agent
 as the build. That agent has no `helm` or `kubectl`, so the deploy scripts fetch
 pinned, checksum-verified copies into `.tools/` when they are missing. Neither
 stage asks for a
