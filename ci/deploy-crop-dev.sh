@@ -169,8 +169,7 @@ registry:
 EOF
   VALUE_FILES+=(-f "$WORK/ci-hosts.yaml")
 else
-  # An environment whose hosts are not <namespace>.openg2p.test (staging) keeps
-  # whatever the release already carries.
+  # An empty BASE_DOMAIN keeps whatever host values the release already carries.
   echo "BASE_DOMAIN is empty: leaving the release's host values untouched."
 fi
 # The pull secret goes on the namespace's `default` ServiceAccount, which every

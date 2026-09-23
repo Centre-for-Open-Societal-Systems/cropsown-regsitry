@@ -204,10 +204,12 @@ pipeline {
                 HELM_RELEASE          = 'cropsown-registry'
                 // Dev's public hosts are <namespace>.openg2p.test; the subchart
                 // defaults them to .openg2p.org placeholders, which breaks
-                // Keycloak, MinIO and IAM. Staging's hosts are whatever that
-                // release already carries, and EMPTY tells the script to leave
-                // every host value untouched.
-                BASE_DOMAIN           = "${env.BRANCH_NAME == 'staging' ? '' : '{{ .Release.Namespace }}.openg2p.test'}"
+                // Keycloak, MinIO and IAM. Staging's are *.oanstaging.com, set
+                // the same way (see ci/deploy-crop-dev.sh): cropsown-registry.,
+                // keycloak., minio-api., staff-iam., awe. and
+                // idgenerator-cropsown-registry.oanstaging.com. An EMPTY value
+                // would leave the release's host values untouched.
+                BASE_DOMAIN           = "${env.BRANCH_NAME == 'staging' ? 'oanstaging.com' : '{{ .Release.Namespace }}.openg2p.test'}"
             }
             steps {
                 // The workspace outlives builds, and nothing cleans a file this
