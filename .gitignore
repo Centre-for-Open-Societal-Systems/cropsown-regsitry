@@ -266,10 +266,10 @@ helm/**/charts/*.tgz
 crop sown registry ERD.html
 master-dat-service-api-responses
 # local/ is the local docker-compose dev stack config (Postgres init, Keycloak,
-# IAM, mock crop catalogue, geo-seed, and local-only .env credentials). It is used
-# only by `docker compose up` for local development; CI/CD and deployed (Helm)
-# environments do not use it, so it is not committed.
-local/
+# IAM, id-generator). docker-compose.yml mounts it, so it is committed; only the
+# env file with a developer's own values is not (start from local/.env.example).
+local/.env
+local/*.bak*
 
 # Large seeds, temporary ODK choices, and Celery beat schedules
 docker/local-dev/geo-seed/*.gz
