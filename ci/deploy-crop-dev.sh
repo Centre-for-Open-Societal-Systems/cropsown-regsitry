@@ -36,6 +36,9 @@
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
 #   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
+#   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
+#                                               cropsown-registry-dashboard-api (image
+#                                               ${ECR_BASE}/dashboard-api:<tag>)
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
@@ -65,6 +68,9 @@ RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
 # stay public for the APIs' browser pre-signed URLs, so db-seed skips those two
 # loaders by default and loads only SQL metadata, geo data and AWE config.
 SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-false}"
+# The reporting views the dashboard service reads, and the service itself
+# (templates/reporting-views*.yaml, templates/dashboard-api.yaml).
+DASHBOARD_API="${DASHBOARD_API:-true}"
 HELM_TIMEOUT="${HELM_TIMEOUT:-40m}"
 ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
 
@@ -209,8 +215,24 @@ registry:
     image: {repository: '${ECR}/sanity-tests', tag: '${TAG}'}
   iamRegister:
     enabled: ${RUN_IAM_REGISTER}
+reporting:
+  views:
+    enabled: ${DASHBOARD_API}
+dashboardApi:
+  enabled: ${DASHBOARD_API}
+  image: {repository: '${ECR}/dashboard-api', tag: '${TAG}'}
 EOF
-echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}"
+if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then
+  # A private route for developers and tools, on the namespace's internal
+  # gateway (the service has no authentication; never a public gateway).
+  cat >> "$WORK/ci-values.yaml" <<EOF
+  virtualService:
+    enabled: true
+    host: 'dashboard-api.${BASE_DOMAIN}'
+    gateway: internal
+EOF
+fi
+echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}  reporting-views/dashboard-api=${DASHBOARD_API}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
 # Only a missing release — a first install — may go ahead without them.
@@ -233,7 +255,7 @@ esac
 # ── 5. Watchers while helm runs ────────────────────────────────────────────────
 # Hook pods are deleted as soon as their Job fails, so save their logs as we go.
 # Only this release's own hook pods: <release>-<job>-<5 chars>.
-HOOK_POD_RE="^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register)-[a-z0-9]{5}$"
+HOOK_POD_RE="^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register|cs-reporting-views)-[a-z0-9]{5}$"
 mkdir -p "$WORK/logs"
 (
   set +x
@@ -298,7 +320,9 @@ say "helm upgrade finished $(date -u +%H:%M:%S) UTC"
 # serves, and the old pod has to finish terminating first ("1 old replicas are
 # pending termination" until `timed out waiting for the condition`). On a
 # timeout, say which pods are in the way and why, instead of that one line.
-for D in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
+DEPLOYMENTS="staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer"
+[ "$DASHBOARD_API" = "true" ] && DEPLOYMENTS="${DEPLOYMENTS} dashboard-api"
+for D in $DEPLOYMENTS; do
   if ! kubectl rollout status "deployment/${HELM_RELEASE}-${D}" "${NS[@]}" --timeout="${ROLLOUT_TIMEOUT:-420s}"; then
     echo "ERROR: ${HELM_RELEASE}-${D} did not roll out within ${ROLLOUT_TIMEOUT:-420s}." >&2
     kubectl get pods "${NS[@]}" -l "app.kubernetes.io/instance=${HELM_RELEASE}" -o wide >&2 || true
@@ -323,13 +347,21 @@ if ! kubectl exec "deploy/${HELM_RELEASE}-staff-portal-api" -c staff-portal-api 
   exit 1
 fi
 
+# ── 8. Dashboard service smoke test ────────────────────────────────────────────
+# The reporting hook created the views and the service answers: a 500 from a
+# missing cs_rpt_* view fails this deploy, not the dashboards.
+if [ "$DASHBOARD_API" = "true" ]; then
+  say "dashboard-api smoke test"
+  kubectl exec "deploy/${HELM_RELEASE}-dashboard-api" "${NS[@]}" -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/cropKpis', '/api/v1/charts/cropAreaByCrop', '/api/v1/charts/cropAreaByRegion')]"
+fi
+
 say "Deployed ${TAG} to ${HELM_NAMESPACE}"
 kubectl get deploy "${NS[@]}" -o custom-columns=NAME:.metadata.name,READY:.status.readyReplicas,IMAGE:.spec.template.spec.containers[0].image \
   | grep -E "^NAME|^${HELM_RELEASE}-" || true
 
 # The hook Jobs' own outcome, as farmer-registry's pipeline prints it: helm only
 # says the release succeeded, not whether a Job it waited on had to retry.
-for JOB in db-seed sanity iam-register; do
+for JOB in db-seed sanity iam-register cs-reporting-views; do
   kubectl get job "${HELM_RELEASE}-${JOB}" "${NS[@]}" >/dev/null 2>&1 || continue
   echo "${HELM_RELEASE}-${JOB}: $(kubectl get job "${HELM_RELEASE}-${JOB}" "${NS[@]}" \
     -o jsonpath='{.status.succeeded} succeeded / {.status.failed} failed' 2>/dev/null)"

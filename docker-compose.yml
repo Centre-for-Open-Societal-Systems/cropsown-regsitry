@@ -566,6 +566,34 @@ services:
         echo "crop sown sample data applied"
     restart: 'no'
 
+  reporting-views:
+    # The cs_rpt_* reporting views cropsown-registry-dashboard-api reads, as the
+    # chart's reporting job builds them. Opt-in, and re-runnable to pick up new
+    # records (the views are materialized):
+    #   docker compose --env-file local/.env --profile reporting up reporting-views
+    image: postgres:16
+    profiles: ['reporting']
+    depends_on:
+      sample-data:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: ${REGISTRY_DB}
+      PGUSER: ${REGISTRY_DB_USER}
+      PGPASSWORD: ${REGISTRY_DB_PASSWORD}
+    volumes:
+      - ./docker/db-seed/reporting_views.sql:/reporting_views.sql:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -X -q -f /reporting_views.sql
+        psql -qtAX -c "SELECT 'cs_rpt_crop_sown: ' || count(*) FROM cs_rpt_crop_sown"
+        psql -qtAX -c "SELECT 'cs_rpt_sowing: ' || count(*) FROM cs_rpt_sowing"
+    restart: 'no'
+
   sample-images:
     # The demo record photos 50_record_images.sql points at. Each row names its
     # object by bare filename in the documents bucket, so the files are copied in

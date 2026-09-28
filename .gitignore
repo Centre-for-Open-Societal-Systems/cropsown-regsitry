@@ -285,3 +285,6 @@ openg2p-connector-service/celerybeat-schedule*
 # WireGuard peer configs carry a private key. ci/setup-agent-vpn.sh reads one,
 # and the README example keeps it in the repo root — never commit it.
 /*.conf
+
+# CI checkout of the dashboard service (Jenkinsfile, stage "Checkout dashboard-api").
+.build/
