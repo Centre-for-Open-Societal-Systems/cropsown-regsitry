@@ -453,12 +453,15 @@
     {% else %}
       {% set c_kebele = 'KEBELE_' ~ raw_ck %}
     {% endif %}
-    {% set raw_cwsrc = (c.get('cluster_water_resource_id') or '') | lower %}
-    {% set c_wsrc = water_src_map.get(raw_cwsrc, c.get('cluster_water_resource_id') or '') %}
-    {% set raw_cwmeth = (c.get('cluster_method_id') or '') | lower %}
-    {% set c_wmeth = water_method_map.get(raw_cwmeth, c.get('cluster_method_id') or '') %}
-    {% set raw_cwfreq = (c.get('cluster_frequency') or '') | lower %}
-    {% set c_wfreq = water_freq_map.get(raw_cwfreq, c.get('cluster_frequency') or '') %}
+    {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
+    {% set raw_cwsrc = raw_cwsrc_value | lower %}
+    {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
+    {% set raw_cwmeth_value = c.get('method_id') or c.get('cluster_method_id') or '' %}
+    {% set raw_cwmeth = raw_cwmeth_value | lower %}
+    {% set c_wmeth = water_method_map.get(raw_cwmeth, raw_cwmeth_value) %}
+    {% set raw_cwfreq_value = c.get('frequency') or c.get('cluster_frequency') or '' %}
+    {% set raw_cwfreq = raw_cwfreq_value | lower %}
+    {% set c_wfreq = water_freq_map.get(raw_cwfreq, raw_cwfreq_value) %}
     {% set c_lat = c_coords[1] if c_coords | length > 1 else '' %}
     {% set c_lon = c_coords[0] if c_coords | length > 0 else '' %}
     {% set c_alt = c_coords[2] if c_coords | length > 2 else '' %}
@@ -493,10 +496,10 @@
       "water_source_method": "{{ c_wmeth }}",
       "water_source_frequency": "{{ c_wfreq }}",
       "number_of_smallholders": {{ (c.get('cluster_smallholders') or 0) | int }},
-      "da_name": "{{ c.get('cluster_surveyor_name') or '' }}",
-      "da_mobile_number": "{{ c.get('cluster_surveyor_mobile_number') or '' }}",
-      "supervisor_name": "{{ c.get('cluster_supervisor_name') or '' }}",
-      "supervisor_mobile_number": "{{ c.get('cluster_supervisor_mobile_number') or '' }}"
+      "da_name": "{{ c.get('surveyor_name') or c.get('cluster_surveyor_name') or '' }}",
+      "da_mobile_number": "{{ c.get('surveyor_mobile_number') or c.get('cluster_surveyor_mobile_number') or '' }}",
+      "supervisor_name": "{{ c.get('supervisor_name') or c.get('cluster_supervisor_name') or '' }}",
+      "supervisor_mobile_number": "{{ c.get('supervisor_mobile_number') or c.get('cluster_supervisor_mobile_number') or '' }}"
     }{% if not loop.last %},{% endif %}
   {% endfor %}
   ]
@@ -632,12 +635,15 @@
     {% else %}
       {% set c_kebele = 'KEBELE_' ~ raw_ck %}
     {% endif %}
-    {% set raw_cwsrc = (c.get('cluster_water_resource_id') or '') | lower %}
-    {% set c_wsrc = water_src_map.get(raw_cwsrc, c.get('cluster_water_resource_id') or '') %}
-    {% set raw_cwmeth = (c.get('cluster_method_id') or '') | lower %}
-    {% set c_wmeth = water_method_map.get(raw_cwmeth, c.get('cluster_method_id') or '') %}
-    {% set raw_cwfreq = (c.get('cluster_frequency') or '') | lower %}
-    {% set c_wfreq = water_freq_map.get(raw_cwfreq, c.get('cluster_frequency') or '') %}
+    {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
+    {% set raw_cwsrc = raw_cwsrc_value | lower %}
+    {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
+    {% set raw_cwmeth_value = c.get('method_id') or c.get('cluster_method_id') or '' %}
+    {% set raw_cwmeth = raw_cwmeth_value | lower %}
+    {% set c_wmeth = water_method_map.get(raw_cwmeth, raw_cwmeth_value) %}
+    {% set raw_cwfreq_value = c.get('frequency') or c.get('cluster_frequency') or '' %}
+    {% set raw_cwfreq = raw_cwfreq_value | lower %}
+    {% set c_wfreq = water_freq_map.get(raw_cwfreq, raw_cwfreq_value) %}
     {% if c_coords | length > 0 and c_coords[0] is iterable and c_coords[0] is not string and c_coords[0] is not mapping %}
       {% set poly_pt = c_coords[0][0] if (c_coords[0] | length > 0 and c_coords[0][0] is iterable) else c_coords[0] %}
       {% set c_lat = poly_pt[1] if poly_pt | length > 1 else '' %}
@@ -683,10 +689,10 @@
       "water_source_method": "{{ c_wmeth }}",
       "water_source_frequency": "{{ c_wfreq }}",
       "number_of_smallholders": {{ (c.get('cluster_smallholders') or 0) | int }},
-      "da_name": "{{ c.get('cluster_surveyor_name') or '' }}",
-      "da_mobile_number": "{{ c.get('cluster_surveyor_mobile_number') or '' }}",
-      "supervisor_name": "{{ c.get('cluster_supervisor_name') or '' }}",
-      "supervisor_mobile_number": "{{ c.get('cluster_supervisor_mobile_number') or '' }}"
+      "da_name": "{{ c.get('surveyor_name') or c.get('cluster_surveyor_name') or '' }}",
+      "da_mobile_number": "{{ c.get('surveyor_mobile_number') or c.get('cluster_surveyor_mobile_number') or '' }}",
+      "supervisor_name": "{{ c.get('supervisor_name') or c.get('cluster_supervisor_name') or '' }}",
+      "supervisor_mobile_number": "{{ c.get('supervisor_mobile_number') or c.get('cluster_supervisor_mobile_number') or '' }}"
     }{% if not loop.last %},{% endif %}
   {% endfor %}
   ]

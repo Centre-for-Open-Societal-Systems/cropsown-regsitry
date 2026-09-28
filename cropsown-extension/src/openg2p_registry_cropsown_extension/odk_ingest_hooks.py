@@ -265,7 +265,7 @@ def _patch_request_response_helper():
 def _patch_celery_worker():
     """Patch ingest_data_worker to bind dbengine and active session."""
     try:
-        import openg2p_registry_celery_worker.tasks.ingest_data_worker as worker_mod
+        worker_mod = importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_worker")
         if worker_mod and not hasattr(worker_mod, "_orig_save_sections_async"):
             orig_save_sections_async = worker_mod._save_sections_async
             worker_mod._orig_save_sections_async = orig_save_sections_async
@@ -613,13 +613,60 @@ def _patch_intake_form_data_service():
         _logger.debug("Could not patch G2PIntakeFormDataService: %s", e)
 
 
+def _patch_crop_sown_service():
+    """Skip only H5/H6 identity cross-record mismatches during ODK ingestion."""
+    try:
+        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_crop_sown import (
+            G2PRegisterDomainServiceCropSown,
+        )
+        from openg2p_registry_core.errors import G2PRegistryException
+
+        if hasattr(G2PRegisterDomainServiceCropSown, "_odk_patched_fayda_checks"):
+            return
+        G2PRegisterDomainServiceCropSown._odk_patched_fayda_checks = True
+        orig_validate_fayda_season_and_year = (
+            G2PRegisterDomainServiceCropSown._validate_fayda_season_and_year
+        )
+
+        async def patched_validate_fayda_season_and_year(self, record: dict, session):
+            try:
+                await orig_validate_fayda_season_and_year(self, record, session)
+            except G2PRegistryException as validation_exc:
+                if _active_session.get() is not session:
+                    raise
+
+                reason = str(validation_exc)
+                if "does not match registered Crop Season" in reason:
+                    rule_id = "H5"
+                elif "does not match registered Crop Year" in reason:
+                    rule_id = "H6"
+                else:
+                    raise
+
+                _logger.warning(
+                    "ODK identity validation skipped: %s reason=%s fayda_id=%s submission_id=%s",
+                    rule_id,
+                    reason,
+                    record.get("fayda_fan_id") or record.get("fayda_id"),
+                    record.get("submission_id"),
+                )
+
+        G2PRegisterDomainServiceCropSown._validate_fayda_season_and_year = (
+            patched_validate_fayda_season_and_year
+        )
+        _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCropSown H5/H6")
+    except Exception as e:
+        _logger.debug("Could not patch G2PRegisterDomainServiceCropSown H5/H6: %s", e)
+
+
 def _patch_cultivation_service():
     """Patch G2PRegisterDomainServiceCultivation to fall back to intake form plannings."""
     try:
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_cultivation import (
             G2PRegisterDomainServiceCultivation,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import parse_date
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import parse_date
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceCultivation, "_odk_patched_cultivation"):
@@ -628,6 +675,18 @@ def _patch_cultivation_service():
 
         orig_resolve_planning_date = G2PRegisterDomainServiceCultivation._resolve_planning_date
         orig_resolve_season_bounds = G2PRegisterDomainServiceCultivation._resolve_season_bounds
+        orig_validate_date_after_planning = G2PRegisterDomainServiceCultivation._validate_date_after_planning
+
+        async def patched_validate_date_after_planning(self, record: dict, session):
+            try:
+                await orig_validate_date_after_planning(self, record, session)
+            except G2PRegistryException as exc:
+                if _active_session.get() is not session:
+                    raise
+                _logger.warning(
+                    "ODK cross-stage validation skipped: C6 reason=%s land_id=%s submission_id=%s",
+                    str(exc), record.get("land_id"), record.get("submission_id"),
+                )
 
         async def patched_resolve_planning_date(self, record: dict, session):
             res = await orig_resolve_planning_date(self, record, session)
@@ -667,6 +726,7 @@ def _patch_cultivation_service():
 
         G2PRegisterDomainServiceCultivation._resolve_planning_date = patched_resolve_planning_date
         G2PRegisterDomainServiceCultivation._resolve_season_bounds = patched_resolve_season_bounds
+        G2PRegisterDomainServiceCultivation._validate_date_after_planning = patched_validate_date_after_planning
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCultivation")
     except Exception as e:
         _logger.debug("Could not patch G2PRegisterDomainServiceCultivation: %s", e)
@@ -678,10 +738,11 @@ def _patch_sowing_service():
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_sowing import (
             G2PRegisterDomainServiceSowing,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import (
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import (
             parse_date,
             validation_error,
         )
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceSowing, "_odk_patched_sowing"):
@@ -694,7 +755,16 @@ def _patch_sowing_service():
 
         async def patched_validate_sowing_area(self, record: dict, session):
             try:
-                await orig_validate_sowing_area(self, record, session)
+                try:
+                    await orig_validate_sowing_area(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW6 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 area_sown = float(record.get("area_sown") or 0)
@@ -715,7 +785,16 @@ def _patch_sowing_service():
 
         async def patched_validate_sowing_after_cult(self, record: dict, session):
             try:
-                await orig_validate_sowing_after_cult(self, record, session)
+                try:
+                    await orig_validate_sowing_after_cult(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW5 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 sowing_date = parse_date(record.get("sowing_date"))
                 land_id = str(record.get("land_id") or "").strip()
@@ -751,7 +830,16 @@ def _patch_sowing_service():
 
         async def patched_validate_land_id(self, record: dict, session):
             try:
-                await orig_validate_land_id(self, record, session)
+                try:
+                    await orig_validate_land_id(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW4 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -778,10 +866,13 @@ def _patch_harvest_service():
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_harvest import (
             G2PRegisterDomainServiceHarvest,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import (
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import (
+            as_float,
+            get_attribute_variants,
             parse_date,
             validation_error,
         )
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceHarvest, "_odk_patched_harvest"):
@@ -791,13 +882,43 @@ def _patch_harvest_service():
         orig_validate_harvest_after_sowing = G2PRegisterDomainServiceHarvest._validate_harvest_after_sowing
         orig_validate_harvest_area = G2PRegisterDomainServiceHarvest._validate_harvest_area_after_sowing
         orig_validate_land_id = G2PRegisterDomainServiceHarvest._validate_land_id_matches_sowing
+        orig_validate_harvest_season_date = G2PRegisterDomainServiceHarvest._validate_date_in_season_enhanced
+
+        async def patched_validate_harvest_season_date(self, record: dict, field: str, session):
+            try:
+                await orig_validate_harvest_season_date(self, record, field, session)
+            except G2PRegistryException as validation_exc:
+                if _active_session.get() is not session:
+                    raise
+                if not str(validation_exc).startswith("Cluster Harvest Date ("):
+                    raise
+                _logger.warning(
+                    "ODK cross-stage validation skipped: HV3 reason=%s land_id=%s submission_id=%s field=%s",
+                    str(validation_exc), record.get("land_id"), record.get("submission_id"), field,
+                )
 
         async def patched_validate_harvest_after_sowing(self, record: dict, session):
             harvest_date = parse_date(record.get("harvest_date"))
             if harvest_date is None:
                 return
             try:
-                await orig_validate_harvest_after_sowing(self, record, session)
+                try:
+                    await orig_validate_harvest_after_sowing(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        reason = str(validation_exc)
+                        if "A sowing record is required" in reason:
+                            rule_id = "HV6"
+                        elif "must be after the Sowing Date" in reason:
+                            rule_id = "HV5"
+                        else:
+                            raise
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: %s reason=%s land_id=%s submission_id=%s",
+                            rule_id, reason, record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -844,7 +965,19 @@ def _patch_harvest_service():
 
         async def patched_validate_harvest_area(self, record: dict, session):
             try:
-                await orig_validate_harvest_area(self, record, session)
+                try:
+                    await orig_validate_harvest_area(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        reason = str(validation_exc)
+                        if not ("Area Harvested (" in reason and "cannot exceed" in reason):
+                            raise
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: HV7 reason=%s land_id=%s submission_id=%s",
+                            reason, record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 area_harvested = float(record.get("area_harvested") or 0)
@@ -874,9 +1007,57 @@ def _patch_harvest_service():
                         return
                 raise exc
 
+            # The domain validator above compares against the active register and
+            # the current submission. ODK submits each lifecycle stage as a
+            # separate intake submission, so an earlier pending ODK Sowing is not
+            # visible to those queries. During ODK ingestion only, use that
+            # staged Sowing as the HV7 comparison source and skip just this
+            # cross-stage mismatch. Manual/UI calls keep the original behavior.
+            if _active_session.get() is session and session:
+                land_id = str(record.get("land_id") or "").strip()
+                area_harvested = as_float(
+                    record.get("area_harvested")
+                    if record.get("area_harvested") is not None
+                    else record.get("cluster_area_harvested")
+                )
+                if land_id and area_harvested is not None and area_harvested > 0:
+                    season_vars = get_attribute_variants(record.get("season"), "CROP_SEASON")
+                    query = (
+                        "SELECT area_sown FROM g2p_intake_form_sowings "
+                        "WHERE TRIM(land_id) = :land_id AND area_sown IS NOT NULL"
+                    )
+                    params = {"land_id": land_id}
+                    if season_vars:
+                        query += " AND season = ANY(:season_vars)"
+                        params["season_vars"] = season_vars
+                    query += " ORDER BY created_at DESC LIMIT 1"
+                    result = await session.execute(text(query), params)
+                    row = result.fetchone()
+                    if row and row[0] is not None:
+                        area_sown = float(row[0])
+                        if area_harvested > area_sown:
+                            _logger.warning(
+                                "ODK cross-stage validation skipped: HV7 reason=%s "
+                                "land_id=%s submission_id=%s",
+                                f"Area Harvested ({area_harvested} ha) cannot exceed "
+                                f"Area Sown in Sowing ({area_sown} ha).",
+                                land_id,
+                                record.get("submission_id"),
+                            )
+                            return
+
         async def patched_validate_land_id(self, record: dict, session):
             try:
-                await orig_validate_land_id(self, record, session)
+                try:
+                    await orig_validate_land_id(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: HV4 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -892,6 +1073,7 @@ def _patch_harvest_service():
         G2PRegisterDomainServiceHarvest._validate_harvest_after_sowing = patched_validate_harvest_after_sowing
         G2PRegisterDomainServiceHarvest._validate_harvest_area_after_sowing = patched_validate_harvest_area
         G2PRegisterDomainServiceHarvest._validate_land_id_matches_sowing = patched_validate_land_id
+        G2PRegisterDomainServiceHarvest._validate_date_in_season_enhanced = patched_validate_harvest_season_date
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceHarvest")
     except Exception as e:
         _logger.debug("Could not patch G2PRegisterDomainServiceHarvest: %s", e)
@@ -909,6 +1091,7 @@ def install_hooks():
     _patch_request_response_helper()
     _patch_celery_worker()
     _patch_intake_form_data_service()
+    _patch_crop_sown_service()
     _patch_cultivation_service()
     _patch_sowing_service()
     _patch_harvest_service()
