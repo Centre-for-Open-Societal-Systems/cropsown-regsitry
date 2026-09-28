@@ -226,6 +226,342 @@ The stack bundles a dedicated Connector Service (`cropsown-connector-api-1` and 
    * ODK Central represents repeat groups as nested navigation links (e.g., `Submissions('uuid')/cultivation_clusters`).
    * The connector recursively traverses and expands each `@odata.navigationLink`, embedding repeat items directly into the parent JSON payload before sending it to the Partner API.
 
+#### DevOps Deployment Guide: Connector Service & Connector UI
+
+This section is a self-contained guide for deploying the **Connector Service**
+(API + Celery Worker/Beat) and the **Connector UI** (React admin dashboard) on a
+server so that the team gets the same pipeline management experience available in
+the sandbox.
+
+##### Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Connector Stack                              │
+│                                                                      │
+│  ┌──────────────┐   ┌──────────────────┐   ┌───────────────────┐    │
+│  │ connector-ui │──▶│  connector-api   │◀──│ connector-worker  │    │
+│  │ (React SPA)  │   │  (FastAPI:8050)  │   │ (Celery beat +    │    │
+│  │ Nginx :8080  │   │  REST endpoints  │   │  worker, polls    │    │
+│  └──────────────┘   └───────┬──────────┘   │  ODK Central)     │    │
+│         │                   │              └─────────┬─────────┘    │
+│         │  Nginx proxies    │                        │              │
+│         │  /connectors,     │                        │              │
+│         │  /runs, /dlq,     │                        │              │
+│         │  /metadata, etc.  │                        │              │
+│         │  to connector-api │                        │              │
+│         ▼                   ▼                        ▼              │
+│  ┌────────────┐     ┌─────────────┐          ┌─────────────┐       │
+│  │  Browser   │     │ PostgreSQL  │          │    Redis     │       │
+│  │  (DevOps)  │     │ (connector  │          │  (Celery     │       │
+│  └────────────┘     │  database)  │          │   broker)    │       │
+│                     └─────────────┘          └─────────────┘       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Components:**
+
+| Container | Image Source | Port | Role |
+|---|---|---|---|
+| `connector-api` | `openg2p-connector-service` | 8050 | FastAPI REST API — CRUD for pipeline definitions, runs, DLQ |
+| `connector-worker` | `openg2p-connector-service` | — | Celery worker + beat scheduler — polls ODK Central OData |
+| `connector-ui` | `openg2p-connector-ui` | 8080 | React SPA served by Nginx — admin dashboard |
+| `connector-seed` | `postgres:16` | — | One-shot job — seeds the 4 crop sown pipeline definitions |
+
+##### Option A: Docker Compose (VM / Sandbox)
+
+Use this when deploying on a single VM or sandbox server.
+
+**Prerequisites:**
+- Docker Engine ≥ 24 and Docker Compose v2
+- The full `cropsown-regsitry` repo cloned on the server
+- PostgreSQL and Redis already running (they are part of the main `docker-compose.yml`)
+
+**Step 1 — Configure the `.env` file**
+
+Copy `local/.env.example` to `local/.env` (if not already done) and verify the
+connector block:
+
+```bash
+# ── Connector Service ────────────────────────────────────────────────
+CONNECTOR_PORT=8050          # Host port for the API
+CONNECTOR_UI_PORT=5173       # Host port for the UI
+CONNECTOR_DB=connector
+CONNECTOR_DB_USER=connector_user
+CONNECTOR_DB_PASSWORD=connector_pass
+```
+
+The PostgreSQL bootstrap script (`local/postgres/init.sql`) already creates the
+`connector` database and `connector_user` role. If you are adding the connector
+to an **existing** deployment where Postgres was already initialised, run this
+manually first:
+
+```sql
+-- Connect as the postgres superuser
+CREATE ROLE connector_user WITH LOGIN PASSWORD 'connector_pass';
+CREATE DATABASE connector OWNER connector_user;
+\connect connector
+GRANT ALL ON SCHEMA public TO connector_user;
+```
+
+**Step 2 — Start the connector stack**
+
+```bash
+# From the repo root (where docker-compose.yml lives)
+docker compose up -d connector-api connector-worker connector-ui connector-seed
+```
+
+This starts all four containers. `connector-seed` runs once, seeds the 4 pipeline
+definitions, and exits. The other three stay running.
+
+**Step 3 — Verify health**
+
+```bash
+# API health check
+curl http://localhost:8050/health
+# Expected: {"status":"ok"}
+
+# Check worker is polling
+docker logs -f cropsown-connector-worker-1
+
+# Check seed completed
+docker logs cropsown-connector-seed-1
+# Expected: "connector pipelines seeded successfully"
+```
+
+**Step 4 — Access the Connector UI**
+
+Open `http://<SERVER_IP>:5173` in your browser. You should see the pipeline list
+with the 4 pre-seeded connectors (Plan, Cultivation, Sow, Harvest).
+
+The Nginx inside the `connector-ui` container automatically proxies API paths
+(`/connectors`, `/runs`, `/dlq`, `/metadata`, `/webhook`, `/health`) to
+`connector-api:8050`, so no additional reverse proxy configuration is needed for
+the UI to talk to the API.
+
+**Step 5 (Optional) — Expose via a domain with a reverse proxy**
+
+If the server is behind an Nginx or Caddy reverse proxy, add a server block:
+
+```nginx
+server {
+    listen 80;
+    server_name connector.your-domain.com;
+
+    # All traffic goes to the connector-ui container, which internally
+    # proxies API paths to connector-api.
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Then update the CORS origin in `docker-compose.yml` (or override via `.env`):
+```
+CONNECTOR_CORS_ORIGINS: https://connector.your-domain.com
+```
+
+And restart `connector-api`:
+```bash
+docker compose up -d connector-api
+```
+
+##### Option B: Kubernetes / Helm (Production / RKE2 / EKS)
+
+The Helm chart lives at `openg2p-connector-service/deploy/charts/openg2p-connector`.
+
+**Prerequisites:**
+- Kubernetes cluster (RKE2, EKS, GKE, etc.)
+- Helm 3
+- Istio installed (for VirtualService routing) — or configure your own Ingress
+- A shared PostgreSQL instance (e.g. `commons-postgresql`) and Redis
+- Container images pushed to your registry (ECR, Docker Hub, etc.)
+
+**Step 1 — Prepare a values override file**
+
+Create a file (e.g. `values-myserver.yaml`) based on the reference
+`values-kif-cluster.yaml`:
+
+```yaml
+global:
+  hostname: connector.your-domain.com        # Public hostname
+  postgresqlHost: commons-postgresql          # K8s service name of Postgres
+  postgresqlPort: 5432
+  redisHost: registry-redis-master            # K8s service name of Redis
+  redisPort: 6379
+  partnerApiService: registry-partner-api     # K8s service name of Partner API
+  connectorDB: connector                      # Database name
+  connectorDBUser: connector_user
+  connectorDBSecret: connector-secret         # K8s Secret name
+  connectorDBUserPasswordKey: db-password     # Key inside that Secret
+
+commonEnv:
+  CONNECTOR_CORS_ORIGINS: https://connector.your-domain.com
+
+api:
+  image:
+    repository: your-registry/openg2p-connector-service
+    tag: latest                                # Use your build tag
+    pullPolicy: Always
+
+worker:
+  image:
+    repository: your-registry/openg2p-connector-service
+    tag: latest
+    pullPolicy: Always
+
+beat:
+  image:
+    repository: your-registry/openg2p-connector-service
+    tag: latest
+    pullPolicy: Always
+
+# ── THIS ENABLES THE CONNECTOR UI ──
+ui:
+  enabled: true                                # ← MUST be true
+  image:
+    repository: your-registry/openg2p-connector-ui
+    tag: latest
+    pullPolicy: Always
+
+# ── Istio VirtualService (skip if using Ingress) ──
+istio:
+  enabled: true
+  gateway:
+    create: false
+    name: internal                             # Your existing Istio Gateway
+  virtualservice:
+    enabled: true
+    gateway: internal
+
+# ── Database initialisation ──
+postgres-init:
+  enabled: true
+  postgresql:
+    host: commons-postgresql
+    port: 5432
+    existingSecret: commons-postgresql
+    existingSecretPostgresPasswordKey: postgres-password
+  databases:
+    - name: connector
+      user: connector_user
+      secret: connector-secret
+      secretUserPasswordKey: db-password
+```
+
+> **Critical:** `ui.enabled: true` is what deploys the Connector UI. Without it
+> you get only the API and worker.
+
+**Step 2 — Create the Kubernetes Secret** (if not using postgres-init)
+
+```bash
+kubectl create secret generic connector-secret \
+  --namespace=<your-namespace> \
+  --from-literal=db-password='<STRONG_PASSWORD>'
+```
+
+**Step 3 — Install / Upgrade the Helm release**
+
+```bash
+cd openg2p-connector-service/deploy/charts/openg2p-connector
+
+# Pull sub-chart dependencies
+helm dependency update .
+
+# Install (first time)
+helm install connector . \
+  -n <your-namespace> \
+  -f values-myserver.yaml
+
+# Or upgrade (subsequent deploys)
+helm upgrade connector . \
+  -n <your-namespace> \
+  -f values-myserver.yaml
+```
+
+**Step 4 — Verify the deployment**
+
+```bash
+# Check all pods are running
+kubectl get pods -n <your-namespace> -l app.kubernetes.io/instance=connector
+
+# Expected pods:
+#   connector-openg2p-connector-api-xxxxx        1/1  Running
+#   connector-openg2p-connector-worker-xxxxx     1/1  Running
+#   connector-openg2p-connector-beat-xxxxx       1/1  Running
+#   connector-openg2p-connector-ui-xxxxx         1/1  Running
+
+# API health
+kubectl exec -n <your-namespace> deploy/connector-openg2p-connector-api \
+  -- wget -qO- http://localhost:8050/health
+
+# Check VirtualService is created
+kubectl get virtualservice -n <your-namespace> | grep connector
+```
+
+**Step 5 — Seed the pipeline definitions**
+
+The seed SQL (`local/postgres/seed_connector_pipelines.sql`) needs to run once
+against the connector database. From a pod that can reach Postgres:
+
+```bash
+# Option 1: kubectl exec into the Postgres pod
+kubectl exec -it commons-postgresql-0 -n <your-namespace> -- \
+  psql -U postgres -d connector -f - < local/postgres/seed_connector_pipelines.sql
+
+# Option 2: Port-forward and run locally
+kubectl port-forward svc/commons-postgresql 5432:5432 -n <your-namespace> &
+psql -h 127.0.0.1 -U connector_user -d connector -f local/postgres/seed_connector_pipelines.sql
+```
+
+> **Important:** Edit the `base_url` and ODK credentials in
+> `seed_connector_pipelines.sql` to match your production ODK Central instance
+> before running it.
+
+**Step 6 — Access the UI**
+
+The Istio VirtualService routes:
+- `/connectors`, `/runs`, `/dlq`, `/metadata`, `/health`, `/webhook` → `connector-api:8050`
+- `/` (everything else) → `connector-ui:80` (targetPort 8080)
+
+Open `https://connector.your-domain.com` in your browser.
+
+##### Environment Variables Reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `CONNECTOR_DB_HOSTNAME` | `postgres` | PostgreSQL host |
+| `CONNECTOR_DB_PORT` | `5432` | PostgreSQL port |
+| `CONNECTOR_DB_DBNAME` | `connector` | Database name |
+| `CONNECTOR_DB_USERNAME` | `connector_user` | Database user |
+| `CONNECTOR_DB_PASSWORD` | `connector_pass` | Database password |
+| `CONNECTOR_DB_DRIVER` | `postgresql+asyncpg` | SQLAlchemy driver |
+| `CONNECTOR_CELERY_BROKER_URL` | `redis://redis:6379/1` | Redis broker URL (uses DB index 1) |
+| `CONNECTOR_CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | Celery result backend |
+| `CONNECTOR_PARTNER_INGEST_BASE_URL` | `http://partner-api:8000` | Partner API base URL for ingestion |
+| `CONNECTOR_APP_HOST` | `0.0.0.0` | API bind address |
+| `CONNECTOR_APP_PORT` | `8050` | API listen port |
+| `CONNECTOR_CORS_ORIGINS` | `*` | Allowed CORS origins (set to your UI domain in production) |
+| `CONNECTOR_LOG_LEVEL` | `INFO` | Logging level |
+| `CONNECTOR_STORE_RUN_PAYLOADS` | `true` | Store full payloads in run history |
+| `CONNECTOR_STRICT_INCREMENTAL` | `true` | Only fetch new submissions since last poll |
+| `CONNECTOR_METRICS_ENABLED` | `true` | Enable Prometheus metrics |
+
+##### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| UI loads but shows "Network Error" | API is not reachable from the UI container | Verify `connector-api` is healthy: `curl http://localhost:8050/health`. In Docker Compose the Nginx inside `connector-ui` proxies to `connector-api:8050` — both must be on the same Docker network. In K8s, check the VirtualService routes API prefixes to the api service. |
+| Pipeline list is empty | Seed SQL was not executed | Run `seed_connector_pipelines.sql` against the connector database (see Step 5 above). |
+| Worker logs show `ConnectionRefusedError` to Redis | Redis is not running or wrong URL | Verify Redis is running and `CONNECTOR_CELERY_BROKER_URL` uses the correct host and DB index (must be `/1`, not `/0`). |
+| Worker logs show `401 Unauthorized` from ODK Central | ODK credentials in `source_config_json` are wrong | Update the `auth_secret_json` column in `connector_definitions` with the correct ODK Central email/password. |
+| CORS errors in browser console | `CONNECTOR_CORS_ORIGINS` does not include the UI origin | Set `CONNECTOR_CORS_ORIGINS` to the exact origin of your UI (e.g. `https://connector.your-domain.com`). Use `*` only for development. |
+| `connector-seed` container keeps restarting | Postgres is not ready or connector DB does not exist | Ensure the `connector` database exists (`\l` in psql). The `connector-seed` container has `restart: 'no'` so it should not restart — check logs for the SQL error. |
+
 ---
 
 ### 5. Staging, Validation & Audit Trail
