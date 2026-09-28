@@ -30,7 +30,7 @@ pipeline {
 
     environment {
         AWS_REGION     = 'ap-south-1'
-        ECR_BASE       = 'gen2/cropsown-registry'
+        ECR_BASE       = 'openg2p/cropsown-registry'
 
         HELM_NAMESPACE = 'crop'
         HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
@@ -38,6 +38,13 @@ pipeline {
         // Built from docker/<name>/Dockerfile. dashboard-ui is left out: the
         // chart deploys no dashboard, so its image would be published for nothing.
         SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
+
+        // cropsown-registry-dashboard-api lives in its own (public) repository and
+        // is built here beside the registry images, as dashboard-api. Each branch
+        // builds the dashboard-api branch of the same name and falls back to
+        // develop where there is none. Set DASHBOARD_API_REF on the job (a branch
+        // or tag) to pin one instead.
+        DASHBOARD_API_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/cropsown-registry-dashboard-api.git'
 
         // How long helm may wait on the chart's post-upgrade hook Jobs, kept WELL
         // inside the Deploy stage's own 60-minute timeout. At the script's 40m
@@ -69,6 +76,29 @@ pipeline {
     stages {
         stage('Checkout') {
             steps { checkout scm }
+        }
+
+        stage('Checkout dashboard-api') {
+            steps {
+                script {
+                    // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
+                    def ref = env.DASHBOARD_API_REF
+                    if (!ref) {
+                        def wanted = env.CHANGE_BRANCH ?: env.BRANCH_NAME
+                        def found = wanted && sh(returnStatus: true,
+                            script: "git ls-remote --exit-code --heads ${DASHBOARD_API_REPO} 'refs/heads/${wanted}' > /dev/null") == 0
+                        ref = found ? wanted : 'develop'
+                    }
+                    // .build/ is git-ignored, so the clone never enters a commit.
+                    sh "rm -rf .build/dashboard-api && git clone --quiet --depth 1 --branch '${ref}' ${DASHBOARD_API_REPO} .build/dashboard-api"
+                    if (!fileExists('.build/dashboard-api/Dockerfile')) {
+                        error("dashboard-api ${ref} has no Dockerfile: merge the service into that branch of ${DASHBOARD_API_REPO}, or set DASHBOARD_API_REF")
+                    }
+                    env.DASHBOARD_API_REF_USED = ref
+                    env.DASHBOARD_API_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-api rev-parse --short=12 HEAD').trim()
+                    echo "dashboard-api: ${ref} @ ${env.DASHBOARD_API_SHA}"
+                }
+            }
         }
 
         stage('Guard: openg2p-registry pin lockstep') {
@@ -136,12 +166,6 @@ pipeline {
                                 -f "docker/${SVC}/Dockerfile" \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
 
-                            # ECR does not create repositories on push.
-                            aws ecr describe-repositories --region "${AWS_REGION}" \
-                                --repository-names "${ECR_BASE}/${SVC}" >/dev/null 2>&1 \
-                              || aws ecr create-repository --region "${AWS_REGION}" \
-                                    --repository-name "${ECR_BASE}/${SVC}" >/dev/null
-
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
 
@@ -149,6 +173,20 @@ pipeline {
                             # next build's cache.
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
+
+                        # The dashboard service, from its own repository (cloned by
+                        # 'Checkout dashboard-api'), with its own build context.
+                        IMAGE="${ECR_REGISTRY}/${ECR_BASE}/dashboard-api"
+                        echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
+                        docker build --pull \
+                            --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
+                            --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
+                            --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
+                            -f .build/dashboard-api/Dockerfile \
+                            -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
+                        docker push "${IMAGE}:${IMAGE_TAG}"
+                        docker push "${IMAGE}:${BRANCH_NAME}"
+                        docker rmi "${IMAGE}:${IMAGE_TAG}" || true
 
                         # An ECR pull token for the deploy node to write into the
                         # namespace's imagePullSecret. The cluster's own
@@ -310,7 +348,7 @@ URL:        ${env.BUILD_URL}
 Console:    ${env.BUILD_URL}console
 
 If the images built and pushed they are in ECR under
-gen2/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
+openg2p/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
 from vpn-agent2 with ci/deploy-crop-dev.sh.
 
 Regards,
