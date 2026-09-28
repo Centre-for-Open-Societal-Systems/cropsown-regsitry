@@ -249,10 +249,10 @@
 {% set raw_zone = address_info.get('zone_display_id') or farmer_id.get('zone_display_id') or '' %}
 {% set zone_val = raw_zone if (raw_zone.startswith('ZONE_') or raw_zone == '') else ('ZONE_' ~ raw_zone) %}
 
-{% set raw_woreda = address_info.get('woreda_id') or farmer_id.get('woreda_id') or '' %}
+{% set raw_woreda = address_info.get('woreda_display_id') or address_info.get('woreda_id') or farmer_id.get('woreda_display_id') or farmer_id.get('woreda_id') or '' %}
 {% set woreda_val = raw_woreda if (raw_woreda.startswith('WOREDA_') or raw_woreda == '') else ('WOREDA_' ~ raw_woreda) %}
 
-{% set raw_kebele = address_info.get('kebele_id') or farmer_id.get('kebele_id') or '' %}
+{% set raw_kebele = address_info.get('kebele_display_id') or address_info.get('kebele_id') or farmer_id.get('kebele_display_id') or farmer_id.get('kebele_id') or '' %}
 {% if raw_kebele.startswith('KEBELE_') or raw_kebele == '' %}
   {% set kebele_val = raw_kebele %}
 {% elif raw_kebele.startswith('ET') %}
@@ -342,7 +342,7 @@
     {% set p_zone = raw_pzone if (raw_pzone.startswith('ZONE_') or raw_pzone == '') else ('ZONE_' ~ raw_pzone) %}
     {% set raw_pworeda = p.get('woreda_name_id') or p.get('woreda') or '' %}
     {% set p_woreda = raw_pworeda if (raw_pworeda.startswith('WOREDA_') or raw_pworeda == '') else ('WOREDA_' ~ raw_pworeda) %}
-    {% set raw_pk = p.get('planning_kebele_id') or p.get('kebele') or '' %}
+    {% set raw_pk = p.get('kebele_id') or p.get('planning_kebele_id') or p.get('kebele') or '' %}
     {% if raw_pk.startswith('KEBELE_') or raw_pk == '' %}
       {% set p_kebele = raw_pk %}
     {% elif raw_pk.startswith('ET') %}
@@ -464,7 +464,7 @@
     {% set c_alt = c_coords[2] if c_coords | length > 2 else '' %}
     {% set c_gps_str = (c_lat ~ ', ' ~ c_lon) if (c_lat != '' and c_lon != '') else '' %}
     {
-      "land_id": "{{ c.get('cluster_land_info_id') or '' }}",
+      "land_id": "{{ c.get('land_info_id') or c.get('cluster_land_info_id') or '' }}",
       "cluster_name": "{{ c.get('cluster_name') or '' }}",
       "season": "{{ c_season }}",
       "start_gc": "{{ c.get('cluster_start_gc') or '' }}",
@@ -486,9 +486,9 @@
       "cluster_area_timad": {{ (c.get('cluster_area_timad') or 0) | float }},
       "cluster_area_hectare": {{ (c.get('cluster_area_hectare') or 0) | float }},
       "cluster_plan": {{ (c.get('cluster_plan') or 0) | float }},
-      "collected_land": {{ (c.get('collected_land_quintal') or 0) | float }},
+      "collected_land": {{ (c.get('cluster_collected_land_quintal') or c.get('collected_land_quintal') or 0) | float }},
       "collected_quintal": {{ (c.get('cluster_collected_quintal') or 0) | float }},
-      "collected_by_combiner": {{ (c.get('collected_by_combiner') or 0) | float }},
+      "collected_by_combiner": {{ (c.get('cluster_collected_by_combiner') or c.get('collected_by_combiner') or 0) | float }},
       "water_source": "{{ c_wsrc }}",
       "water_source_method": "{{ c_wmeth }}",
       "water_source_frequency": "{{ c_wfreq }}",
@@ -610,12 +610,12 @@
   ],
   "cs_cultivation_cluster_details": [
   {% for c in ns_prep_clusters.items %}
-    {% set c_gps = c.get('cluster_gps') or {} %}
-    {% set c_coords = c_gps.get('coordinates', [0, 0, 0]) if c_gps else [0, 0, 0] %}
+    {% set c_gps = c.get('gps') or c.get('cluster_gps') or {} %}
+    {% set c_coords = c_gps.get('coordinates', []) if c_gps else [] %}
     {% set raw_cs = (c.get('cluster_season_id') or season_val) | lower %}
     {% set c_season = season_map.get(raw_cs, 'CROP_SEASON_' ~ (raw_cs | upper)) %}
-    {% set raw_creg = (c.get('cluster_region_id') or '') | lower %}
-    {% set c_reg = region_map.get(raw_creg, c.get('cluster_region_id') or '') %}
+    {% set raw_creg = (c.get('cluster_region_id') or c.get('region_id') or '') | lower %}
+    {% set c_reg = region_map.get(raw_creg, c.get('cluster_region_id') or c.get('region_id') or '') %}
     {% set raw_cz = c.get('cluster_zone_id') or '' %}
     {% set c_zone = raw_cz if (raw_cz.startswith('ZONE_') or raw_cz == '') else ('ZONE_' ~ raw_cz) %}
     {% set raw_cw = c.get('cluster_woreda_id') or '' %}
@@ -638,12 +638,23 @@
     {% set c_wmeth = water_method_map.get(raw_cwmeth, c.get('cluster_method_id') or '') %}
     {% set raw_cwfreq = (c.get('cluster_frequency') or '') | lower %}
     {% set c_wfreq = water_freq_map.get(raw_cwfreq, c.get('cluster_frequency') or '') %}
-    {% set c_lat = c_coords[1] if c_coords | length > 1 else '' %}
-    {% set c_lon = c_coords[0] if c_coords | length > 0 else '' %}
-    {% set c_alt = c_coords[2] if c_coords | length > 2 else '' %}
+    {% if c_coords | length > 0 and c_coords[0] is iterable and c_coords[0] is not string and c_coords[0] is not mapping %}
+      {% set poly_pt = c_coords[0][0] if (c_coords[0] | length > 0 and c_coords[0][0] is iterable) else c_coords[0] %}
+      {% set c_lat = poly_pt[1] if poly_pt | length > 1 else '' %}
+      {% set c_lon = poly_pt[0] if poly_pt | length > 0 else '' %}
+      {% set c_alt = poly_pt[2] if poly_pt | length > 2 else '' %}
+    {% elif c_coords | length > 1 %}
+      {% set c_lat = c_coords[1] %}
+      {% set c_lon = c_coords[0] %}
+      {% set c_alt = c_coords[2] if c_coords | length > 2 else '' %}
+    {% else %}
+      {% set c_lat = '' %}
+      {% set c_lon = '' %}
+      {% set c_alt = '' %}
+    {% endif %}
     {% set c_gps_str = (c_lat ~ ', ' ~ c_lon) if (c_lat != '' and c_lon != '') else '' %}
     {
-      "land_id": "{{ c.get('cluster_land_info_id') or '' }}",
+      "land_id": "{{ c.get('land_info_id') or c.get('cluster_land_info_id') or '' }}",
       "cluster_name": "{{ c.get('cluster_name') or '' }}",
       "season": "{{ c_season }}",
       "start_gc": "{{ c.get('cluster_start_gc') or '' }}",
@@ -766,12 +777,20 @@
     {% set dis = inf.get('disease') or {} %}
     {% set nd = inf.get('nutrient_deficiency') or {} %}
     {% set cs = inf.get('climate_shock') or {} %}
-    {% set raw_crop = (inf.get('infestation_crop_name_id') or '') | lower %}
-    {% set crop_val = crop_map.get(raw_crop, inf.get('infestation_crop_name_id') or '') %}
+    {% set raw_crop = (inf.get('crop_name_id') or inf.get('infestation_crop_name_id') or '') | lower %}
+    {% set crop_val = crop_map.get(raw_crop, inf.get('crop_name_id') or inf.get('infestation_crop_name_id') or '') %}
     {% set raw_cs = (inf.get('cluster_status_id') or '') | lower %}
     {% set cs_val = inf_cluster_map.get(raw_cs, (inf.get('cluster_status_id') or '') | upper) %}
-    {% set raw_itype = (inf.get('infestation_type_ids') or '') | lower %}
-    {% set itype_val = inf_type_map.get(raw_itype, (inf.get('infestation_type_ids') or '') | upper) %}
+    {% set raw_itypes = (inf.get('infestation_type_ids') or '').split(' ') %}
+    {% set itype_vals = [] %}
+    {% for it in raw_itypes %}
+      {% set it_clean = it | trim | lower %}
+      {% if it_clean %}
+        {% set mapped_it = inf_type_map.get(it_clean, it_clean | upper) %}
+        {% set _ = itype_vals.append(mapped_it) %}
+      {% endif %}
+    {% endfor %}
+    {% set itype_val = itype_vals | join(',') %}
     {% set raw_dtype = (dis.get('disease_type') or '') | lower %}
     {% set dtype_val = disease_type_map.get(raw_dtype, (dis.get('disease_type') or '') | upper) %}
     {
@@ -789,13 +808,13 @@
       "pesticide_method": "{{ po.get('pest_pesticide_method') or '' }}",
       "pesticide_type": "{{ po.get('pesticide_type') or '' }}",
       "pesticide_name": "{{ po.get('pesticide_name') or '' }}",
-      "pesticide_frequency": "{{ po.get('pest_pesticide_frequency') or '' }}",
+      "pesticide_frequency": "{{ po.get('pest_frequency_of_application') or po.get('pest_pesticide_frequency') or '' }}",
       "weed_type": "{{ wo.get('weed_type') or '' }}",
       "weed_name": "{{ wo.get('weed_name_id') or '' }}",
       "weed_control_method": "{{ wo.get('pesticide_method') or '' }}",
       "weedicide_type": "{{ wo.get('weedicide_type') or '' }}",
       "weedicide_name": "{{ wo.get('weedicide_name') or '' }}",
-      "weedicide_frequency": "{{ wo.get('weedicide_frequency') or '' }}",
+      "weedicide_frequency": "{{ wo.get('weed_frequency_of_application') or wo.get('weedicide_frequency') or '' }}",
       "disease_type": "{{ dtype_val }}",
       "disease_name": "{{ dis.get('disease_name') or '' }}",
       "disease_control_method": "{{ dis.get('ind_method_of_control') or '' }}",
@@ -804,16 +823,16 @@
       "disease_frequency_of_application": "{{ dis.get('disease_frequency_of_application') or '' }}",
       "nutrient_type": "{{ nd.get('nutrient_type') or '' }}",
       "nutrient_name": "{{ nd.get('nutrient_name') or '' }}",
-      "nutrient_control_method": "{{ nd.get('nutrient_method_of_control') or '' }}",
+      "nutrient_control_method": "{{ nd.get('method_of_control') or nd.get('nutrient_method_of_control') or '' }}",
       "nutrient_fertilizer_type": "{{ nd.get('fertilizer_type') or '' }}",
       "nutrient_fertilizer_name": "{{ nd.get('fertilizer_name') or '' }}",
       "nutrient_frequency_of_application": "{{ nd.get('nutrient_frequency_of_application') or '' }}",
       "shock_type": "{{ cs.get('shock_type') or '' }}",
       "shock_event_name": "{{ cs.get('shock_event_name') or '' }}",
-      "climate_control_method": "{{ cs.get('climate_method_of_control') or '' }}",
+      "climate_control_method": "{{ cs.get('method_of_control') or cs.get('climate_method_of_control') or '' }}",
       "recovery_input_type": "{{ cs.get('recovery_input_type') or '' }}",
       "recovery_input_name": "{{ cs.get('recovery_input_name') or '' }}",
-      "climate_frequency_of_application": "{{ cs.get('climate_frequency_of_application') or '' }}"
+      "climate_frequency_of_application": "{{ cs.get('climate_frequency_of_application') or cs.get('nutrient_frequency_of_application') or '' }}"
     }{% if not loop.last %},{% endif %}
   {% endfor %}
   ]
@@ -860,15 +879,15 @@
     {% endif %}
     {% set h_maturity = ((ih_info.get('independent_crop_maturity_status') or ih_info.get('crop_maturity_status') or 'READY_FOR_HARVEST') | upper) if has_ind else '' %}
     {% set h_date = (ih_info.get('independent_harvest_date') or ih_info.get('harvest_date') or (sub_dt if has_ind else '')) if has_ind else '' %}
-    {% set raw_h_area = (ih_info.get('independent_area_harvested') if ih_info.get('independent_area_harvested') is not none else (ih_info.get('area_harvested') if ih_info.get('area_harvested') is not none else cl_info.get('cluster_area_harvested'))) if has_ind else 0.0 %}
+    {% set raw_h_area = (ih_info.get('independent_area_harvested') if ih_info.get('independent_area_harvested') is not none else (ih_info.get('area_harvested') if ih_info.get('area_harvested') is not none else (cl_info.get('area_harvested') if cl_info.get('area_harvested') is not none else cl_info.get('cluster_area_harvested')))) if has_ind else 0.0 %}
     {% set h_area = (raw_h_area | float) if (has_ind and raw_h_area is not none and raw_h_area) else (1.0 if has_ind else 0.0) %}
     {% if has_ind and h_area <= 0 %}{% set h_area = 1.0 %}{% endif %}
-    {% set h_qty = ((ih_info.get('independent_qty_harvested') or ih_info.get('qty_harvested') or cl_info.get('cluster_qty_harvested') or 0.0) | float) if has_ind else 0.0 %}
-    {% set loss_pct = ((ih_info.get('independent_post_harvest_loss_pct') or ih_info.get('post_harvest_loss_pct') or cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float) if has_ind else 0.0 %}
+    {% set h_qty = ((ih_info.get('independent_qty_harvested') or ih_info.get('qty_harvested') or cl_info.get('qty_harvested') or cl_info.get('cluster_qty_harvested') or 0.0) | float) if has_ind else 0.0 %}
+    {% set loss_pct = ((ih_info.get('independent_post_harvest_loss_pct') or ih_info.get('post_harvest_loss_pct') or cl_info.get('post_harvest_loss_pct') or cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float) if has_ind else 0.0 %}
     {% if loss_pct < 0 %}{% set loss_pct = 0.0 %}{% endif %}
     {% if loss_pct > 100 %}{% set loss_pct = 100.0 %}{% endif %}
-    {% set s_qty = ((ih_info.get('independent_qty_stored') or ih_info.get('qty_stored') or cl_info.get('cluster_qty_stored') or 0.0) | float) if has_ind else 0.0 %}
-    {% set sold_qty = ((ih_info.get('independent_qty_sold') or ih_info.get('qty_sold') or cl_info.get('cluster_qty_sold') or 0.0) | float) if has_ind else 0.0 %}
+    {% set s_qty = ((ih_info.get('independent_qty_stored') or ih_info.get('qty_stored') or cl_info.get('qty_stored') or cl_info.get('cluster_qty_stored') or 0.0) | float) if has_ind else 0.0 %}
+    {% set sold_qty = ((ih_info.get('independent_qty_sold') or ih_info.get('qty_sold') or cl_info.get('qty_sold') or cl_info.get('cluster_qty_sold') or 0.0) | float) if has_ind else 0.0 %}
     {% if (s_qty + sold_qty) > h_qty and h_qty > 0 %}
       {% if s_qty <= h_qty %}
         {% set sold_qty = h_qty - s_qty %}
@@ -880,13 +899,13 @@
       {% set s_qty = 0.0 %}
       {% set sold_qty = 0.0 %}
     {% endif %}
-    {% set cl_maturity = ((cl_info.get('cluster_crop_maturity_status') or 'READY_FOR_HARVEST') | upper) if has_cl else '' %}
-    {% set cl_date = (cl_info.get('cluster_harvest_date') or (sub_dt if has_cl else '')) if has_cl else '' %}
-    {% set cl_area = ((cl_info.get('cluster_area_harvested') or 0.0) | float) if has_cl else 0.0 %}
-    {% set cl_qty = ((cl_info.get('cluster_qty_harvested') or 0.0) | float) if has_cl else 0.0 %}
-    {% set cl_loss_pct = ((cl_info.get('cluster_post_harvest_loss_pct') or 0.0) | float) if has_cl else 0.0 %}
-    {% set cl_s_qty = ((cl_info.get('cluster_qty_stored') or 0.0) | float) if has_cl else 0.0 %}
-    {% set cl_sold_qty = ((cl_info.get('cluster_qty_sold') or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_maturity = ((cl_info.get('crop_maturity_status') or cl_info.get('cluster_crop_maturity_status') or 'READY_FOR_HARVEST') | upper) if has_cl else '' %}
+    {% set cl_date = (cl_info.get('harvest_date') or cl_info.get('cluster_harvest_date') or (sub_dt if has_cl else '')) if has_cl else '' %}
+    {% set cl_area = (((cl_info.get('area_harvested') if cl_info.get('area_harvested') is not none else cl_info.get('cluster_area_harvested')) or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_qty = (((cl_info.get('qty_harvested') if cl_info.get('qty_harvested') is not none else cl_info.get('cluster_qty_harvested')) or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_loss_pct = (((cl_info.get('post_harvest_loss_pct') if cl_info.get('post_harvest_loss_pct') is not none else cl_info.get('cluster_post_harvest_loss_pct')) or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_s_qty = (((cl_info.get('qty_stored') if cl_info.get('qty_stored') is not none else cl_info.get('cluster_qty_stored')) or 0.0) | float) if has_cl else 0.0 %}
+    {% set cl_sold_qty = (((cl_info.get('qty_sold') if cl_info.get('qty_sold') is not none else cl_info.get('cluster_qty_sold')) or 0.0) | float) if has_cl else 0.0 %}
     {
       "land_id": "{{ h_land_id }}",
       "cluster_status": {{ cs_json }},
