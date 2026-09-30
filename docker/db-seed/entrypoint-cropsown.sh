@@ -59,3 +59,47 @@ PGPASSWORD="${MD_PGPASSWORD:-}" psql \
   --username "${MD_PGUSER:-postgres}" --dbname "$MD_PGDATABASE" \
   --tuples-only --no-align \
   --command "SELECT '[geo-seed] ' || (SELECT count(*) FROM g2p_geo_levels) || ' geo levels, ' || (SELECT count(*) FROM g2p_geo_level_values) || ' values'"
+
+rewrite_approver_rules() {
+  if [ "${AWE_DB_SEED_ENABLED:-false}" != "true" ]; then
+    echo "[db-seed] approver-resolver rules: skipped (AWE_DB_SEED_ENABLED=${AWE_DB_SEED_ENABLED:-false})."
+    return
+  fi
+  if [ -z "${AWE_PGHOST:-}" ] || [ -z "${AWE_PGDATABASE:-}" ]; then
+    echo "[db-seed] approver-resolver rules: skipped (AWE_PGHOST/AWE_PGDATABASE not set)."
+    return
+  fi
+  base="${APPROVER_RESOLVER_BASE_URL:-}"
+  if [ -z "$base" ]; then
+    case "${AWE_CALLBACK_CALLER_SERVICE:-}" in
+      http://*|https://*)
+        base=$(printf '%s' "$AWE_CALLBACK_CALLER_SERVICE" | sed -E 's#^(https?://[^/]+).*$#\1#') ;;
+      *)
+        base="http://staff-api:8000" ;;
+    esac
+  fi
+  base=$(printf '%s' "$base" | sed -E 's#/+$##')
+  secret="${APPROVER_RESOLVER_SECRET:-cropsown-approver-resolver-secret}"
+  export PGHOST="$AWE_PGHOST" PGPORT="${AWE_PGPORT:-5432}" PGDATABASE="$AWE_PGDATABASE" PGUSER="${AWE_PGUSER:-}" PGPASSWORD="${AWE_PGPASSWORD:-}"
+  echo "[db-seed] approver-resolver rules: pointing the http rules at ${base}/cropsown/approver-resolver?level=<level>&secret=*** ..."
+  n=$(psql -At -v ON_ERROR_STOP=1 -v base="$base" -v secret="$secret" <<'SQL'
+WITH changed AS (
+  UPDATE approver_rule
+     SET rule_value = jsonb_set(rule_value::jsonb, '{url}',
+           to_jsonb(:'base' || '/cropsown/approver-resolver?level='
+                    || substring(rule_value::jsonb->>'url' from 'level=([a-z]+)')
+                    || '&secret=' || :'secret'))::json
+   WHERE rule_type = 'http'
+     AND rule_value::jsonb->>'url' LIKE '%/cropsown/approver-resolver%'
+     AND rule_value::jsonb->>'url' <> (:'base' || '/cropsown/approver-resolver?level='
+                    || substring(rule_value::jsonb->>'url' from 'level=([a-z]+)')
+                    || '&secret=' || :'secret')
+  RETURNING 1)
+SELECT count(*) FROM changed;
+SQL
+  ) || { echo "[db-seed] approver-resolver rules: FAILED (see errors above) — AWE will not find approvers until the rule URLs point at this staff-api."; return; }
+  total=$(psql -At -c "SELECT count(*) FROM approver_rule WHERE rule_type='http' AND rule_value::jsonb->>'url' LIKE '%/cropsown/approver-resolver%';" 2>/dev/null || echo "?")
+  echo "[db-seed] approver-resolver rules: ${n} rewritten, ${total} in place."
+}
+
+rewrite_approver_rules
