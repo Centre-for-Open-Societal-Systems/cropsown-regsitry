@@ -748,7 +748,9 @@ pieces fit together.
 
 `Jenkinsfile` is the self-hosted pipeline. It builds six images from
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
-`sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
+`sanity-tests` and `dashboard-ui` — plus `connector-service` and
+`connector-ui` from `openg2p-connector-service/` and `openg2p-connector-ui/`,
+publishes them to a private ECR under
 branch-derived tags, and deploys `develop` to the dev cluster's `crop`
 namespace. A `staging` build pushes its images and then moves staging's app
 Deployments onto them with `ci/staging-set-images.sh`: images only, no helm

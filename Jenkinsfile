@@ -41,6 +41,11 @@ pipeline {
         // chart deploys no dashboard, so its image would be published for nothing.
         SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
 
+        // The ODK ingestion connector, as <image>:<build context>. Each builds
+        // from the Dockerfile in its own directory, not docker/<name>/.
+        // connector-service is one image for the chart's api, worker and beat.
+        CONNECTOR_IMAGES = 'connector-service:openg2p-connector-service connector-ui:openg2p-connector-ui'
+
         // cropsown-registry-dashboard-api lives in its own (public) repository and
         // is built here beside the registry images, as dashboard-api. Each branch
         // builds the dashboard-api branch of the same name and falls back to
@@ -179,6 +184,28 @@ pipeline {
 
                             # Drop the build tag, keep the branch tag: it is the
                             # next build's cache.
+                            docker rmi "${IMAGE}:${IMAGE_TAG}" || true
+                        done
+
+                        # The connector service and its UI, each with its own
+                        # directory as build context.
+                        for PAIR in ${CONNECTOR_IMAGES}; do
+                            NAME="${PAIR%%:*}"
+                            CONTEXT="${PAIR#*:}"
+                            IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${NAME}"
+                            echo "--- ${NAME} (${CONTEXT}) -> ${IMAGE}:${IMAGE_TAG} ---"
+
+                            docker build --pull \
+                                -f "${CONTEXT}/Dockerfile" \
+                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" "${CONTEXT}"
+
+                            aws ecr describe-repositories --region "${AWS_REGION}" \
+                                --repository-names "${ECR_BASE}/${NAME}" >/dev/null 2>&1 \
+                              || aws ecr create-repository --region "${AWS_REGION}" \
+                                    --repository-name "${ECR_BASE}/${NAME}" >/dev/null
+
+                            docker push "${IMAGE}:${IMAGE_TAG}"
+                            docker push "${IMAGE}:${BRANCH_NAME}"
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
 
