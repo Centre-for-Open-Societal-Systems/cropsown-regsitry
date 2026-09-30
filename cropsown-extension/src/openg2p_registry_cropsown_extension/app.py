@@ -46,6 +46,20 @@ class Initializer(BaseInitializer):
         G2PRegisterDomainServiceCropSown()
         G2PRegisterDomainServiceSowing()
 
+        from .register_domain.controllers import G2PApproverResolverController
+        G2PApproverResolverController().post_init()
+
+        try:
+            import openg2p_registry_staff_api.main as staff_main
+            if hasattr(staff_main, "REGISTRY_STAFF_CSRF_EXCLUDED_PATHS"):
+                if "/cropsown/approver-resolver" not in staff_main.REGISTRY_STAFF_CSRF_EXCLUDED_PATHS:
+                    staff_main.REGISTRY_STAFF_CSRF_EXCLUDED_PATHS = (
+                        *staff_main.REGISTRY_STAFF_CSRF_EXCLUDED_PATHS,
+                        "/cropsown/approver-resolver",
+                    )
+        except Exception as exc:
+            _logger.debug("Could not add CSRF exemption to staff-api: %s", exc)
+
     def migrate_database(self, args):
 
         async def migrate():
