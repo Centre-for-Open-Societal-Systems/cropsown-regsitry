@@ -320,6 +320,12 @@ services:
       REGISTRY_STAFF_PORTAL_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_STAFF_PORTAL_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
       REGISTRY_STAFF_PORTAL_API_AWE_ENABLED: ${AWE_ENABLED}
+      APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET:-approver-resolver-secret}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-staff}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:-cropsown-staff-portal}
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET:-cropsown-staff-portal-secret}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:

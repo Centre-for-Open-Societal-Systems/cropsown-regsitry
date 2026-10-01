@@ -17,6 +17,7 @@ from .controllers import (
 )
 from .database import get_engine
 from . import db_migrations
+from .default_pipelines import seed_default_pipelines
 from . import metrics as connector_metrics
 from .models import Base
 from .observability import instrument_app
@@ -31,6 +32,7 @@ async def _lifespan(app: FastAPI):
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await db_migrations.apply(conn)
+        await seed_default_pipelines(conn)
     yield
 
 

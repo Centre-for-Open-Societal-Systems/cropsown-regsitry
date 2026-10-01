@@ -34,6 +34,16 @@ registry:
     image:
       repository: openg2p/openg2p-cropsown-registry-staff-api
       tag: 0.0.0-develop
+    envVars:
+      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
+      KEYCLOAK_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      KEYCLOAK_REALM: '{{ tpl (default "staff" .Values.global.keycloakRealm) $ }}'
+      AUTH_CLIENT_ID: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientId) $ }}'
+    envVarsFrom:
+      AUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientSecret) $ }}'
+          key: '{{ tpl (default "client_secret" .Values.global.authClientSecretKey) $ }}'
   partnerApi:
     image:
       repository: openg2p/openg2p-cropsown-registry-partner-api
@@ -42,6 +52,8 @@ registry:
     image:
       repository: openg2p/openg2p-cropsown-registry-celery
       tag: 0.0.0-develop
+    envVars:
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
   celeryBeat:
     image:
       repository: openg2p/openg2p-cropsown-registry-celery
@@ -50,6 +62,8 @@ registry:
     image:
       repository: openg2p/openg2p-cropsown-registry-db-seed
       tag: 0.0.0-develop
+    envVars:
+      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
     # The images/templates loaders are generic and safe to enable. Sample data is
     # NOT: the platform's load_sample_data.py is hardcoded to the reference
     # (farmer) registry's tables, so it cannot load crop sown records. The crop
