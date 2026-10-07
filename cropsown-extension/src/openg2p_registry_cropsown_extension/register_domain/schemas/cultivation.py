@@ -49,7 +49,6 @@ class G2PSchemaCultivation:
     water_source: Optional[str] = None
     water_source_method: Optional[str] = None
     water_source_frequency: Optional[str] = None
-    remark: Optional[str] = None
 
 
 

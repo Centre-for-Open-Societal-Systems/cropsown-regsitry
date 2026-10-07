@@ -22,8 +22,10 @@ class G2PHarvest:
     # ── Plot: each line records the land it was worked on (Gen1 puts
     # land_info_id and its attributes on the line, not the header) ───────────
     land_id: Mapped[str] = mapped_column(String, nullable=True)
+    commodity: Mapped[str] = mapped_column(String, nullable=True)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
     cluster_status: Mapped[list[str]] = mapped_column(JSONB, nullable=True)
+    cluster_name: Mapped[str] = mapped_column(String, nullable=True)
     crop_maturity_status: Mapped[CropMaturityStatusEnum] = mapped_column(String, nullable=True) # CropMaturityStatusEnum
     harvest_date: Mapped[str] = mapped_column(Date, nullable=True)
     area_harvested: Mapped[float] = mapped_column(Numeric, nullable=True)

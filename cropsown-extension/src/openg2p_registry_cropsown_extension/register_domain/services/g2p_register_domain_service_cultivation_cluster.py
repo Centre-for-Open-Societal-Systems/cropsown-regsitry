@@ -19,17 +19,8 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
-            prod_season = record.get("production_season")
-            submission_id = record.get("submission_id")
-            if session and submission_id and not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    prod_season = row_hdr[0]
+            from .domain_validation_utils import resolve_production_season
+            prod_season = await resolve_production_season(record, session)
 
             season = record.get("season")
             if prod_season and season:
@@ -39,6 +30,7 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                     validation_error(
                         f"Season '{season}' in Cultivation Cluster Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
                     )
+
 
             compute_season_parts(record)
             compute_cluster_area(record)
@@ -108,12 +100,12 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                 if l_id:
                     cultivation_land_ids.add(l_id)
                     if l_id == str(cluster_land_id).strip():
-                        if row[1] is not None:
+                        if len(row) > 1 and row[1] is not None:
                             max_land_area = max(max_land_area, as_float(row[1]) or 0.0)
-                        if row[2] is not None:
+                        if len(row) > 2 and row[2] is not None:
                             total_cultivated_area += (as_float(row[2]) or 0.0)
 
-        # 2. Fetch Land IDs from active registered cultivations (if existing record)
+        # 2. Fetch Land IDs from active registered cultivation records (if existing record)
         if link_internal_record_id:
             res = await session.execute(
                 text("SELECT land_id, land_area, actual_crop_area FROM g2p_register_cultivations WHERE link_internal_record_id = :link_id AND record_status = 'ACTIVE'"),
@@ -124,15 +116,15 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                 if l_id:
                     cultivation_land_ids.add(l_id)
                     if l_id == str(cluster_land_id).strip():
-                        if row[1] is not None:
+                        if len(row) > 1 and row[1] is not None:
                             max_land_area = max(max_land_area, as_float(row[1]) or 0.0)
-                        if row[2] is not None:
+                        if len(row) > 2 and row[2] is not None:
                             total_cultivated_area += (as_float(row[2]) or 0.0)
 
         # 3. Validate match (if cultivation records exist)
         if cultivation_land_ids and str(cluster_land_id).strip() not in cultivation_land_ids:
             validation_error(
-                f"Land ID '{cluster_land_id}' in Cultivation Cluster does not match any Land ID specified in Cultivation/Land Preparation ({', '.join(cultivation_land_ids)})."
+                f"Land ID '{cluster_land_id}' in Cultivation Cluster does not match any Land ID specified in Cultivation/Land Preparation Details."
             )
 
         # If max_land_area was not provided in cultivation, fall back to land_area on cluster record
