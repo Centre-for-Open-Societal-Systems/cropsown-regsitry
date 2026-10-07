@@ -46,7 +46,11 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
         fayda_fan_id = record.get("fayda_fan_id")
         internal_record_id = record.get("internal_record_id")
 
-        cluster_status = str(record.get("cluster_status") or "").upper()
+        raw_cs = record.get("cluster_status")
+        if isinstance(raw_cs, (list, tuple, set)):
+            cluster_status = " ".join(str(item) for item in raw_cs if item).upper()
+        else:
+            cluster_status = str(raw_cs or "").upper()
         is_clustered = "CLUSTER" in cluster_status
 
         commodity = record.get("commodity")
