@@ -223,7 +223,11 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         from .domain_validation_utils import get_attribute_variants
         commodity_vars = get_attribute_variants(commodity, "CROP_COMMODITY") if commodity else []
 
-        cluster_status = str(record.get("cluster_status") or "").upper()
+        raw_cs = record.get("cluster_status")
+        if isinstance(raw_cs, (list, tuple, set)):
+            cluster_status = " ".join(str(item) for item in raw_cs if item).upper()
+        else:
+            cluster_status = str(raw_cs or "").upper()
         is_clustered = "CLUSTER" in cluster_status or record.get("cluster_harvest_date") is not None
 
         prior_date = None
@@ -231,7 +235,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
         if is_clustered:
             if submission_id:
-                query = "SELECT sowing_date FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND (UPPER(cluster_status) LIKE '%CLUSTER%' OR cluster_season IS NOT NULL)"
+                query = "SELECT sowing_date FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND (UPPER(cluster_status::text) LIKE '%CLUSTER%' OR cluster_season IS NOT NULL)"
                 params = {"sub_id": submission_id}
                 if land_id:
                     query += " AND land_id = :land_id"

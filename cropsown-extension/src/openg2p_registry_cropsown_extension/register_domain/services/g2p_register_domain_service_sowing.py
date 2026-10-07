@@ -270,7 +270,11 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
         season = record.get("season") or record.get("cluster_season")
         season_vars = get_attribute_variants(season, "CROP_SEASON") if season else []
 
-        cluster_status = str(record.get("cluster_status") or "").upper()
+        raw_cs = record.get("cluster_status")
+        if isinstance(raw_cs, (list, tuple, set)):
+            cluster_status = " ".join(str(item) for item in raw_cs if item).upper()
+        else:
+            cluster_status = str(raw_cs or "").upper()
         is_clustered = "CLUSTER" in cluster_status
 
         prior_date = None
