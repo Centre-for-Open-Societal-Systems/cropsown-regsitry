@@ -26,22 +26,15 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            if not str(record.get("land_id") or "").strip():
+                validation_error("Land ID is required in Crop Planning.")
             if not str(record.get("season") or "").strip():
                 validation_error("Season is required in Crop Planning.")
             if not str(record.get("commodity") or "").strip():
                 validation_error("Crop is required in Crop Planning.")
 
-            prod_season = record.get("production_season")
-            submission_id = record.get("submission_id")
-            if session and submission_id and not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    prod_season = row_hdr[0]
+            from .domain_validation_utils import resolve_production_season
+            prod_season = await resolve_production_season(record, session)
 
             season = record.get("season")
             if prod_season and season:
@@ -51,6 +44,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
                     validation_error(
                         f"Season '{season}' in Crop Planning Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
                     )
+
 
             compute_season_parts(record)
             self._validate_date_in_season(record, "planned_date")

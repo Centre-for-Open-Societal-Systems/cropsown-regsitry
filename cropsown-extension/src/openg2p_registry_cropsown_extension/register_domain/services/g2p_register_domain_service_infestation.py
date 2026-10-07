@@ -34,69 +34,117 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
             self._validate_estimated_damage(record)
             compute_ec_date(record, "observation_date", "observation_date_ec")
             if session:
-                await self._validate_land_id_matches_sowing(record, session=session)
+                await self._validate_infestation_after_sowing(record, session=session)
 
-    async def _validate_land_id_matches_sowing(self, record: dict, session) -> None:
-        land_id = record.get("land_id")
-        if not land_id or not str(land_id).strip():
+    async def _validate_infestation_after_sowing(self, record: dict, session) -> None:
+        land_id = str(record.get("land_id") or "").strip()
+        if not land_id:
             return
 
         submission_id = record.get("submission_id")
         link_internal_record_id = record.get("link_internal_record_id")
         fayda_fan_id = record.get("fayda_fan_id")
+        internal_record_id = record.get("internal_record_id")
 
-        if not submission_id and not link_internal_record_id and not fayda_fan_id:
-            return
+        cluster_status = str(record.get("cluster_status") or "").upper()
+        is_clustered = "CLUSTER" in cluster_status
+
+        commodity = record.get("commodity")
+        from .domain_validation_utils import get_attribute_variants
+        commodity_vars = get_attribute_variants(commodity, "CROP_COMMODITY") if commodity else []
 
         from sqlalchemy import text
 
-        valid_land_ids = set()
+        sowing_found = False
 
+        # 1. Check in Intake Form (current form submission)
         if submission_id:
-            for tbl in ("g2p_intake_form_sowings", "g2p_intake_form_cultivations", "g2p_intake_form_plannings"):
-                res = await session.execute(
-                    text(f"SELECT land_id FROM {tbl} WHERE submission_id = :sub_id"),
+            if is_clustered:
+                query = "SELECT id FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
+                params = {"sub_id": submission_id, "land_id": land_id}
+                res = await session.execute(text(query), params)
+                if res.fetchone():
+                    sowing_found = True
+            else:
+                if commodity_vars:
+                    query = "SELECT commodity FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
+                    params = {"sub_id": submission_id, "land_id": land_id}
+                    res = await session.execute(text(query), params)
+                    for r in res.fetchall():
+                        s_comm = r[0]
+                        if s_comm and any(v.upper() == str(s_comm).strip().upper() for v in commodity_vars):
+                            sowing_found = True
+                            break
+
+        # 2. Build master_ids for Register check if not found in intake
+        if not sowing_found:
+            master_ids = set()
+            if submission_id:
+                if not fayda_fan_id:
+                    res_f = await session.execute(
+                        text("SELECT fayda_fan_id FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND fayda_fan_id IS NOT NULL"),
+                        {"sub_id": submission_id}
+                    )
+                    f_row = res_f.fetchone()
+                    if f_row and f_row[0]:
+                        fayda_fan_id = f_row[0]
+
+                res_root = await session.execute(
+                    text("SELECT internal_record_id::text FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND internal_record_id IS NOT NULL"),
                     {"sub_id": submission_id}
                 )
-                for row in res.fetchall():
-                    if row[0] and str(row[0]).strip():
-                        valid_land_ids.add(str(row[0]).strip())
+                row_root = res_root.fetchone()
+                if row_root and row_root[0]:
+                    master_ids.add(str(row_root[0]))
 
-            if not fayda_fan_id:
-                res_f = await session.execute(
-                    text("SELECT fayda_fan_id FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND fayda_fan_id IS NOT NULL"),
-                    {"sub_id": submission_id}
+            if link_internal_record_id:
+                master_ids.add(str(link_internal_record_id))
+            elif internal_record_id:
+                res_root = await session.execute(
+                    text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id AND record_status = 'ACTIVE'"),
+                    {"rec_id": str(internal_record_id)}
                 )
-                f_row = res_f.fetchone()
-                if f_row and f_row[0]:
-                    fayda_fan_id = f_row[0]
+                if res_root.fetchone():
+                    master_ids.add(str(internal_record_id))
+                else:
+                    res_child = await session.execute(
+                        text("SELECT link_internal_record_id::text FROM g2p_register_infestations WHERE internal_record_id = :rec_id"),
+                        {"rec_id": str(internal_record_id)}
+                    )
+                    row_c = res_child.fetchone()
+                    if row_c and row_c[0]:
+                        master_ids.add(str(row_c[0]))
 
-        master_ids = set()
-        if link_internal_record_id:
-            master_ids.add(str(link_internal_record_id))
+            if fayda_fan_id:
+                res_m = await session.execute(
+                    text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"),
+                    {"fayda": fayda_fan_id}
+                )
+                for r in res_m.fetchall():
+                    if r[0]:
+                        master_ids.add(str(r[0]))
 
-        if fayda_fan_id:
-            res_m = await session.execute(
-                text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"),
-                {"fayda": fayda_fan_id}
+            if master_ids:
+                if is_clustered:
+                    query = "SELECT id FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE' AND land_id = :land_id"
+                    params = {"m_ids": list(master_ids), "land_id": land_id}
+                    res = await session.execute(text(query), params)
+                    if res.fetchone():
+                        sowing_found = True
+                else:
+                    if commodity_vars:
+                        query = "SELECT commodity FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE' AND land_id = :land_id AND commodity = ANY(:commodity_vars)"
+                        params = {"m_ids": list(master_ids), "land_id": land_id, "commodity_vars": commodity_vars}
+                        res = await session.execute(text(query), params)
+                        if res.fetchone():
+                            sowing_found = True
+
+        if not sowing_found:
+            crop_str = f" for Crop '{commodity}'" if commodity else ""
+            validation_error(
+                f"No Sowing record found{crop_str} on Land ID '{land_id}'. "
+                f"Pest/Disease Infestation incident can only be created for a crop that has a Sowing record."
             )
-            for row in res_m.fetchall():
-                if row[0]:
-                    master_ids.add(str(row[0]))
-
-        if master_ids:
-            for tbl in ("g2p_register_sowings", "g2p_register_cultivations", "g2p_register_plannings"):
-                res_db = await session.execute(
-                    text(f"SELECT land_id FROM {tbl} WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"),
-                    {"m_ids": list(master_ids)}
-                )
-                for row in res_db.fetchall():
-                    if row[0] and str(row[0]).strip():
-                        valid_land_ids.add(str(row[0]).strip())
-
-        if str(land_id).strip() not in valid_land_ids:
-            msg_fayda = f" for Fayda ID '{fayda_fan_id}'" if fayda_fan_id else ""
-            validation_error(f"Land ID '{land_id}' in Pest/Disease Infestation does not match any Land ID specified in crop records{msg_fayda}.")
 
     def _validate_observation_date(self, record: dict) -> None:
         # Future observation dates are allowed; no restriction here.

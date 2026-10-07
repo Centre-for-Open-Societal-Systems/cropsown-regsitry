@@ -74,9 +74,14 @@ RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
 COPY --chown=nextjs docker/staff-ui/assets/patch-avatar.js /tmp/patch-avatar.js
 RUN node /tmp/patch-avatar.js
 
+# ── Enable om (Afaan Oromoo) and ti (Tigrigna) locales ───────────────────────
+COPY --chown=nextjs docker/staff-ui/assets/patch-locales.js /tmp/patch-locales.js
+RUN node /tmp/patch-locales.js
+
 # ── Remove upgrade-insecure-requests for local dev ──────────────────────────
 # Next.js forces HTTPS by default through CSP, which breaks local HTTP loading.
 RUN sed -i 's/upgrade-insecure-requests//g' /app/.next/server/middleware.js
+
 
 
 

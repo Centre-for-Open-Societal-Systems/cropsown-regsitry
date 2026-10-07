@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from openg2p_registry_core.schemas import (
     G2PRegisterBaseSchema,
@@ -29,7 +29,16 @@ class G2PSchemaCropSown:
     zone: Optional[str] = None
     woreda: Optional[str] = None
     kebele: Optional[str] = None
-    gps_coordinate: Optional[str] = None
+    latitude: Optional[Union[float, int, str]] = None
+    longitude: Optional[Union[float, int, str]] = None
+
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def convert_lat_long_to_str(cls, v: Optional[Union[float, int, str]]) -> Optional[str]:
+        if v is not None:
+            return str(v)
+        return None
+
     region_name: Optional[str] = None
     zone_name: Optional[str] = None
     woreda_name: Optional[str] = None
@@ -41,6 +50,39 @@ class G2PSchemaCropSown:
     crop_year: Optional[str] = None
     production_season: Optional[str] = None
     lifecycle_stage: Optional[str] = None
+
+    @field_validator("crop_year")
+    @classmethod
+    def validate_crop_year(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and str(v).strip() != "":
+            val_str = str(v)
+            if not val_str.isdigit():
+                raise ValueError("Crop Year must contain only numeric digits (no letters, spaces, or special characters)")
+            year = int(val_str)
+            from datetime import date
+            current_year = date.today().year
+            if year < current_year:
+                raise ValueError("Crop Year must not be in the past")
+            if year > current_year:
+                raise ValueError("Crop Year must not be in the future")
+        return v
+
+    @field_validator("fayda_fan_id")
+    @classmethod
+    def validate_fayda_fan_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and str(v).strip() != "":
+            fyda_pattern = r"^\d{4} \d{4} \d{4} \d{4}$"
+            if not re.match(fyda_pattern, str(v).strip()):
+                raise ValueError("Fayda ID must be 16 digits formatted as 4 groups of 4 digits (e.g. 1234 5678 9000 3456) with no letters, special characters, or extra spaces within groups")
+        return v
+
+    @field_validator("land_id")
+    @classmethod
+    def validate_land_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and str(v).strip() != "":
+            if " " in str(v):
+                raise ValueError("Land ID must not contain spaces or gaps (e.g. '12345')")
+        return v
 
 
 class G2PRegisterSchemaCropSown(G2PRegisterBaseSchema, G2PGeoSchema, G2PSchemaCropSown):
