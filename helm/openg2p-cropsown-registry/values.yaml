@@ -135,7 +135,7 @@ registry:
     # (must match the cropsown-extension seed metadata).
     farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
     crTabId: "cropsown_cropsown_tab"
-    crSectionId: "cropsown_survey_personnel_section_02"
+    crSectionId: "cropsown_cropsown_record_section_01"
 
 # ── Reporting layer and dashboard service (this chart's own templates) ────────
 # The cs_rpt_* views the dashboard service reads (templates/reporting-views.yaml,
