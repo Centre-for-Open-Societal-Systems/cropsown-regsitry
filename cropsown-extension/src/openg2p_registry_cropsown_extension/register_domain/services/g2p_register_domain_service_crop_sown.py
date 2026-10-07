@@ -37,30 +37,6 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             if "longitude" in record and record["longitude"] is not None:
                 record["longitude"] = str(record["longitude"])
 
-            submission_id = record.get("submission_id")
-            if session and submission_id:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text(
-                        "SELECT crop_year, production_season, fayda_fan_id, farmer_name, farmer_id "
-                        "FROM g2p_intake_form_crop_sowns "
-                        "WHERE submission_id = :sub_id"
-                    ),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    if not record.get("crop_year") and row_hdr[0]:
-                        record["crop_year"] = row_hdr[0]
-                    if not record.get("production_season") and row_hdr[1]:
-                        record["production_season"] = row_hdr[1]
-                    if not record.get("fayda_fan_id") and row_hdr[2]:
-                        record["fayda_fan_id"] = row_hdr[2]
-                    if not record.get("farmer_name") and row_hdr[3]:
-                        record["farmer_name"] = row_hdr[3]
-                    if not record.get("farmer_id") and row_hdr[4]:
-                        record["farmer_id"] = row_hdr[4]
-
             from .domain_validation_utils import validate_alphabetical_name
             if record.get("farmer_name"):
                 validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -178,8 +154,11 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 )
 
     def _validate_crop_year(self, record: dict) -> None:
+        is_farmer_identity = any(k in record for k in ("farmer_id", "fayda_fan_id", "crop_year", "production_season"))
+        if not is_farmer_identity and "crop_year" not in record:
+            return
         crop_year = record.get("crop_year")
-        if crop_year is None or str(crop_year).strip() == "":
+        if crop_year is None or str(crop_year).strip() in ("", "None", "null", "Select"):
             validation_error("Crop Year is required in Farmer Identity.")
         val_str = str(crop_year).strip()
         if not val_str.isdigit():
@@ -193,7 +172,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
     def _validate_production_season(self, record: dict) -> None:
         season = record.get("production_season")
-        if season is None or str(season).strip() == "":
+        if season is None or str(season).strip() in ("", "None", "null", "Select"):
             validation_error("Production Season is required in Farmer Identity.")
 
     def _validate_farmer_id(self, record: dict) -> None:
@@ -207,8 +186,11 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
+        is_farmer_identity = any(k in record for k in ("farmer_id", "fayda_fan_id", "crop_year", "production_season"))
+        if not is_farmer_identity and "fayda_fan_id" not in record:
+            return
         value = record.get("fayda_fan_id")
-        if value is None or str(value).strip() == "":
+        if value is None or str(value).strip() in ("", "None", "null", "Select"):
             validation_error("Fayda ID (FAN) is required in Farmer Identity.")
         fyda_pattern = r"^\d{4} \d{4} \d{4} \d{4}$"
         if not re.match(fyda_pattern, str(value).strip()):
