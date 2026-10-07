@@ -32,6 +32,18 @@ from .register_domain.services import (
 
 _logger = logging.getLogger(_config.logging_default_logger_name)
 
+MIGRATED_MODELS = [
+    G2PRegisterCropSown, G2PRegisterHistoryCropSown, G2PIntakeFormCropSown,
+    G2PRegisterPlanning, G2PRegisterHistoryPlanning, G2PIntakeFormPlanning,
+    G2PRegisterCultivation, G2PRegisterHistoryCultivation, G2PIntakeFormCultivation,
+    G2PRegisterSowing, G2PRegisterHistorySowing, G2PIntakeFormSowing,
+    G2PRegisterProduction, G2PRegisterHistoryProduction, G2PIntakeFormProduction,
+    G2PRegisterHarvest, G2PRegisterHistoryHarvest, G2PIntakeFormHarvest,
+    G2PRegisterInfestation, G2PRegisterHistoryInfestation, G2PIntakeFormInfestation,
+    G2PRegisterCluster, G2PRegisterHistoryCluster, G2PIntakeFormCluster,
+    G2PRegisterCultivationCluster, G2PRegisterHistoryCultivationCluster, G2PIntakeFormCultivationCluster,
+]
+
 
 class Initializer(BaseInitializer):
     def initialize(self, **kwargs):
