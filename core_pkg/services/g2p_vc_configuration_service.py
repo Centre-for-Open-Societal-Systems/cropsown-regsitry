@@ -1,12 +1,12 @@
 import logging
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from openg2p_fastapi_common.service import BaseService
 from openg2p_fastapi_common.context import dbengine
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..models import (
     DataModel,
@@ -25,35 +25,46 @@ class G2PVcConfigurationService(BaseService):
 
     async def get_vc_configuration_for_register(
         self,
-        register_id: str
-    ) -> List[VcConfigurationData]:
+        register_id: str,
+        current_page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> Tuple[List[VcConfigurationData], int]:
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
         async with session_maker() as session:
             await self._validate_register_exists(register_id, session)
             _logger.info("validation Register exists")
-            vc_configuration_data = await self._fetch_vc_configuration_data_list(
-                session, register_id=register_id
+            vc_configuration_data, total = await self._fetch_vc_configuration_data_list(
+                session,
+                register_id=register_id,
+                current_page=current_page,
+                page_size=page_size,
             )
             _logger.info(
-                f"Got {len(vc_configuration_data)} vc configurations for register id {register_id}"
+                f"Got {len(vc_configuration_data)} of {total} vc configurations for register id {register_id}"
             )
-            return vc_configuration_data
+            return vc_configuration_data, total
 
     async def get_all_vc_configurations(
-        self
-    ) -> List[VcConfigurationData]:
+        self,
+        current_page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> Tuple[List[VcConfigurationData], int]:
         """Get all registry vc configurations"""
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
         async with session_maker() as session:
-            vc_configuration_data = await self._fetch_vc_configuration_data_list(session)
-            _logger.info(f"Got {len(vc_configuration_data)} vc configurations")
-            return vc_configuration_data
+            vc_configuration_data, total = await self._fetch_vc_configuration_data_list(
+                session, current_page=current_page, page_size=page_size
+            )
+            _logger.info(f"Got {len(vc_configuration_data)} of {total} vc configurations")
+            return vc_configuration_data, total
 
     async def create_vc_configuration(
-        self, 
+        self,
         register_id: str,
         vc_mnemonic: str,
-        descriptor_schema: str
+        descriptor_schema: str,
+        intake_form_id: Optional[str] = None,
+        data_model_id: Optional[str] = None,
     ) -> List[VcConfigurationData]:
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
         async with session_maker() as session:
@@ -63,6 +74,8 @@ class G2PVcConfigurationService(BaseService):
             g2p_register_vc_configuration = G2PRegistryVcConfiguration(
                 vc_config_id=str(uuid.uuid4()),
                 register_id=register_id,
+                intake_form_id=intake_form_id,
+                data_model_id=data_model_id,
                 vc_mnemonic=vc_mnemonic,
                 descriptor_schema=descriptor_schema
             )
@@ -98,12 +111,26 @@ class G2PVcConfigurationService(BaseService):
             await session.commit()
             return [VcConfigurationData.model_validate(g2p_register_vc_configuration)]
 
+    async def delete_vc_configuration(
+        self,
+        vc_config_id: str
+    ) -> List[VcConfigurationData]:
+        """Name used by G2PVcConfigurationControllerService.delete_vc_configuration."""
+        return await self.remove_vc_configuration(vc_config_id)
+
 
     async def _fetch_vc_configuration_data_list(
         self,
         session: AsyncSession,
         register_id: Optional[str] = None,
-    ) -> List[VcConfigurationData]:
+        current_page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> Tuple[List[VcConfigurationData], int]:
+        count_stmt = select(func.count()).select_from(G2PRegistryVcConfiguration)
+        if register_id is not None:
+            count_stmt = count_stmt.where(G2PRegistryVcConfiguration.register_id == register_id)
+        total = (await session.execute(count_stmt)).scalar_one()
+
         stmt = (
             select(
                 G2PRegistryVcConfiguration,
@@ -122,6 +149,9 @@ class G2PVcConfigurationService(BaseService):
         )
         if register_id is not None:
             stmt = stmt.where(G2PRegistryVcConfiguration.register_id == register_id)
+        stmt = stmt.order_by(G2PRegistryVcConfiguration.vc_mnemonic)
+        if current_page is not None and page_size is not None:
+            stmt = stmt.offset((current_page - 1) * page_size).limit(page_size)
 
         rows = (await session.execute(stmt)).all()
         return [
@@ -136,7 +166,7 @@ class G2PVcConfigurationService(BaseService):
                 descriptor_schema=vc.descriptor_schema,
             )
             for vc, intake_form_mnemonic, data_model_mnemonic in rows
-        ]
+        ], total
 
     async def _validate_register_exists(self, register_id: str, session: AsyncSession):
         """Validate that a register exists."""

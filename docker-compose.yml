@@ -320,6 +320,12 @@ services:
       REGISTRY_STAFF_PORTAL_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_STAFF_PORTAL_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
       REGISTRY_STAFF_PORTAL_API_AWE_ENABLED: ${AWE_ENABLED}
+      APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET:-approver-resolver-secret}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-staff}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:-cropsown-staff-portal}
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET:-cropsown-staff-portal-secret}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:
@@ -332,9 +338,9 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"
+        - python3 -S -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"
       interval: 10s
-      timeout: 5s
+      timeout: 15s
       retries: 30
       start_period: 90s
 
@@ -511,6 +517,7 @@ services:
       LOAD_ATTRIBUTES: ${LOAD_ATTRIBUTES}
       SYNC_GEO_WIDGETS: ${SYNC_GEO_WIDGETS}
       ATTRIBUTE_DOMAINS: ${ATTRIBUTE_DOMAINS}
+      LOAD_ETHIOPIA_GEO: ${LOAD_ETHIOPIA_GEO:-false}
       MDS_BASE_URL: http://master-data:${MASTER_DATA_PORT}
       IMAGE_BUCKET_NAME: ${DOCUMENTS_BUCKET}
       TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
@@ -563,6 +570,34 @@ services:
           psql -v ON_ERROR_STOP=1 -q -f "$$f"
         done
         echo "crop sown sample data applied"
+    restart: 'no'
+
+  reporting-views:
+    # The cs_rpt_* reporting views cropsown-registry-dashboard-api reads, as the
+    # chart's reporting job builds them. Opt-in, and re-runnable to pick up new
+    # records (the views are materialized):
+    #   docker compose --env-file local/.env --profile reporting up reporting-views
+    image: postgres:16
+    profiles: ['reporting']
+    depends_on:
+      sample-data:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: ${REGISTRY_DB}
+      PGUSER: ${REGISTRY_DB_USER}
+      PGPASSWORD: ${REGISTRY_DB_PASSWORD}
+    volumes:
+      - ./docker/db-seed/reporting_views.sql:/reporting_views.sql:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -X -q -f /reporting_views.sql
+        psql -qtAX -c "SELECT 'cs_rpt_crop_sown: ' || count(*) FROM cs_rpt_crop_sown"
+        psql -qtAX -c "SELECT 'cs_rpt_sowing: ' || count(*) FROM cs_rpt_sowing"
     restart: 'no'
 
   sample-images:
@@ -742,6 +777,94 @@ services:
       default:
         aliases:
           - ${DASHBOARD_UI_HOST}
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # OpenG2P Connector Service & UI (Ingestion Pipeline)
+  # ───────────────────────────────────────────────────────────────────────────
+  connector-api:
+    build:
+      context: ./openg2p-connector-service
+      dockerfile: Dockerfile
+    command: ["api"]
+    environment:
+      CONNECTOR_DB_HOSTNAME: postgres
+      CONNECTOR_DB_PORT: 5432
+      CONNECTOR_DB_DBNAME: ${CONNECTOR_DB:-connector}
+      CONNECTOR_DB_USERNAME: ${CONNECTOR_DB_USER:-connector_user}
+      CONNECTOR_DB_PASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+      CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
+      CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
+      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_APP_HOST: 0.0.0.0
+      CONNECTOR_APP_PORT: 8050
+      CONNECTOR_CORS_ORIGINS: "*"
+    ports:
+      - '${CONNECTOR_PORT:-8050}:8050'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'python3 -S -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8050/health\")"']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  connector-worker:
+    build:
+      context: ./openg2p-connector-service
+      dockerfile: Dockerfile
+    command: ["worker-beat"]
+    environment:
+      CONNECTOR_DB_HOSTNAME: postgres
+      CONNECTOR_DB_PORT: 5432
+      CONNECTOR_DB_DBNAME: ${CONNECTOR_DB:-connector}
+      CONNECTOR_DB_USERNAME: ${CONNECTOR_DB_USER:-connector_user}
+      CONNECTOR_DB_PASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+      CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
+      CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
+      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+    depends_on:
+      connector-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  connector-seed:
+    image: postgres:16
+    depends_on:
+      connector-api:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: ${CONNECTOR_DB:-connector}
+      PGUSER: ${CONNECTOR_DB_USER:-connector_user}
+      PGPASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+    volumes:
+      - ./local/postgres/seed_connector_pipelines.sql:/seed.sql:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -q -f /seed.sql
+        echo "connector pipelines seeded successfully"
+    restart: 'no'
+
+  connector-ui:
+    build:
+      context: ./openg2p-connector-ui
+      dockerfile: Dockerfile
+    ports:
+      - '${CONNECTOR_UI_PORT:-5173}:8080'
+    depends_on:
+      connector-api:
+        condition: service_healthy
 
 volumes:
   postgres-data:

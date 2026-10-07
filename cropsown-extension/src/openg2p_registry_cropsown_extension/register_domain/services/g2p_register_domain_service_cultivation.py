@@ -25,27 +25,15 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            if not str(record.get("land_id") or "").strip():
+                validation_error("Land ID is required in Cultivation / Land Preparation.")
             if not str(record.get("season") or "").strip():
                 validation_error("Season is required in Cultivation / Land Preparation.")
             if not str(record.get("commodity") or "").strip():
                 validation_error("Crop is required in Cultivation / Land Preparation.")
 
-            prod_season = record.get("production_season")
-            submission_id = record.get("submission_id")
-
-            if session and submission_id and not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text(
-                        "SELECT production_season "
-                        "FROM g2p_intake_form_crop_sowns "
-                        "WHERE submission_id = :sub_id"
-                    ),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    prod_season = row_hdr[0]
+            from .domain_validation_utils import resolve_production_season
+            prod_season = await resolve_production_season(record, session)
 
             season = record.get("season")
             if prod_season and season:
@@ -56,6 +44,7 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
                         f"Season '{season}' in Cultivation Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
                     )
 
+
             compute_season_parts(record)
             await self._validate_date_in_season_enhanced(record, "actual_cultivation_date", session)
             self._validate_actual_cultivation_date(record)
@@ -64,9 +53,7 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             compute_ec_date(record, "actual_cultivation_date", "actual_cultivation_date_ec")
 
     def _validate_actual_cultivation_date(self, record: dict) -> None:
-        cultivation_date = parse_date(record.get("actual_cultivation_date"))
-        if cultivation_date is not None and cultivation_date > date.today():
-            validation_error("actual_cultivation_date must not be in the future")
+        pass
 
     async def _validate_date_after_planning(self, record: dict, session) -> None:
         cult_date = parse_date(record.get("actual_cultivation_date"))
@@ -75,32 +62,44 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
 
         planned_date = await self._resolve_planning_date(record, session)
         if planned_date is not None and cult_date < planned_date:
+            crop_name = record.get("commodity") or ""
+            crop_str = f" for Crop '{crop_name}'" if crop_name else ""
             validation_error(
                 f"Cultivation Date ({cult_date.strftime('%Y-%m-%d')}) cannot be earlier than "
-                f"Planned Date ({planned_date.strftime('%Y-%m-%d')}) from Crop Planning."
+                f"Planned Date ({planned_date.strftime('%Y-%m-%d')}) from Crop Planning{crop_str}."
             )
 
     async def _resolve_planning_date(self, record: dict, session) -> date | None:
         if not session:
             return None
         land_id = str(record.get("land_id") or "").strip()
+        commodity = record.get("commodity")
         submission_id = record.get("submission_id")
         link_internal_record_id = record.get("link_internal_record_id")
         internal_record_id = record.get("internal_record_id")
         fayda_fan_id = record.get("fayda_fan_id")
 
+        if not commodity or not str(commodity).strip():
+            return None
+
+        from .domain_validation_utils import get_attribute_variants
+        comm_variants = get_attribute_variants(commodity, "CROP_COMMODITY")
+
         from sqlalchemy import text
 
         if submission_id:
-            query = "SELECT planned_date FROM g2p_intake_form_plannings WHERE submission_id = :sub_id"
+            query = "SELECT planned_date, commodity FROM g2p_intake_form_plannings WHERE submission_id = :sub_id"
             params = {"sub_id": submission_id}
             if land_id:
                 query += " AND land_id = :land_id"
                 params["land_id"] = land_id
             res = await session.execute(text(query), params)
-            row = res.fetchone()
-            if row and row[0]:
-                return parse_date(row[0])
+            rows = res.fetchall()
+            for r in rows:
+                p_date, p_comm = r[0], r[1]
+                if p_comm and any(v.upper() == str(p_comm).strip().upper() for v in comm_variants):
+                    if p_date:
+                        return parse_date(p_date)
 
         master_ids = set()
         if link_internal_record_id:
@@ -121,32 +120,60 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
                 if row_c and row_c[0]:
                     master_ids.add(str(row_c[0]))
 
-        if fayda_fan_id:
-            res_m = await session.execute(
-                text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"),
-                {"fayda": fayda_fan_id}
+        crop_year = record.get("crop_year")
+        prod_season = record.get("production_season")
+
+        if submission_id and (not fayda_fan_id or not crop_year or not prod_season):
+            res_f = await session.execute(
+                text("SELECT fayda_fan_id, crop_year, production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
+                {"sub_id": submission_id}
             )
+            f_row = res_f.fetchone()
+            if f_row:
+                fayda_fan_id = fayda_fan_id or f_row[0]
+                crop_year = crop_year or f_row[1]
+                prod_season = prod_season or f_row[2]
+
+        if fayda_fan_id:
+            query_m = "SELECT internal_record_id::text, crop_year, production_season FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"
+            params_m = {"fayda": str(fayda_fan_id).strip()}
+            if crop_year:
+                query_m += " AND crop_year = :c_year"
+                params_m["c_year"] = str(crop_year).strip()
+            res_m = await session.execute(text(query_m), params_m)
             for r in res_m.fetchall():
-                if r[0]:
-                    master_ids.add(str(r[0]))
+                r_id, r_year, r_season = r[0], r[1], r[2]
+                if prod_season and r_season:
+                    p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
+                    r_clean = str(r_season).replace("CROP_SEASON_", "").strip().upper()
+                    if p_clean == r_clean:
+                        master_ids.add(str(r_id))
+                else:
+                    master_ids.add(str(r_id))
 
         if master_ids:
-            query = "SELECT planned_date FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"
+            query = "SELECT planned_date, commodity FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"
             params = {"m_ids": list(master_ids)}
             if land_id:
                 query += " AND land_id = :land_id"
                 params["land_id"] = land_id
             res = await session.execute(text(query), params)
-            row = res.fetchone()
-            if row and row[0]:
-                return parse_date(row[0])
+            rows = res.fetchall()
+            for r in rows:
+                p_date, p_comm = r[0], r[1]
+                if p_comm and any(v.upper() == str(p_comm).strip().upper() for v in comm_variants):
+                    if p_date:
+                        return parse_date(p_date)
 
         if land_id:
-            query = "SELECT planned_date FROM g2p_register_plannings WHERE land_id = :land_id AND record_status = 'ACTIVE' ORDER BY created_at DESC"
+            query = "SELECT planned_date, commodity FROM g2p_register_plannings WHERE land_id = :land_id AND record_status = 'ACTIVE' ORDER BY created_at DESC"
             res = await session.execute(text(query), {"land_id": land_id})
-            row = res.fetchone()
-            if row and row[0]:
-                return parse_date(row[0])
+            rows = res.fetchall()
+            for r in rows:
+                p_date, p_comm = r[0], r[1]
+                if p_comm and any(v.upper() == str(p_comm).strip().upper() for v in comm_variants):
+                    if p_date:
+                        return parse_date(p_date)
 
         return None
 
@@ -225,14 +252,36 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
                 if row_c and row_c[0]:
                     master_ids.add(str(row_c[0]))
 
-        if fayda_fan_id:
-            res_m = await session.execute(
-                text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"),
-                {"fayda": fayda_fan_id}
+        crop_year = record.get("crop_year")
+        prod_season = record.get("production_season")
+
+        if submission_id and (not fayda_fan_id or not crop_year or not prod_season):
+            res_f = await session.execute(
+                text("SELECT fayda_fan_id, crop_year, production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
+                {"sub_id": submission_id}
             )
+            f_row = res_f.fetchone()
+            if f_row:
+                fayda_fan_id = fayda_fan_id or f_row[0]
+                crop_year = crop_year or f_row[1]
+                prod_season = prod_season or f_row[2]
+
+        if fayda_fan_id:
+            query_m = "SELECT internal_record_id::text, crop_year, production_season FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"
+            params_m = {"fayda": str(fayda_fan_id).strip()}
+            if crop_year:
+                query_m += " AND crop_year = :c_year"
+                params_m["c_year"] = str(crop_year).strip()
+            res_m = await session.execute(text(query_m), params_m)
             for r in res_m.fetchall():
-                if r[0]:
-                    master_ids.add(str(r[0]))
+                r_id, r_year, r_season = r[0], r[1], r[2]
+                if prod_season and r_season:
+                    p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
+                    r_clean = str(r_season).replace("CROP_SEASON_", "").strip().upper()
+                    if p_clean == r_clean:
+                        master_ids.add(str(r_id))
+                else:
+                    master_ids.add(str(r_id))
 
         if master_ids:
             query = "SELECT start_gc, end_gc FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"

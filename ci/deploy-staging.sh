@@ -19,8 +19,9 @@
 #   AWS_ACCOUNT_ID=123456789012 KUBECONFIG=~/.kube/staging ./ci/deploy-staging.sh staging-7
 #
 # Env (beyond ci/deploy-dev.sh's):
-#   STAGING_RELEASE    default cropsown-stg — the openg2p-registry subchart
-#                      rejects release names over 18 characters
+#   STAGING_RELEASE    default cropsown-registry, as on dev — the
+#                      openg2p-registry subchart rejects release names over 18
+#                      characters
 #   STAGING_NAMESPACE  default crop — the same name as dev; the kubeconfig, not
 #                      the namespace, is what keeps the environments apart
 set -euo pipefail
@@ -33,7 +34,7 @@ if [ -z "${1:-${TAG:-}}" ]; then
   exit 2
 fi
 
-export RELEASE_NAME="${STAGING_RELEASE:-cropsown-stg}"
+export RELEASE_NAME="${STAGING_RELEASE:-cropsown-registry}"
 export NAMESPACE="${STAGING_NAMESPACE:-crop}"
 
 exec "$(dirname "${BASH_SOURCE[0]}")/deploy-dev.sh" "$@"

@@ -9,15 +9,19 @@ another, and the overlay lands on a harness it does not match (the failure that
 bit us repeatedly). `scripts/bump-rp-version.sh` moves them together; this test
 fails the build if anything ever splits them again.
 
-Stdlib only, and deliberately no pytest import: `python3 test/test_rp_pin_lockstep.py`
-runs the same check on any machine with a bare interpreter. The Jenkins build
-agents have a python3 but no working pip, so the pipeline invokes it that way;
-.github/workflows/checks.yml still collects it as an ordinary pytest test.
+Stdlib only, and deliberately NOT importing pytest. The Jenkins agents do not all
+carry it — Ubuntu 22.04 ships python3 with no pip and ensurepip stripped out, so
+an agent cannot install it on demand — and a guard that cannot run is not a
+guard. `raise AssertionError` reads identically under pytest, so both
+
+    python3 -m pytest test/test_rp_pin_lockstep.py -q
+    python3 test/test_rp_pin_lockstep.py
+
+run this check and fail the same way.
 """
 
 import pathlib
 import re
-import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CHART = REPO / "helm" / "openg2p-cropsown-registry" / "Chart.yaml"
@@ -58,9 +62,7 @@ def test_rp_pin_is_in_lockstep():
 
 
 if __name__ == "__main__":
-    try:
-        test_rp_pin_is_in_lockstep()
-    except AssertionError as err:
-        print(err, file=sys.stderr)
-        sys.exit(1)
-    print("openg2p-registry pin is in lockstep")
+    # For agents with no pytest. An AssertionError exits non-zero and prints the
+    # same message the pytest run would show.
+    test_rp_pin_is_in_lockstep()
+    print("ok: openg2p-registry pin is in lockstep")

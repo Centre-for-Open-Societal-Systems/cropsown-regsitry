@@ -43,7 +43,8 @@ class G2PCropSown:
     zone: Mapped[str] = mapped_column(String, nullable=True)                  # Attribute lookup (ZONE)
     woreda: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (WOREDA)
     kebele: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (KEBELE)
-    gps_coordinate: Mapped[str] = mapped_column(String, nullable=True)
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
     # Denormalised admin names. The register search returns stored values as-is —
     # it does not join g2p_attribute_values — so a tree column bound to `region`
     # would print REGION_ET11. These carry the display name for those columns and
