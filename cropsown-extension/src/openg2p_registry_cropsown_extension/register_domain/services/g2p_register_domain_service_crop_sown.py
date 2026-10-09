@@ -45,13 +45,21 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
             await self._sync_address_names_on_record(record, session)
 
-            # Address, Survey Personnel & non-header section payloads: do not validate Farmer Identity header attributes
-            is_address_or_personnel = (
-                sec_id in ("cropsown_cropsown_location_section_03", "cropsown_survey_personnel_section_02")
-                or any(k in record for k in ("geo_lowest_level_value_id", "geo_code_hierarchy_json", "latitude", "longitude"))
-                or not any(k in record for k in ("farmer_id", "fayda_fan_id", "production_season", "crop_year"))
+            # Address & Survey Personnel section payloads: do not validate Farmer Identity header attributes
+            address_keys = ("geo_lowest_level_value_id", "geo_code_hierarchy_json", "latitude", "longitude")
+            personnel_keys = ("da_name", "da_mobile_number", "supervisor_name", "supervisor_mobile_number")
+
+            is_address = (
+                sec_id == "cropsown_cropsown_location_section_03"
+                or any(ak in record for ak in address_keys)
+                or any(isinstance(k, str) and (k.startswith("geo_") or any(ak in k for ak in address_keys)) for k in record)
             )
-            if is_address_or_personnel:
+            is_personnel = (
+                sec_id == "cropsown_survey_personnel_section_02"
+                or any(ak in record for ak in personnel_keys)
+            )
+
+            if is_address or is_personnel:
                 continue
 
             # Child table records: do not validate Farmer Identity here
