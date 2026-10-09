@@ -226,10 +226,14 @@ reporting:
 dashboardApi:
   enabled: ${DASHBOARD_API}
   image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}'}
+  # Chart requests need the dashboards' client-credentials token; the trusted
+  # Keycloak realms are read from the namespace's IAM.
+  env:
+    AUTH_IAM_URL: 'http://commons-services-iam-staff-portal-api-pub'
 EOF
 if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then
   # A private route for developers and tools, on the namespace's internal
-  # gateway (the service has no authentication; never a public gateway).
+  # gateway (callers need a token, AUTH_IAM_URL above; never a public gateway).
   cat >> "$WORK/ci-values.yaml" <<EOF
   virtualService:
     enabled: true
