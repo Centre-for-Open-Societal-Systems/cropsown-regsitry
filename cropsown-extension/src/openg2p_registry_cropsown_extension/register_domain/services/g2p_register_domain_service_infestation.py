@@ -3,6 +3,8 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .embedded_files import persist_embedded_files
+
 from .domain_compute_utils import compute_ec_date
 from .domain_validation_utils import as_float, parse_date, validation_error
 
@@ -12,6 +14,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         for record in records:
+            # A photo sent inline (ODK, or the intake 'file' widget) is uploaded
+            # and replaced by its document_id before anything is saved.
+            await persist_embedded_files(record, ("geo_tagged_photo_document_id",), purpose="infestation")
             inf_type = record.get("infestation_type")
             if isinstance(inf_type, list):
                 record["infestation_type"] = inf_type[0] if inf_type else None

@@ -72,7 +72,7 @@ def _ensure_dbengine_initialized():
                 dbengine.set(eng)
                 _logger.info("ODK Hook: dbengine initialized to %s", eng.url)
     except Exception as e:
-        _logger.debug("ODK Hook: Error in _ensure_dbengine_initialized: %s", e)
+        _logger.warning("ODK Hook: Error in _ensure_dbengine_initialized: %s", e)
 
 
 def _patch_base_initializer():
@@ -90,7 +90,7 @@ def _patch_base_initializer():
             BaseInitializer.init_db = patched_init_db
             _logger.info("ODK Hook: Patched BaseInitializer.init_db")
     except Exception as e:
-        _logger.debug("ODK Hook: Error patching BaseInitializer.init_db: %s", e)
+        _logger.warning("ODK Hook: Error patching BaseInitializer.init_db: %s", e)
 
 
 def _patch_document_handler():
@@ -144,7 +144,7 @@ def _patch_document_handler():
                     _logger.info("ODK Hook: Replaced DocumentHandler with docker minio client")
                     break
     except Exception as e:
-        _logger.debug("ODK Hook: Error in _patch_document_handler: %s", e)
+        _logger.warning("ODK Hook: Error in _patch_document_handler: %s", e)
 
 
 def _ensure_core_services():
@@ -156,7 +156,7 @@ def _ensure_core_services():
             CoreInitializer().initialize()
             _logger.info("ODK Hook: CoreInitializer initialized core services")
     except Exception as e:
-        _logger.debug("ODK Hook: Error initializing core services: %s", e)
+        _logger.warning("ODK Hook: Error initializing core services: %s", e)
 
 
 def _ensure_master_data_engine():
@@ -204,7 +204,7 @@ def _ensure_master_data_engine():
         engine._engines["db_engine_master_data"] = eng
         _logger.info("ODK Hook: Initialized db_engine_master_data to %s", dsn)
     except Exception as e:
-        _logger.debug("ODK Hook: Error initializing master data engine: %s", e)
+        _logger.warning("ODK Hook: Error initializing master data engine: %s", e)
 
 
 _master_data_engine = None
@@ -390,7 +390,7 @@ def _alias_extension_modules():
                     pass
             _logger.info("ODK Hook: Aliased openg2p_registry_extensions -> %s", ext)
         except Exception as e:
-            _logger.debug("ODK Hook: Error aliasing extension modules: %s", e)
+            _logger.warning("ODK Hook: Error aliasing extension modules: %s", e)
 
 
 def _patch_request_response_helper():
@@ -419,7 +419,7 @@ def _patch_request_response_helper():
             RequestResponseHelper._construct_data_model_response = patched_construct_data_model_response
             _logger.info("ODK Hook: Patched RequestResponseHelper._construct_data_model_response")
     except Exception as e:
-        _logger.debug("Could not patch RequestResponseHelper: %s", e)
+        _logger.warning("Could not patch RequestResponseHelper: %s", e)
 
 
 def _patch_celery_worker():
@@ -555,7 +555,7 @@ def _patch_celery_worker():
                             if lat and lon and not lr.get("gps_coordinate"):
                                 lr["gps_coordinate"] = f"{lat}, {lon}"
                     except Exception as e:
-                        _logger.debug("Error in auto-enriching intake submission: %s", e)
+                        _logger.warning("Error in auto-enriching intake submission: %s", e)
 
                     return await orig_save_sections_async(
                         submission_id,
@@ -570,7 +570,7 @@ def _patch_celery_worker():
             worker_mod._save_sections_async = patched_save_sections_async
             _logger.info("ODK Hook: Patched ingest_data_worker._save_sections_async")
     except Exception as e:
-        _logger.debug("Could not patch ingest_data_worker: %s", e)
+        _logger.warning("Could not patch ingest_data_worker: %s", e)
 
 
 def _connect_celery_signals():
@@ -670,7 +670,7 @@ def _patch_intake_form_data_service():
                                     """)
                                     await session.execute(update_q, {"disp": disp, "rec_id": intake_row.internal_record_id})
                 except Exception as e:
-                    _logger.debug("Error updating admin display names in register: %s", e)
+                    _logger.warning("Error updating admin display names in register: %s", e)
                 return res
 
             G2PIntakeFormDataService._insert_live_register_row = patched_insert_live_register_row
@@ -772,7 +772,7 @@ def _patch_intake_form_data_service():
         G2PIntakeFormDataService._validate_land_ids_against_fayda_records = patched_validate_land_ids
         _logger.info("ODK Hook: Patched G2PIntakeFormDataService._validate_land_ids_against_fayda_records")
     except Exception as e:
-        _logger.debug("Could not patch G2PIntakeFormDataService: %s", e)
+        _logger.warning("Could not patch G2PIntakeFormDataService: %s", e)
 
 
 def _patch_crop_sown_service():
@@ -818,7 +818,7 @@ def _patch_crop_sown_service():
         )
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCropSown H5/H6")
     except Exception as e:
-        _logger.debug("Could not patch G2PRegisterDomainServiceCropSown H5/H6: %s", e)
+        _logger.warning("Could not patch G2PRegisterDomainServiceCropSown H5/H6: %s", e)
 
 
 def _patch_cultivation_service():
@@ -891,7 +891,7 @@ def _patch_cultivation_service():
         G2PRegisterDomainServiceCultivation._validate_date_after_planning = patched_validate_date_after_planning
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCultivation")
     except Exception as e:
-        _logger.debug("Could not patch G2PRegisterDomainServiceCultivation: %s", e)
+        _logger.warning("Could not patch G2PRegisterDomainServiceCultivation: %s", e)
 
 
 def _patch_sowing_service():
@@ -1019,7 +1019,7 @@ def _patch_sowing_service():
         G2PRegisterDomainServiceSowing._validate_land_id_matches_planning = patched_validate_land_id
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceSowing")
     except Exception as e:
-        _logger.debug("Could not patch G2PRegisterDomainServiceSowing: %s", e)
+        _logger.warning("Could not patch G2PRegisterDomainServiceSowing: %s", e)
 
 
 def _patch_harvest_service():
@@ -1238,7 +1238,106 @@ def _patch_harvest_service():
         G2PRegisterDomainServiceHarvest._validate_date_in_season_enhanced = patched_validate_harvest_season_date
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceHarvest")
     except Exception as e:
-        _logger.debug("Could not patch G2PRegisterDomainServiceHarvest: %s", e)
+        _logger.warning("Could not patch G2PRegisterDomainServiceHarvest: %s", e)
+
+
+def _patch_ingest_logging():
+    """Write each submission's path through the registry to the ODK ingestion log.
+
+    Wraps, without changing what they do or raise:
+      - the partner API's ingest_data (a request it could not take),
+      - the transformation worker's _transform_enriched_data_json (what arrived,
+        which files came inline, the sections it produced, or why it failed),
+      - the ingest worker's _process_ingestion_async (saved, retry scheduled or
+        failed, read back from incoming_classified_data after each attempt).
+    See odk_ingest_events.py for the events."""
+    import functools
+
+    try:
+        from openg2p_registry_partner_api.ingestion.controllers.g2p_ingest_controller import (
+            G2PIngestController,
+        )
+
+        if not hasattr(G2PIngestController, "_csr_logged_ingest_data"):
+            orig_ingest_data = G2PIngestController.ingest_data
+
+            @functools.wraps(orig_ingest_data)
+            async def logged_ingest_data(self, *args, **kwargs):
+                try:
+                    return await orig_ingest_data(self, *args, **kwargs)
+                except Exception as error:
+                    from .odk_ingest_events import log_request_failed
+
+                    log_request_failed(error)
+                    raise
+
+            G2PIngestController.ingest_data = logged_ingest_data
+            G2PIngestController._csr_logged_ingest_data = True
+    except ImportError:
+        pass  # not the partner API
+    except Exception as e:
+        _logger.warning("Could not add ingest logging to the partner API: %s", e)
+
+    try:
+        tw = importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_transformation_worker")
+        if not hasattr(tw, "_csr_orig_transform_json"):
+            orig_transform_json = tw._transform_enriched_data_json
+            tw._csr_orig_transform_json = orig_transform_json
+
+            def logged_transform_json(incoming_classified_data, enriched_data_json, session):
+                from .odk_ingest_events import (
+                    log_received,
+                    log_transform_failed,
+                    log_transformed,
+                    unwrap_payload,
+                )
+
+                ingest_id = getattr(incoming_classified_data, "ingest_id", None)
+                log_received(ingest_id, unwrap_payload(enriched_data_json))
+                try:
+                    transformed = orig_transform_json(incoming_classified_data, enriched_data_json, session)
+                except Exception as error:
+                    log_transform_failed(
+                        ingest_id, error,
+                        "fix csr_odk_transform.j2 (templates bucket) for this payload; "
+                        "the platform records the transformation failure and retries",
+                    )
+                    raise
+                log_transformed(ingest_id, transformed)
+                return transformed
+
+            tw._transform_enriched_data_json = logged_transform_json
+    except ImportError:
+        pass  # not the celery worker
+    except Exception as e:
+        _logger.warning("Could not add ingest logging to the transformation worker: %s", e)
+
+    try:
+        worker_mod = importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_worker")
+        if not hasattr(worker_mod, "_csr_orig_process_ingestion_async"):
+            orig_process = worker_mod._process_ingestion_async
+            worker_mod._csr_orig_process_ingestion_async = orig_process
+
+            async def logged_process_ingestion_async(ingest_id: str, *args, **kwargs) -> None:
+                from openg2p_fastapi_common.context import dbengine
+                from sqlalchemy.ext.asyncio import async_sessionmaker
+
+                from .odk_ingest_events import log_ingest_outcome
+
+                try:
+                    await orig_process(ingest_id, *args, **kwargs)
+                except Exception as error:
+                    await log_ingest_outcome(
+                        ingest_id, async_sessionmaker(dbengine.get(), expire_on_commit=False), error=error
+                    )
+                    raise
+                await log_ingest_outcome(ingest_id, async_sessionmaker(dbengine.get(), expire_on_commit=False))
+
+            worker_mod._process_ingestion_async = logged_process_ingestion_async
+    except ImportError:
+        pass  # not the celery worker
+    except Exception as e:
+        _logger.warning("Could not add ingest logging to the ingest worker: %s", e)
 
 
 def install_hooks():
@@ -1257,6 +1356,7 @@ def install_hooks():
     _patch_cultivation_service()
     _patch_sowing_service()
     _patch_harvest_service()
+    _patch_ingest_logging()
 
 
 install_hooks()

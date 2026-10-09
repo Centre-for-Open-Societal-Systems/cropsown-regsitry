@@ -235,7 +235,23 @@
 {% set farmer_id = d.get('farmer_identity') or {} %}
 {% set farmer_plot = d.get('farmer_plot') or {} %}
 {% set address_info = d.get('address') or {} %}
-{% set fayda_id = farmer_id.get('fayda_fan_id') or farmer_id.get('fyda_id') or farmer_plot.get('fayda_fan_id') or farmer_plot.get('fyda_id') or '' %}
+{% set fayda_raw = farmer_id.get('fayda_fan_id') or farmer_id.get('fyda_id') or farmer_plot.get('fayda_fan_id') or farmer_plot.get('fyda_id') or '' %}
+{#- The register wants the Fayda ID as four groups of four digits
+    (1234 5678 9000 3456). Field agents type it with no spaces, with dashes or
+    with stray spaces; 16 digits in any of those shapes are regrouped. Anything
+    else goes through unchanged, so the validator still rejects it with its
+    message (and the ingestion log records why). -#}
+{% set fayda_digits = (fayda_raw | string) | select('in', '0123456789') | join %}
+{% set fayda_id = (fayda_digits[0:4] ~ ' ' ~ fayda_digits[4:8] ~ ' ' ~ fayda_digits[8:12] ~ ' ' ~ fayda_digits[12:16]) if (fayda_digits | length == 16) else fayda_raw %}
+{#- Photos. The connector sends an ODK photo inline as {"__type": "File", ...}
+    (embed_attachments); the CropSown, Sowing and Infestation services upload it
+    on save and store the document id. A bare file name means the file did not
+    come along, so it is left out. The forms ask no photo today: an image
+    question named record_photo (in farmer_identity or farmer_plot),
+    geo_tagged_photo (in a sowing entry) or infestation_photo (in an infestation
+    entry) is all it takes to start sending one. -#}
+{% set record_photo = d.get('record_photo') or farmer_id.get('record_photo') or farmer_plot.get('record_photo') %}
+{% set record_photo_ok = record_photo is mapping and record_photo.get('__type') == 'File' %}
 {% set farmer_id_val = farmer_id.get('farmer_id') or farmer_plot.get('farmer_id') or '' %}
 {% set farmer_name_val = farmer_id.get('farmer_name') or farmer_plot.get('farmer_name') or farmer_id.get('farmer_display_id') or '' %}
 {% set sub_date = d.get('__system', {}).get('submissionDate', '2026-01-01') %}
@@ -291,6 +307,7 @@
       "farmer_id": "{{ farmer_id_val }}",
       "farmer_name": "{{ farmer_name_val or 'Farmer' }}",
       "fayda_fan_id": "{{ fayda_id }}",
+      {% if record_photo_ok %}"record_image_document_id": {{ record_photo | tojson }},{% endif %}
       "crop_year": "{{ crop_year }}",
       "production_season": "{{ season_val }}",
       "region": "{{ reg_val }}",
@@ -520,6 +537,7 @@
     {
       "farmer_name": "{{ farmer_name_val }}",
       "fayda_fan_id": "{{ fayda_id }}",
+      {% if record_photo_ok %}"record_image_document_id": {{ record_photo | tojson }},{% endif %}
       "crop_year": "{{ crop_year }}",
       "production_season": "{{ season_val }}",
       "region": "{{ reg_val }}",
@@ -707,6 +725,7 @@
     {
       "farmer_name": "{{ farmer_name_val }}",
       "fayda_fan_id": "{{ fayda_id }}",
+      {% if record_photo_ok %}"record_image_document_id": {{ record_photo | tojson }},{% endif %}
       "crop_year": "{{ crop_year }}",
       "production_season": "{{ sow_season }}",
       "region": "{{ reg_val }}",
@@ -753,6 +772,8 @@
     {% set cl_season = season_map.get(raw_cls, 'CROP_SEASON_' ~ (raw_cls | upper)) %}
     {
       "land_id": "{{ s.get('land_info_id') or '' }}",
+      {% set sow_photo = s.get('geo_tagged_photo') or id_details.get('geo_tagged_photo') or cl_details.get('geo_tagged_photo') %}
+      {% if sow_photo is mapping and sow_photo.get('__type') == 'File' %}"geo_tagged_photo_document_id": {{ sow_photo | tojson }},{% endif %}
       "cluster_status": {{ cs_json }},
       "cluster_id": "{{ cl_details.get('cluster_id') or '' }}",
       "cluster_name": "{{ cl_details.get('cluster_name') or '' }}",
@@ -801,6 +822,8 @@
     {% set dtype_val = disease_type_map.get(raw_dtype, (dis.get('disease_type') or '') | upper) %}
     {
       "land_id": "{{ inf.get('infestation_land_info_id') or '' }}",
+      {% set inf_photo = inf.get('infestation_photo') or inf.get('geo_tagged_photo') %}
+      {% if inf_photo is mapping and inf_photo.get('__type') == 'File' %}"geo_tagged_photo_document_id": {{ inf_photo | tojson }},{% endif %}
       "commodity": "{{ crop_val }}",
       "growth_stage": "{{ (inf.get('growth_stage') or '') | upper }}",
       "cluster_status": "{{ cs_val }}",
@@ -851,6 +874,7 @@
     {
       "farmer_name": "{{ farmer_name_val }}",
       "fayda_fan_id": "{{ fayda_id }}",
+      {% if record_photo_ok %}"record_image_document_id": {{ record_photo | tojson }},{% endif %}
       "crop_year": "{{ crop_year }}",
       "production_season": "{{ harvest_season }}",
       "region": "{{ reg_val }}",
