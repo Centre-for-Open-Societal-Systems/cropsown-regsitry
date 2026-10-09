@@ -2,7 +2,7 @@
 
 The connector polls ODK Central and posts each submission to the registry's
 Partner API, which queues it for the celery workers to transform and save as an
-intake. See `odk/README.md` for the forms, the photos and the ingestion logs.
+intake. See `docs/odk/README.md` for the forms, the photos and the ingestion logs.
 
 | Piece | Where |
 | --- | --- |
@@ -48,7 +48,7 @@ UI image's nginx expects. Roll back with `helm rollback cropsown-connector <revi
    on conflict (partner_id) do nothing;
    ```
 
-3. Publish the forms in `odk/` on ODK Central with their media.
+3. Publish the forms in `docs/odk/` on ODK Central with their media.
 4. Create the pipelines in the connector UI (one per stage form, data model `CSR_DATA_MODEL`, partner header `crop-partner`), or set `CONNECTOR_ODK_CENTRAL_BASE_URL`, `CONNECTOR_ODK_PROJECT_ID`, `CONNECTOR_ODK_CENTRAL_EMAIL` and `CONNECTOR_ODK_CENTRAL_PASSWORD` under the chart's `extraEnv` / `extraEnvFrom` and `default_pipelines.py` seeds all four on start. db-seed already
    loads the registry side (`zz_cropsown_odk_ingestion.sql`: data model `CSR_DATA_MODEL`,
    its routing and the transform's catalogue row).

@@ -19,5 +19,5 @@ local/.env text eol=lf
 *.gz binary
 
 # ODK form media, kept byte-for-byte as published on ODK Central.
-odk/media/*.csv -text
-odk/*.xlsx binary
+docs/odk/media/*.csv -text
+docs/odk/*.xlsx binary

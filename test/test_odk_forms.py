@@ -1,6 +1,6 @@
 """The committed ODK forms agree with the pipelines and the transform.
 
-odk/crop_sown_registry_*.xlsx are the four stage XLSForms published on ODK
+docs/odk/crop_sown_registry_*.xlsx are the four stage XLSForms published on ODK
 Central, exported from there. If one drifts from the connector pipelines' form
 ids, the connector polls a form nobody fills; if one gains a photo question
 under a name the transform does not map, that photo never reaches the intake.
@@ -14,7 +14,7 @@ import pytest
 openpyxl = pytest.importorskip("openpyxl")
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-ODK = REPO / "odk"
+ODK = REPO / "docs" / "odk"
 PIPELINES = REPO / "openg2p-connector-service/src/openg2p_connector_service/default_pipelines.py"
 LOCAL_SEED = REPO / "local/postgres/seed_connector_pipelines.sql"
 # Photo questions csr_odk_transform.j2 maps to a document field.
@@ -46,7 +46,7 @@ def test_every_media_file_the_form_reads_is_committed(form):
         referenced.update(re.findall(r"([\w.-]+\.csv)", text))
         referenced.update(f"{name}.csv" for name in re.findall(r"(?:search|pulldata)\(\s*'([\w.-]+)'", text))
     missing = sorted(name for name in referenced if not (ODK / "media" / name).exists())
-    assert not missing, f"media the form reads but odk/media lacks: {missing}"
+    assert not missing, f"media the form reads but docs/odk/media lacks: {missing}"
 
 
 @pytest.mark.parametrize("form", FORMS, ids=lambda p: p.stem)
