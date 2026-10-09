@@ -1,4 +1,9 @@
 -- Pre-configure Crop Sown Registry ODK Central pipelines in the connector database.
+--
+-- The ODK Central host, project and login come from psql variables, which
+-- docker-compose fills from .env (ODK_CENTRAL_BASE_URL, ODK_PROJECT_ID,
+-- ODK_CENTRAL_EMAIL, ODK_CENTRAL_PASSWORD). Nothing is seeded while they are
+-- unset; create the pipelines in the connector UI instead.
 \connect connector
 
 CREATE TABLE IF NOT EXISTS connector_definitions (
@@ -32,69 +37,40 @@ CREATE TABLE IF NOT EXISTS connector_definitions (
     updated_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
+\if :{?odk_base_url} \else \set odk_base_url '' \endif
+\if :{?odk_project_id} \else \set odk_project_id '' \endif
+\if :{?odk_email} \else \set odk_email '' \endif
+\if :{?odk_password} \else \set odk_password '' \endif
+SELECT (:'odk_base_url' <> '' AND :'odk_project_id' <> '' AND :'odk_email' <> '' AND :'odk_password' <> '') AS odk_configured \gset
+\if :odk_configured
 INSERT INTO connector_definitions (
     connector_id, name, platform, transport_type, enabled, paused,
     data_model_mnemonic, g2p_sender_id, g2p_register_mnemonic,
     source_config_json, auth_type, auth_secret_json, webhook_verifier
-) VALUES
-(
-    '533b074b13544a8eb0a8fbd10c6f52ed',
-    'Crop Sown 1 - Planning',
-    'odk_central',
-    'odk_central',
-    true,
-    false,
-    'CSR_DATA_MODEL',
-    'CropSown',
-    'CropSown',
-    '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 15, "form_id": "crop_sown_registry_plan", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "crop-partner", "Content-Type": "application/json"}}',
-    'odk_session',
-    '{"email": "vilbertraj21@gmail.com", "password": "odksandbox"}',
-    'hmac_sha256'
-),
-(
-    '24b12b2f3aac4ccdb5b876a604eb54aa',
-    'Crop Sown 2 - Cultivation & Land Prep',
-    'odk_central',
-    'odk_central',
-    true,
-    false,
-    'CSR_DATA_MODEL',
-    'CropSown',
-    'CropSown',
-    '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 15, "form_id": "crop_sown_registry_prep", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "crop-partner", "Content-Type": "application/json"}}',
-    'odk_session',
-    '{"email": "vilbertraj21@gmail.com", "password": "odksandbox"}',
-    'hmac_sha256'
-),
-(
-    '54e73482cf304614a1f3db4982d907c5',
-    'Crop Sown 3 - Sowing',
-    'odk_central',
-    'odk_central',
-    true,
-    false,
-    'CSR_DATA_MODEL',
-    'CropSown',
-    'CropSown',
-    '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 15, "form_id": "crop_sown_registry_sown", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "crop-partner", "Content-Type": "application/json"}}',
-    'odk_session',
-    '{"email": "vilbertraj21@gmail.com", "password": "odksandbox"}',
-    'hmac_sha256'
-),
-(
-    '2e6c255ec645430e8f8a8c5d3d94f707',
-    'Crop Sown 4 - Harvesting',
-    'odk_central',
-    'odk_central',
-    true,
-    false,
-    'CSR_DATA_MODEL',
-    'CropSown',
-    'CropSown',
-    '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 15, "form_id": "crop_sown_registry_harvest", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "crop-partner", "Content-Type": "application/json"}}',
-    'odk_session',
-    '{"email": "vilbertraj21@gmail.com", "password": "odksandbox"}',
-    'hmac_sha256'
 )
+SELECT
+    p.connector_id, p.name, 'odk_central', 'odk_central', true, false,
+    'CSR_DATA_MODEL', 'CropSown', 'CropSown',
+    json_build_object(
+        'base_url', rtrim(:'odk_base_url', '/'),
+        'project_id', (:'odk_project_id')::int,
+        'form_id', p.form_id,
+        'resolve_nav_links', true,
+        'embed_attachments', true,
+        'strict_incremental', false,
+        'target_url', 'http://partner-api:8000/partner/ingest_data',
+        'target_headers', json_build_object('partner-id', 'crop-partner', 'Content-Type', 'application/json')
+    )::text,
+    'odk_session',
+    json_build_object('email', :'odk_email', 'password', :'odk_password')::text,
+    'hmac_sha256'
+FROM (VALUES
+    ('533b074b13544a8eb0a8fbd10c6f52ed', 'Crop Sown 1 - Planning', 'crop_sown_registry_plan'),
+    ('24b12b2f3aac4ccdb5b876a604eb54aa', 'Crop Sown 2 - Cultivation & Land Prep', 'crop_sown_registry_prep'),
+    ('54e73482cf304614a1f3db4982d907c5', 'Crop Sown 3 - Sowing', 'crop_sown_registry_sown'),
+    ('2e6c255ec645430e8f8a8c5d3d94f707', 'Crop Sown 4 - Harvesting', 'crop_sown_registry_harvest')
+) AS p(connector_id, name, form_id)
 ON CONFLICT (name) DO NOTHING;
+\else
+\echo 'ODK_CENTRAL_BASE_URL / ODK_PROJECT_ID / ODK_CENTRAL_EMAIL / ODK_CENTRAL_PASSWORD not set: no connector pipelines seeded'
+\endif

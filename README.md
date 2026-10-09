@@ -126,8 +126,8 @@ Field collection uses 4 modular XLSForms matching the agricultural season:
 | :--- | :--- | :--- | :--- |
 | `crop_sown_registry_plan` | 1. Planning | Pre-Season Targets | `fayda_fan_id`, `land_info_id`, `season_id`, `crop_name_id`, `planned_area_ha`, `expected_yield_qt`, planned inputs |
 | `crop_sown_registry_prep` | 2. Land Prep & Cultivation | Plot Preparation | `land_info_id`, `season_id`, `actual_cultivation_date`, `land_prep_method`, `soil_type`, `actual_crop_area`, `cultivation_clusters` repeat |
-| `crop_sown_registry_sow` | 3. Sowing | Planting & Seeds | `land_info_id`, `season_id`, `actual_sowing_date`, `actual_sown_area`, `crop_variety`, `seed_quantity_kg`, `machinery_type`, basal fertilizer |
-| `crop_sown_registry_harv` | 4. Harvesting | Crop Harvest & Yield | `land_info_id`, `season_id`, `maturity_stage`, `harvest_repeat` (harvest date, area harvested, yield quantity, storage, post-harvest losses, sales) |
+| `crop_sown_registry_sown` | 3. Sowing | Planting & Seeds | `land_info_id`, `season_id`, `actual_sowing_date`, `actual_sown_area`, `crop_variety`, `seed_quantity_kg`, `machinery_type`, basal fertilizer |
+| `crop_sown_registry_harvest` | 4. Harvesting | Crop Harvest & Yield | `land_info_id`, `season_id`, `maturity_stage`, `harvest_repeat` (harvest date, area harvested, yield quantity, storage, post-harvest losses, sales) |
 
 #### Attached Offline Media & Lookup Catalogs
 The ODK forms bundle CSV media files for offline cascading select lists:
@@ -218,7 +218,7 @@ The stack bundles a dedicated Connector Service (`cropsown-connector-api-1` and 
 
 1. **Connector Configuration**: Pre-seeded via `local/postgres/seed_connector_pipelines.sql`:
    * Polling endpoint: `https://<ODK_CENTRAL_DOMAIN>/v1/projects/15/forms/{formId}.svc`
-   * Forms polled: `crop_sown_registry_plan`, `crop_sown_registry_prep`, `crop_sown_registry_sow`, `crop_sown_registry_harv`
+   * Forms polled: `crop_sown_registry_plan`, `crop_sown_registry_prep`, `crop_sown_registry_sown`, `crop_sown_registry_harvest`
    * Target endpoint: `http://partner-api:8000/partner/ingest_data`
    * Partner ID: `crop-partner`
 2. **OData Pagination**: The connector automatically handles `$top` and `$skip` tokens for high-volume deployments.

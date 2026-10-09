@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .embedded_files import persist_embedded_files
+
 from .domain_validation_utils import as_float, as_int, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -32,6 +34,9 @@ _SECTION_LIFECYCLE_STAGE_MAP = {
 class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         for record in records:
+            # A photo sent inline (ODK, or the intake 'file' widget) is uploaded
+            # and replaced by its document_id before anything is saved.
+            await persist_embedded_files(record, ("record_image_document_id",), purpose="crop_sown")
             if "latitude" in record and record["latitude"] is not None:
                 record["latitude"] = str(record["latitude"])
             if "longitude" in record and record["longitude"] is not None:

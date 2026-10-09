@@ -1,0 +1,132 @@
+region,name,label
+addis,ET1401,Gulele Subcity
+addis,1402,Addis Ketema Subcity
+addis,1403,Kolfe Keraniyo Subcity
+addis,1404,Lideta Subcity
+addis,1405,Kerkos Subcity
+addis,1406,Arada Subcity
+addis,1407,Yeka Subcity
+addis,1408,Bole Subcity
+addis,1409,Nifas Slik Lafto Subcity
+addis,1410,Akaki Kaliti Subcity
+addis,1411,Lemi kura
+afar,ET0201,Zone_1(Awsiresu)
+afar,ET0202,Zone_2 (Kelbetiresu)
+afar,ET0203,Zone_3 (Gebiresu)
+afar,ET0204,Zone_4 (Fentiresu)
+afar,ET0205,Zone_5 (Hari Resu)
+afar,ET0206,Zone_6
+amhara,ET0301,Semen Gonder
+amhara,ET0302,Debub Gonder
+amhara,ET0303,Semen Wello
+amhara,ET0304,Debub Wello
+amhara,ET0305,Semen Shewa
+amhara,ET0306,Misrak Gojjam
+amhara,ET0307,Mirab Gojjam
+amhara,ET0308,Waghimra
+amhara,ET0309,Awi
+amhara,ET0310,Oromiya Liyu Zone
+amhara,ET0314,Bahir Dar Liyu
+amhara,313,Dessie Town Administration
+amhara,314,Gondar Ketema Liyu Zone
+amhara,ET0311,Maekelawi Gonder
+amhara,ET0312,Mirab Gonder
+amhara,ET0313,Semen Gojjam
+benishangul,ET0603,Assosa
+benishangul,ET0602,Metekel
+benishangul,ET0604,Kemashi
+benishangul,ET0605,Mao Ena Komo
+central_ethiopia,ET0701,Gurage
+central_ethiopia,ET0705,Kabena Liyu
+central_ethiopia,ET0704,Misrak Gurage
+central_ethiopia,ET0706,Mareko Liyu
+central_ethiopia,ET0720,Silte
+central_ethiopia,ET0714,Halaba
+central_ethiopia,ET0702,Hadiya
+central_ethiopia,ET0724,Yem
+central_ethiopia,ET0707,Tembaro Leyu
+central_ethiopia,ET0703,Kembata
+dire,1501,Dire Dawa
+ethiopia_somali,ET0501,Siti
+ethiopia_somali,ET0502,Fafan
+ethiopia_somali,ET0503,Jerer
+ethiopia_somali,ET0504,Erer
+ethiopia_somali,ET0505,Korahe
+ethiopia_somali,ET0506,Shebele
+ethiopia_somali,ET0507,Dollo
+ethiopia_somali,ET0508,Afder
+ethiopia_somali,ET0509,Liben
+ethiopia_somali,ET0510,Nogob
+ethiopia_somali,ET0511,Dawa
+gambela,ET1202,Angewak
+gambela,ET1201,Newer
+gambela,ET1203,Mejenger
+gambela,ET1204,Itang Special
+hareri,ET1301,Hareri
+oromiya,ET0420,Shagar
+oromiya,ET0401,Mirab Wollega
+oromiya,ET0402,Misrak Wollega
+oromiya,ET0402,Ilu Ababor
+oromiya,ET0404,Jimma
+oromiya,ET0405,Mirab Shewa
+oromiya,ET0406,Semen Shewa
+oromiya,ET0407,Misrak Shewa
+oromiya,ET0408,Arsi
+oromiya,ET0409,Mirab Hararghe
+oromiya,ET0410,Misrak Hararge
+oromiya,ET0411,Merab Bale
+oromiya,ET0412,Borena
+oromiya,ET0413,Debub Mirab Shewa
+oromiya,ET0414,Guji
+oromiya,ET0415,Mirab Guji
+oromiya,ET0417,Mirab Arsi
+oromiya,ET0418,Kelem Wollega
+oromiya,ET0419,Horo Guduru Wollega
+oromiya,ET0416,Buno Bedele
+oromiya,421,Adama Liyu Zone
+oromiya,422,Asela Liyu Zone
+oromiya,423,Bishoftu Liyu Zone
+oromiya,425,Dukam Liyu Zone
+oromiya,428,Nekemte Liyu Zone
+oromiya,429,Jimma Liyu
+oromiya,431,Shashamane Liyu Zone
+oromiya,433,Robe Liyu Zone
+oromiya,434,Ambo City Admin
+oromiya,435,Batu Liyu Zone
+oromiya,436,Modjo Liyu Zone
+oromiya,437,Holeta Liyu Zone
+oromiya,438,Woliso Liyu Zone
+oromiya,439,Bishan Guracha Liyu Zone
+oromiya,ET0421,Misrak Bale
+oromiya,ET0422,Misrak Borena
+sidama,801,Hawassa City Admnistration
+sidama,802,Sidama Semenawi Zone
+sidama,803,Sidama Mehal Zone
+sidama,804,Sidama Debubawi Zone
+sidama,805,Sidama Misrakawi Zone
+south_ethiopia,ET0801,Welayta
+south_ethiopia,ET0802,Gamo
+south_ethiopia,ET0803,Gofa
+south_ethiopia,ET0804,Basketo Special
+south_ethiopia,705,Ari Zone
+south_ethiopia,ET0812,Debub Omo
+south_ethiopia,707,Gardula
+south_ethiopia,ET0806,Alle
+south_ethiopia,ET0809,Konso
+south_ethiopia,ET0810,Burji Liyu
+south_ethiopia,711,korey
+south_ethiopia,ET0811,Gedeo
+south_ethiopia,713,Dilla City Admin
+south_west,ET1101,Sheka
+south_west,ET1103,Bench Sheko
+south_west,ET1105,Merab Omo
+south_west,ET1102,Kefa
+south_west,ET1106,Konta
+south_west,ET1104,Dawro
+tigray,ET0101,Semen Mirab
+tigray,ET0102,Mehakelawi
+tigray,ET0103,Misrakawi
+tigray,ET0104,Debubawi
+tigray,ET0105,Mirabawi
+tigray,ET0107,Mekele
+tigray,ET0106,Debub Misrak

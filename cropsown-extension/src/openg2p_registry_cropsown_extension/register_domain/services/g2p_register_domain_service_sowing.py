@@ -3,6 +3,8 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .embedded_files import persist_embedded_files
+
 from .domain_validation_utils import as_float, parse_date, validation_error, get_attribute_variants
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -11,6 +13,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         for record in records:
+            # A photo sent inline (ODK, or the intake 'file' widget) is uploaded
+            # and replaced by its document_id before anything is saved.
+            await persist_embedded_files(record, ("geo_tagged_photo_document_id",), purpose="sowing")
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
