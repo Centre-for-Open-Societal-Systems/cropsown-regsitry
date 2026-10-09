@@ -16,7 +16,11 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        _logger.warning("VALIDATION RECORDS PAYLOAD: %s", records)
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        _logger.warning("ACTIVE RECORDS PAYLOAD: %s", active_records)
+        for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -51,8 +55,8 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             self._validate_planned_area(record)
             self._validate_planned_date(record)
             compute_ec_date(record, "planned_date", "planned_date_ec")
-        self._validate_cumulative_planned_area(records)
-        self._validate_no_duplicate_commodity_season(records)
+        self._validate_cumulative_planned_area(active_records)
+        self._validate_no_duplicate_commodity_season(active_records)
 
     def _validate_planned_area(self, record: dict) -> None:
         planned_area = as_float(record.get("planned_area"))

@@ -32,6 +32,9 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                     )
 
 
+            from .domain_compute_utils import compute_cluster_area, compute_season_parts, compute_ec_date
+            compute_ec_date(record, "establishing_date", "establishing_date_ec")
+
             compute_season_parts(record)
             compute_cluster_area(record)
             self._validate_cluster_area(record)
@@ -154,6 +157,14 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
         keys = [
             "functional_record_id",
             "cluster_name",
+            "reference",
+            "primary_commodity",
+            "secondary_commodity",
+            "fpc_type",
+            "leader",
+            "co_leader",
+            "coordinator",
+            "secretary",
             "agro_ecological_zone",
             "season",
             "cluster_area_hectare",

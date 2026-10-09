@@ -22,7 +22,8 @@ class G2PSchemaCluster:
     end_day: Optional[int] = None
     cluster_id: Optional[str] = None
     cluster_area_timad: Optional[float] = None
-    gps_location: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     cluster_plan: Optional[float] = None
     cluster_collected_land: Optional[float] = None
 
@@ -43,6 +44,16 @@ class G2PSchemaCluster:
     water_source: Optional[str] = None
     water_source_method: Optional[str] = None
     water_source_frequency: Optional[str] = None
+    establishing_date: Optional[date] = None
+    establishing_date_ec: Optional[str] = None
+    reference: Optional[str] = None
+    primary_commodity: Optional[str] = None
+    secondary_commodity: Optional[str] = None
+    fpc_type: Optional[str] = None
+    leader: Optional[str] = None
+    co_leader: Optional[str] = None
+    coordinator: Optional[str] = None
+    secretary: Optional[str] = None
     da_name: Optional[str] = None
     da_mobile_number: Optional[str] = None
     supervisor_name: Optional[str] = None

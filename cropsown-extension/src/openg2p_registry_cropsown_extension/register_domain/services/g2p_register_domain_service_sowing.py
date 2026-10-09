@@ -10,7 +10,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -184,8 +186,6 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
     async def _validate_sowing_after_cultivation(self, record: dict, session) -> None:
         sowing_date = parse_date(record.get("sowing_date"))
-        if sowing_date is None:
-            return
 
         land_id = str(record.get("land_id") or "").strip()
         submission_id = record.get("submission_id")
@@ -279,6 +279,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
         prior_date = None
         prior_stage = None
+        has_prior_record = False
 
         if is_clustered:
             if submission_id:
@@ -332,7 +333,8 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                         if c_date:
                             prior_date = parse_date(c_date)
                             prior_stage = "Cultivation Date"
-                            break
+                        break
+
             if not has_prior_record and master_ids:
                 query = "SELECT actual_cultivation_date FROM g2p_register_cultivations WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"
                 params = {"m_ids": list(master_ids)}
@@ -359,13 +361,13 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                 crop_str = f" for Crop '{crop_name}'" if crop_name else ""
                 validation_error(
                     f"No Cultivation record found{crop_str} on Land ID '{land_id}'. "
-                    f"You cannot create a Sowing record for this crop."
+                    f"A Cultivation record is required before a Sowing record can be created."
                 )
 
-        if prior_date and sowing_date < prior_date:
+        if sowing_date and prior_date and sowing_date < prior_date:
             validation_error(
                 f"Sowing Date ({sowing_date.strftime('%Y-%m-%d')}) cannot be earlier than "
-                f"{prior_stage} ({prior_date.strftime('%Y-%m-%d')})."
+                f"{prior_stage or 'Cultivation Date'} ({prior_date.strftime('%Y-%m-%d')})."
             )
 
     async def _validate_date_in_season_enhanced(self, record: dict, field: str, session) -> None:

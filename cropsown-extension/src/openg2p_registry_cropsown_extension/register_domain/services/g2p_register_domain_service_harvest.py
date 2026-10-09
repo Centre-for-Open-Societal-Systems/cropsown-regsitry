@@ -12,7 +12,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -209,8 +211,6 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
     async def _validate_harvest_after_sowing(self, record: dict, session) -> None:
         harvest_date = parse_date(record.get("harvest_date") or record.get("cluster_harvest_date"))
-        if harvest_date is None:
-            return
 
         land_id = str(record.get("land_id") or "").strip()
         submission_id = record.get("submission_id")
@@ -242,17 +242,19 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                     params["land_id"] = land_id
                 res = await session.execute(text(query), params)
                 row = res.fetchone()
-                if row and row[0]:
-                    prior_date = parse_date(row[0])
+                if row:
                     prior_stage = "Cluster Sowing Date"
+                    if row[0]:
+                        prior_date = parse_date(row[0])
 
-                if not prior_date:
+                if not prior_stage:
                     query_cc = "SELECT start_gc FROM g2p_intake_form_cultivation_clusters WHERE submission_id = :sub_id"
                     res_cc = await session.execute(text(query_cc), params)
                     row_cc = res_cc.fetchone()
-                    if row_cc and row_cc[0]:
-                        prior_date = parse_date(row_cc[0])
+                    if row_cc:
                         prior_stage = "Cultivation Cluster Date"
+                        if row_cc[0]:
+                            prior_date = parse_date(row_cc[0])
         else:
             if not commodity or not str(commodity).strip():
                 return
@@ -267,32 +269,10 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 for r in res.fetchall():
                     s_date, s_comm = r[0], r[1]
                     if s_comm and any(v.upper() == str(s_comm).strip().upper() for v in commodity_vars):
+                        prior_stage = "Sowing Date"
                         if s_date:
                             prior_date = parse_date(s_date)
-                            prior_stage = "Sowing Date"
-                            break
-
-                if not prior_date:
-                    query_c = "SELECT actual_cultivation_date, commodity FROM g2p_intake_form_cultivations WHERE submission_id = :sub_id"
-                    res_c = await session.execute(text(query_c), params)
-                    for r in res_c.fetchall():
-                        c_date, c_comm = r[0], r[1]
-                        if c_comm and any(v.upper() == str(c_comm).strip().upper() for v in commodity_vars):
-                            if c_date:
-                                prior_date = parse_date(c_date)
-                                prior_stage = "Cultivation Date"
-                                break
-
-                if not prior_date:
-                    query_p = "SELECT planned_date, commodity FROM g2p_intake_form_plannings WHERE submission_id = :sub_id"
-                    res_p = await session.execute(text(query_p), params)
-                    for r in res_p.fetchall():
-                        p_date, p_comm = r[0], r[1]
-                        if p_comm and any(v.upper() == str(p_comm).strip().upper() for v in commodity_vars):
-                            if p_date:
-                                prior_date = parse_date(p_date)
-                                prior_stage = "Planned Date"
-                                break
+                        break
 
         master_ids = set()
         if submission_id:
@@ -314,9 +294,9 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 master_ids.add(str(row_root[0]))
 
         internal_record_id = record.get("internal_record_id")
-        if not prior_date and link_internal_record_id:
+        if not prior_stage and link_internal_record_id:
             master_ids.add(str(link_internal_record_id))
-        if not prior_date and internal_record_id:
+        if not prior_stage and internal_record_id:
             res_root = await session.execute(
                 text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id AND record_status = 'ACTIVE'"),
                 {"rec_id": str(internal_record_id)}
@@ -345,7 +325,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 crop_year = crop_year or f_row[1]
                 prod_season = prod_season or f_row[2]
 
-        if not prior_date and fayda_fan_id:
+        if not prior_stage and fayda_fan_id:
             query_m = "SELECT internal_record_id::text, crop_year, production_season FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"
             params_m = {"fayda": str(fayda_fan_id).strip()}
             if crop_year:
@@ -365,8 +345,8 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         season_vars = get_attribute_variants(record.get("season"), "CROP_SEASON")
         commodity_vars = get_attribute_variants(record.get("commodity"), "CROP_COMMODITY")
 
-        if not prior_date and master_ids:
-            query = "SELECT sowing_date FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE' AND sowing_date IS NOT NULL"
+        if not prior_stage and master_ids:
+            query = "SELECT sowing_date FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"
             params = {"m_ids": list(master_ids)}
             if season_vars:
                 query += " AND season = ANY(:season_vars)"
@@ -379,24 +359,23 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 params["land_id"] = land_id
             query += " ORDER BY sowing_date DESC"
             res = await session.execute(text(query), params)
-            row = res.fetchone()
-            if row and row[0]:
-                prior_date = parse_date(row[0])
+            for r in res.fetchall():
                 prior_stage = "Sowing Date"
+                if r[0]:
+                    prior_date = parse_date(r[0])
+                break
 
-
-
-        if prior_stage != "Sowing Date" or prior_date is None:
+        if not prior_stage:
             crop_name = record.get("commodity") or ""
             crop_str = f" for Crop '{crop_name}'" if crop_name else ""
             validation_error(
                 f"No Sowing record found{crop_str} on Land ID '{land_id}'. "
                 f"A Sowing record is required before a harvest can be recorded."
             )
-        if harvest_date <= prior_date:
+        if harvest_date and prior_date and harvest_date <= prior_date:
             validation_error(
                 f"Harvest Date ({harvest_date.strftime('%Y-%m-%d')}) must be after the "
-                f"Sowing Date ({prior_date.strftime('%Y-%m-%d')})."
+                f"{prior_stage or 'Sowing Date'} ({prior_date.strftime('%Y-%m-%d')})."
             )
 
     async def _validate_date_in_season_enhanced(self, record: dict, field: str, session) -> None:
