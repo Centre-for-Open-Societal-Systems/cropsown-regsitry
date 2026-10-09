@@ -31,43 +31,93 @@ _SECTION_LIFECYCLE_STAGE_MAP = {
 
 class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
+        section_id = kwargs.get("section_id")
         for record in records:
+            sec_id = section_id or record.get("section_id") or record.get("_section_id")
+
             if "latitude" in record and record["latitude"] is not None:
                 record["latitude"] = str(record["latitude"])
             if "longitude" in record and record["longitude"] is not None:
                 record["longitude"] = str(record["longitude"])
 
+            if session:
+                await self._validate_immutability_of_season_and_year(record, session, **kwargs)
+
+            await self._sync_address_names_on_record(record, session)
+
+            # Address, Survey Personnel & non-header section payloads: do not validate Farmer Identity header attributes
+            is_address_or_personnel = (
+                sec_id in ("cropsown_cropsown_location_section_03", "cropsown_survey_personnel_section_02")
+                or any(k in record for k in ("geo_lowest_level_value_id", "geo_code_hierarchy_json", "latitude", "longitude"))
+                or not any(k in record for k in ("farmer_id", "fayda_fan_id", "production_season", "crop_year"))
+            )
+            if is_address_or_personnel:
+                continue
+
+            # Child table records: do not validate Farmer Identity here
+            if any(k in record for k in ("land_id", "infestation_id", "records", "cs_planning_details_table", "cs_cultivation_details_table", "cs_sowing_details_table", "cs_harvest_details_table")):
+                self._validate_land_id(record)
+                continue
+
             from .domain_validation_utils import validate_alphabetical_name
             if record.get("farmer_name"):
                 validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
 
+            is_common_intake = (sec_id == "cropsown_common_intake_record_section_01") or ("farmer_id" not in record and "fayda_fan_id" in record)
+
             self._validate_crop_year(record)
             self._validate_production_season(record)
-            self._validate_farmer_id(record)
+            if not is_common_intake:
+                self._validate_farmer_id(record)
             self._validate_fayda_fan_id(record)
 
-            self._validate_land_id(record)
+            if session and (record.get("fayda_fan_id") or record.get("fayda_id")):
+                await self._validate_fayda_season_and_year(record, session)
 
-            if session:
-                await self._validate_immutability_of_season_and_year(record, session)
-                if record.get("fayda_fan_id") or record.get("fayda_id"):
-                    await self._validate_fayda_season_and_year(record, session)
-
-    async def _validate_immutability_of_season_and_year(self, record: dict, session) -> None:
-        internal_id = record.get("internal_record_id") or record.get("record_id")
-        if not session or not internal_id:
+    async def _validate_immutability_of_season_and_year(self, record: dict, session, **kwargs) -> None:
+        if not session:
             return
+
+        internal_id = (
+            record.get("internal_record_id")
+            or record.get("link_internal_record_id")
+            or record.get("record_id")
+            or record.get("subject_internal_record_id")
+            or kwargs.get("internal_record_id")
+            or kwargs.get("link_internal_record_id")
+            or kwargs.get("record_id")
+            or kwargs.get("subject_internal_record_id")
+        )
+        if not internal_id and record.get("submission_id"):
+            from sqlalchemy import text
+            try:
+                res_cr = await session.execute(
+                    text("SELECT COALESCE(internal_record_id, link_internal_record_id) FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND (internal_record_id IS NOT NULL OR link_internal_record_id IS NOT NULL) LIMIT 1"),
+                    {"sub_id": str(record.get("submission_id"))}
+                )
+                row_cr = res_cr.fetchone()
+                if row_cr and row_cr[0]:
+                    internal_id = row_cr[0]
+            except Exception:
+                pass
+
+        existing_year = None
+        existing_season = None
+        found_rec_id = None
 
         from sqlalchemy import text
-        res = await session.execute(
-            text("SELECT crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
-            {"rec_id": str(internal_id)}
-        )
-        existing = res.fetchone()
-        if not existing:
-            return
 
-        existing_year, existing_season = existing[0], existing[1]
+        if internal_id:
+            res = await session.execute(
+                text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
+                {"rec_id": str(internal_id)}
+            )
+            existing = res.fetchone()
+            if existing:
+                found_rec_id, existing_year, existing_season = existing[0], existing[1], existing[2]
+
+        if not found_rec_id:
+            return
 
         new_season = record.get("production_season")
         if new_season and existing_season:
@@ -77,6 +127,29 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 validation_error(
                     f"Production Season cannot be changed once established for a Crop Sown record (Existing: '{existing_season}', Attempted: '{new_season}')."
                 )
+
+        if new_season and found_rec_id:
+            n_clean = str(new_season).replace("CROP_SEASON_", "").strip().upper()
+            child_tables = [
+                ("g2p_register_plannings", "season", "Crop Planning Details"),
+                ("g2p_register_cultivations", "season", "Cultivation Details"),
+                ("g2p_register_cultivation_clusters", "season", "Cultivation Cluster Details"),
+                ("g2p_register_clusters", "season", "Cluster Information Details"),
+                ("g2p_register_sowings", "COALESCE(season, cluster_season)", "Sowing Details"),
+                ("g2p_register_productions", "season", "Production Details"),
+            ]
+            for tbl, col, section_label in child_tables:
+                res_child = await session.execute(
+                    text(f"SELECT {col} FROM {tbl} WHERE link_internal_record_id = :rec_id AND record_status = 'ACTIVE' AND {col} IS NOT NULL"),
+                    {"rec_id": str(found_rec_id)}
+                )
+                for r_c in res_child.fetchall():
+                    if r_c[0]:
+                        c_clean = str(r_c[0]).replace("CROP_SEASON_", "").strip().upper()
+                        if c_clean != n_clean:
+                            validation_error(
+                                f"Production Season '{new_season}' does not match the Season '{r_c[0]}' established in {section_label} for this record."
+                            )
 
         new_year = record.get("crop_year")
         if new_year and existing_year:
@@ -154,9 +227,6 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 )
 
     def _validate_crop_year(self, record: dict) -> None:
-        is_farmer_identity = any(k in record for k in ("farmer_id", "fayda_fan_id", "crop_year", "production_season"))
-        if not is_farmer_identity and "crop_year" not in record:
-            return
         crop_year = record.get("crop_year")
         if crop_year is None or str(crop_year).strip() in ("", "None", "null", "Select"):
             validation_error("Crop Year is required in Farmer Identity.")
@@ -178,17 +248,14 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     def _validate_farmer_id(self, record: dict) -> None:
         """Farmer ids come from the farmer registry as FR- plus ten digits."""
         value = record.get("farmer_id")
-        if value is None or str(value).strip() == "":
-            return
+        if value is None or str(value).strip() in ("", "None", "null", "Select"):
+            validation_error("Farmer ID is required in Farmer Identity.")
         if not _FARMER_ID_PATTERN.match(str(value).strip()):
             validation_error(
                 f"farmer_id must be FR- followed by 10 digits (got '{value}')"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
-        is_farmer_identity = any(k in record for k in ("farmer_id", "fayda_fan_id", "crop_year", "production_season"))
-        if not is_farmer_identity and "fayda_fan_id" not in record:
-            return
         value = record.get("fayda_fan_id")
         if value is None or str(value).strip() in ("", "None", "null", "Select"):
             validation_error("Fayda ID (FAN) is required in Farmer Identity.")
@@ -266,6 +333,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     # other rows are enforced here.
 
     async def pre_approve(self, change_request: G2PRegisterChangeRequest, session: AsyncSession):
+        await self._check_immutable_header_season_and_year(change_request, session)
         await self._check_unique_farmer_per_year(change_request, session)
         await self._check_crop_area_within_plot(change_request, session)
         await self._check_matching_land_id_across_sections(change_request, session)
@@ -274,6 +342,64 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         await self._recompute_ec_dates_across_sections(change_request, session)
         await self._refresh_admin_names(change_request, session)
         await self._adopt_uploaded_photo(change_request, session)
+
+    async def _check_immutable_header_season_and_year(
+        self, change_request: G2PRegisterChangeRequest, session: AsyncSession
+    ) -> None:
+        if not change_request or not change_request.internal_record_id:
+            return
+        if change_request.section_id not in ("cropsown_cropsown_record_section_01", "cropsown_common_intake_record_section_01"):
+            return
+
+        record = await session.get(G2PRegisterCropSown, change_request.internal_record_id)
+        if not record:
+            return
+
+        new_season = None
+        new_year = None
+
+        try:
+            from openg2p_registry_core.services.g2p_register_change_request_service import G2PRegisterChangeRequestService
+            cr_service = G2PRegisterChangeRequestService.get_component()
+            payload_obj = await cr_service._get_change_request_payload(change_request.change_request_id, session)
+            if payload_obj and hasattr(payload_obj, "change_payload") and payload_obj.change_payload:
+                items = (payload_obj.change_payload or {}).get("items", [])
+                for item in items:
+                    fname = item.get("field_name")
+                    if fname == "production_season":
+                        new_season = item.get("new_value")
+                    elif fname == "crop_year":
+                        new_year = item.get("new_value")
+        except Exception:
+            pass
+
+        sub_id = getattr(change_request, "submission_id", None)
+        if sub_id and (not new_season or not new_year):
+            from sqlalchemy import text
+            res = await session.execute(
+                text("SELECT production_season, crop_year FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
+                {"sub_id": sub_id}
+            )
+            row = res.fetchone()
+            if row:
+                if not new_season:
+                    new_season = row[0]
+                if not new_year:
+                    new_year = row[1]
+
+        if new_season and record.production_season:
+            p_clean = str(record.production_season).replace("CROP_SEASON_", "").strip().upper()
+            n_clean = str(new_season).replace("CROP_SEASON_", "").strip().upper()
+            if p_clean != n_clean:
+                validation_error(
+                    f"Production Season cannot be changed for an existing record via Change Request. (Existing: '{record.production_season}', Attempted: '{new_season}')"
+                )
+
+        if new_year and record.crop_year:
+            if str(new_year).strip() != str(record.crop_year).strip():
+                validation_error(
+                    f"Crop Year cannot be changed for an existing record via Change Request. (Existing: '{record.crop_year}', Attempted: '{new_year}')"
+                )
 
     async def _check_matching_season_across_sections(
         self, change_request: G2PRegisterChangeRequest, session: AsyncSession
@@ -497,6 +623,78 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             (".jpg", ".jpeg", ".png", ".webp", ".gif")
         )
 
+    async def _sync_address_names_on_record(self, record: dict, session=None) -> None:
+        if not isinstance(record, dict):
+            return
+
+        geo_hierarchy = record.get("geo_code_hierarchy_json")
+        if isinstance(geo_hierarchy, str) and geo_hierarchy.strip().startswith("{"):
+            import json
+            try:
+                geo_hierarchy = json.loads(geo_hierarchy)
+            except Exception:
+                geo_hierarchy = None
+
+        if isinstance(geo_hierarchy, dict):
+            hierarchy = geo_hierarchy.get("hierarchy") or []
+            for item in hierarchy:
+                level = str(item.get("level_mnemonic") or item.get("level") or "").lower()
+                val_id = item.get("level_value_id")
+                val_name = item.get("level_value_mnemonic") or item.get("display_name")
+                if level in ("region", "zone", "woreda", "kebele"):
+                    if val_id:
+                        code = str(val_id).upper().replace("-", "_")
+                        record[level] = code
+                    if val_name:
+                        record[f"{level}_name"] = val_name
+
+        if session:
+            from sqlalchemy import select, text
+            from openg2p_registry_core.models import G2PAttributeValue
+
+            for field, name_field in (("region", "region_name"), ("zone", "zone_name"),
+                                      ("woreda", "woreda_name"), ("kebele", "kebele_name")):
+                value_id = record.get(field)
+                if value_id:
+                    code = str(value_id).upper().replace("-", "_")
+                    record[field] = code
+                    if not record.get(name_field):
+                        row = (
+                            await session.execute(
+                                select(G2PAttributeValue).where(
+                                    (G2PAttributeValue.value_id == value_id) | (G2PAttributeValue.value_id == code)
+                                )
+                            )
+                        ).scalars().first()
+                        display_name = getattr(row, "value_display", None) if row else None
+                        record[name_field] = display_name or value_id
+
+            sub_id = record.get("submission_id")
+            internal_id = (
+                record.get("internal_record_id")
+                or record.get("link_internal_record_id")
+                or record.get("record_id")
+            )
+            upd_fields = {}
+            for f in ("region", "zone", "woreda", "kebele", "region_name", "zone_name", "woreda_name", "kebele_name", "latitude", "longitude"):
+                if record.get(f) is not None:
+                    upd_fields[f] = record.get(f)
+
+            if upd_fields and (sub_id or internal_id):
+                set_stmt = ", ".join([f"{k} = :{k}" for k in upd_fields])
+                if sub_id:
+                    params = {**upd_fields, "sub_id": str(sub_id)}
+                    await session.execute(
+                        text(f"UPDATE g2p_intake_form_crop_sowns SET {set_stmt} WHERE submission_id = :sub_id"),
+                        params
+                    )
+                if internal_id:
+                    params = {**upd_fields, "rec_id": str(internal_id)}
+                    await session.execute(
+                        text(f"UPDATE g2p_register_crop_sowns SET {set_stmt} WHERE internal_record_id = :rec_id"),
+                        params
+                    )
+
     async def _refresh_admin_names(
         self, change_request: G2PRegisterChangeRequest, session: AsyncSession
     ) -> None:
@@ -518,31 +716,43 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             return
 
         # 0. First check geo_code_hierarchy_json if present from the geo-hierarchy widget
-        if record.geo_code_hierarchy_json and isinstance(record.geo_code_hierarchy_json, dict):
-            hierarchy = record.geo_code_hierarchy_json.get("hierarchy") or []
+        geo_hierarchy = record.geo_code_hierarchy_json
+        if isinstance(geo_hierarchy, str) and geo_hierarchy.strip().startswith("{"):
+            import json
+            try:
+                geo_hierarchy = json.loads(geo_hierarchy)
+            except Exception:
+                geo_hierarchy = None
+
+        if geo_hierarchy and isinstance(geo_hierarchy, dict):
+            hierarchy = geo_hierarchy.get("hierarchy") or []
             for item in hierarchy:
                 level = str(item.get("level_mnemonic") or item.get("level") or "").lower()
                 val_id = item.get("level_value_id")
                 val_name = item.get("level_value_mnemonic") or item.get("display_name")
                 if level in ("region", "zone", "woreda", "kebele"):
-                    if val_id and not getattr(record, level, None):
-                        setattr(record, level, val_id)
+                    if val_id:
+                        code = str(val_id).upper().replace("-", "_")
+                        setattr(record, level, code)
                     if val_name:
                         setattr(record, f"{level}_name", val_name)
 
         for field, name_field in (("region", "region_name"), ("zone", "zone_name"),
                                   ("woreda", "woreda_name"), ("kebele", "kebele_name")):
-            if getattr(record, name_field, None):
-                continue
             value_id = getattr(record, field, None)
             if not value_id:
-                setattr(record, name_field, None)
+                if not getattr(record, name_field, None):
+                    setattr(record, name_field, None)
                 continue
             
             # 1. Try local attributes table first
+            code = str(value_id).upper().replace("-", "_")
+            setattr(record, field, code)
             row = (
                 await session.execute(
-                    select(G2PAttributeValue).where(G2PAttributeValue.value_id == value_id)
+                    select(G2PAttributeValue).where(
+                        (G2PAttributeValue.value_id == value_id) | (G2PAttributeValue.value_id == code)
+                    )
                 )
             ).scalars().first()
             display_name = getattr(row, "value_display", None) if row else None
@@ -562,7 +772,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                         if md_row:
                             display_name = md_row[0]
             
-            setattr(record, name_field, display_name or value_id)
+            setattr(record, name_field, display_name or getattr(record, name_field, None) or value_id)
 
 
     async def _check_unique_farmer_per_year(
@@ -865,6 +1075,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         from .domain_compute_utils import compute_ec_date
         from ..models import (
             G2PRegisterPlanning, G2PIntakeFormPlanning,
+            G2PRegisterCluster, G2PIntakeFormCluster,
             G2PRegisterCultivation, G2PIntakeFormCultivation,
             G2PRegisterSowing, G2PIntakeFormSowing,
             G2PRegisterInfestation, G2PIntakeFormInfestation,
@@ -873,6 +1084,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
         mappings = [
             (G2PRegisterPlanning, G2PIntakeFormPlanning, "planned_date", "planned_date_ec"),
+            (G2PRegisterCluster, G2PIntakeFormCluster, "establishing_date", "establishing_date_ec"),
             (G2PRegisterCultivation, G2PIntakeFormCultivation, "actual_cultivation_date", "actual_cultivation_date_ec"),
             (G2PRegisterSowing, G2PIntakeFormSowing, "sowing_date", "sowing_date_ec"),
             (G2PRegisterInfestation, G2PIntakeFormInfestation, "observation_date", "observation_date_ec"),

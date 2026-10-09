@@ -11,7 +11,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        for record in active_records:
             inf_type = record.get("infestation_type")
             if isinstance(inf_type, list):
                 record["infestation_type"] = inf_type[0] if inf_type else None
@@ -26,10 +28,6 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            # validate_alphabetical_name(record.get("da_name"), "DA Name")
-            # validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            # validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            # validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
             self._validate_observation_date(record)
             self._validate_estimated_damage(record)
             compute_ec_date(record, "observation_date", "observation_date_ec")
@@ -57,26 +55,24 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
         from .domain_validation_utils import get_attribute_variants
         commodity_vars = get_attribute_variants(commodity, "CROP_COMMODITY") if commodity else []
 
-        from sqlalchemy import text
+        from sqlalchemy import text, select
+        from ..models import G2PRegisterSowing
 
         sowing_found = False
 
         # 1. Check in Intake Form (current form submission)
         if submission_id:
-            if is_clustered:
-                query = "SELECT id FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
-                params = {"sub_id": submission_id, "land_id": land_id}
-                res = await session.execute(text(query), params)
-                if res.fetchone():
+            query = "SELECT commodity FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
+            params = {"sub_id": str(submission_id), "land_id": land_id}
+            res = await session.execute(text(query), params)
+            s_rows = res.fetchall()
+            if s_rows:
+                if is_clustered or not commodity or not commodity_vars:
                     sowing_found = True
-            else:
-                if commodity_vars:
-                    query = "SELECT commodity FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
-                    params = {"sub_id": submission_id, "land_id": land_id}
-                    res = await session.execute(text(query), params)
-                    for r in res.fetchall():
+                else:
+                    for r in s_rows:
                         s_comm = r[0]
-                        if s_comm and any(v.upper() == str(s_comm).strip().upper() for v in commodity_vars):
+                        if not s_comm or any(v.upper() == str(s_comm).strip().upper() for v in commodity_vars):
                             sowing_found = True
                             break
 
@@ -87,7 +83,7 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
                 if not fayda_fan_id:
                     res_f = await session.execute(
                         text("SELECT fayda_fan_id FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND fayda_fan_id IS NOT NULL"),
-                        {"sub_id": submission_id}
+                        {"sub_id": str(submission_id)}
                     )
                     f_row = res_f.fetchone()
                     if f_row and f_row[0]:
@@ -95,7 +91,7 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
 
                 res_root = await session.execute(
                     text("SELECT internal_record_id::text FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id AND internal_record_id IS NOT NULL"),
-                    {"sub_id": submission_id}
+                    {"sub_id": str(submission_id)}
                 )
                 row_root = res_root.fetchone()
                 if row_root and row_root[0]:
@@ -122,26 +118,28 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
             if fayda_fan_id:
                 res_m = await session.execute(
                     text("SELECT internal_record_id::text FROM g2p_register_crop_sowns WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"),
-                    {"fayda": fayda_fan_id}
+                    {"fayda": str(fayda_fan_id)}
                 )
                 for r in res_m.fetchall():
                     if r[0]:
                         master_ids.add(str(r[0]))
 
             if master_ids:
-                if is_clustered:
-                    query = "SELECT id FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE' AND land_id = :land_id"
-                    params = {"m_ids": list(master_ids), "land_id": land_id}
-                    res = await session.execute(text(query), params)
-                    if res.fetchone():
+                stmt = select(G2PRegisterSowing.commodity).where(
+                    G2PRegisterSowing.link_internal_record_id.in_(list(master_ids)),
+                    G2PRegisterSowing.record_status == 'ACTIVE',
+                    G2PRegisterSowing.land_id == land_id
+                )
+                res = await session.execute(stmt)
+                reg_sowings = res.scalars().all()
+                if reg_sowings:
+                    if is_clustered or not commodity or not commodity_vars:
                         sowing_found = True
-                else:
-                    if commodity_vars:
-                        query = "SELECT commodity FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE' AND land_id = :land_id AND commodity = ANY(:commodity_vars)"
-                        params = {"m_ids": list(master_ids), "land_id": land_id, "commodity_vars": commodity_vars}
-                        res = await session.execute(text(query), params)
-                        if res.fetchone():
-                            sowing_found = True
+                    else:
+                        for s_comm in reg_sowings:
+                            if not s_comm or any(v.upper() == str(s_comm).strip().upper() for v in commodity_vars):
+                                sowing_found = True
+                                break
 
         if not sowing_found:
             crop_str = f" for Crop '{commodity}'" if commodity else ""
