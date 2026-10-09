@@ -44,7 +44,6 @@ class G2PCluster:
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
     cluster_id: Mapped[str] = mapped_column(String, nullable=True)
     cluster_area_timad: Mapped[float] = mapped_column(Numeric, nullable=True)
-    gps_location: Mapped[str] = mapped_column(String, nullable=True)
     region: Mapped[str] = mapped_column(String, nullable=True)
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
@@ -55,6 +54,22 @@ class G2PCluster:
     cluster_plan: Mapped[float] = mapped_column(Numeric, nullable=True)
 
     collected_by_combiner: Mapped[float] = mapped_column(Numeric, nullable=True)
+
+    # ── Establishing Date ────────────────────────────────────────────────────────
+    establishing_date: Mapped[date] = mapped_column(Date, nullable=True)
+    establishing_date_ec: Mapped[str] = mapped_column(String, nullable=True)
+
+    # ── Reference & Commodity ──────────────────────────────────────────────────
+    reference: Mapped[str] = mapped_column(String, nullable=True)
+    primary_commodity: Mapped[str] = mapped_column(String, nullable=True)
+    secondary_commodity: Mapped[str] = mapped_column(String, nullable=True)
+
+    # ── FPC Type & Leadership ──────────────────────────────────────────────────
+    fpc_type: Mapped[str] = mapped_column(String, nullable=True)
+    leader: Mapped[str] = mapped_column(String, nullable=True)
+    co_leader: Mapped[str] = mapped_column(String, nullable=True)
+    coordinator: Mapped[str] = mapped_column(String, nullable=True)
+    secretary: Mapped[str] = mapped_column(String, nullable=True)
 
     # ── Survey Personnel ────────────────────────────────────────────────────────
     da_name: Mapped[str] = mapped_column(String, nullable=True)

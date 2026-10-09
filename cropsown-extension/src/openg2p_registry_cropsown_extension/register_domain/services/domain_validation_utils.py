@@ -154,5 +154,40 @@ async def resolve_production_season(record: dict, session) -> str | None:
         if row_reg and row_reg[0]:
             return row_reg[0]
 
+    if session:
+        fayda_fan_id = record.get("fayda_fan_id") or record.get("fayda_id")
+        farmer_id = record.get("farmer_id")
+        if fayda_fan_id or farmer_id:
+            from sqlalchemy import text
+            query = "SELECT production_season FROM g2p_register_crop_sowns WHERE record_status = 'ACTIVE'"
+            params = {}
+            if farmer_id:
+                query += " AND farmer_id = :farmer_id"
+                params["farmer_id"] = str(farmer_id).strip()
+            elif fayda_fan_id:
+                query += " AND fayda_fan_id = :fayda_id"
+                params["fayda_id"] = str(fayda_fan_id).strip()
+            res_reg2 = await session.execute(text(query), params)
+            row_reg2 = res_reg2.fetchone()
+            if row_reg2 and row_reg2[0]:
+                return row_reg2[0]
+
     return None
+
+
+def is_record_deleted(record: dict) -> bool:
+    if not isinstance(record, dict):
+        return False
+    if record.get("_delete") or record.get("is_deleted") or record.get("_deleted") or record.get("deleted"):
+        return True
+    edit_action = str(record.get("edit_action") or "").strip().upper()
+    if edit_action in ("DELETE", "REMOVE", "DELETED", "REMOVED"):
+        return True
+    action = str(record.get("_action") or record.get("action") or "").strip().upper()
+    if action in ("DELETE", "REMOVE", "DELETED", "REMOVED"):
+        return True
+    status = str(record.get("record_status") or record.get("status") or record.get("_status") or "").strip().upper()
+    if status in ("DELETED", "REMOVED", "DELETE", "REMOVE"):
+        return True
+    return False
 
