@@ -18,8 +18,8 @@ pick becomes an id the registry resolves. csr_odk_transform.j2 maps the picks:
 Run after the hierarchy changes, then publish the new CSVs on ODK Central
 (README.md, "Publishing"):
 
-    python docs/odk/build_location_media.py          # rewrite media/*.csv
-    python docs/odk/build_location_media.py --check  # exit 1 if they are stale
+    python odk/build_location_media.py          # rewrite media/*.csv
+    python odk/build_location_media.py --check  # exit 1 if they are stale
 
 test/test_odk_location_media.py runs the check.
 """
@@ -33,7 +33,7 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-REPO = HERE.parent.parent
+REPO = HERE.parent
 SOURCE = (
     REPO
     / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/lookup-data/g2p_attribute_values.sql"
@@ -96,7 +96,7 @@ def main(argv: list[str]) -> int:
     stale = [name for name, text in files.items() if (MEDIA / name).read_bytes().decode("utf-8") != text]
     if "--check" in argv:
         if stale:
-            print(f"stale, rerun docs/odk/build_location_media.py: {stale}", file=sys.stderr)
+            print(f"stale, rerun odk/build_location_media.py: {stale}", file=sys.stderr)
             return 1
         print("location media match the registry hierarchy")
         return 0

@@ -1,7 +1,7 @@
 """The forms' location lists are the registry's location hierarchy.
 
-docs/odk/media/{region,zone,woreda,kebele1}.csv are generated from the crop
-sown registry's geo attribute values by docs/odk/build_location_media.py. If
+odk/media/{region,zone,woreda,kebele1}.csv are generated from the crop
+sown registry's geo attribute values by odk/build_location_media.py. If
 they drift, field agents can pick a place the registry does not know (or cannot
 pick one it does), and the transform sends an id nothing resolves.
 """
@@ -15,7 +15,7 @@ import pathlib
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-ODK = REPO / "docs" / "odk"
+ODK = REPO / "odk"
 TEMPLATE = REPO / "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/csr_odk_transform.j2"
 
 spec = importlib.util.spec_from_file_location("build_location_media", ODK / "build_location_media.py")
@@ -33,7 +33,7 @@ def _csv(name):
 def test_committed_lists_are_what_the_generator_builds():
     for name, text in build_location_media.build(HIERARCHY).items():
         assert (ODK / "media" / name).read_bytes().decode("utf-8") == text, (
-            f"{name} is stale: run python docs/odk/build_location_media.py"
+            f"{name} is stale: run python odk/build_location_media.py"
         )
 
 

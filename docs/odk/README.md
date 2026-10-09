@@ -14,16 +14,16 @@ ODK Collect / web form → ODK Central → cropsown connector (4 pipelines, phot
 
 | Form file | Form id | Stage | Published on dev | Location lists |
 | --- | --- | --- | --- | --- |
-| `crop_sown_registry_plan.xlsx` | `crop_sown_registry_plan` | 1. Planning | `v0` | yes |
-| `crop_sown_registry_prep.xlsx` | `crop_sown_registry_prep` | 2. Cultivation & land preparation | `v0` | yes |
-| `crop_sown_registry_sown.xlsx` | `crop_sown_registry_sown` | 3. Sowing (and infestation) | `v0` | no |
-| `crop_sown_registry_harvest.xlsx` | `crop_sown_registry_harvest` | 4. Harvesting | `v0` | no |
+| `odk/crop_sown_registry_plan.xlsx` | `crop_sown_registry_plan` | 1. Planning | `v0` | yes |
+| `odk/crop_sown_registry_prep.xlsx` | `crop_sown_registry_prep` | 2. Cultivation & land preparation | `v0` | yes |
+| `odk/crop_sown_registry_sown.xlsx` | `crop_sown_registry_sown` | 3. Sowing (and infestation) | `v0` | no |
+| `odk/crop_sown_registry_harvest.xlsx` | `crop_sown_registry_harvest` | 4. Harvesting | `v0` | no |
 
 | | |
 | --- | --- |
 | ODK Central (dev) | `https://odk-central-development.oanstaging.com`, project **15** |
-| Media | `media/`: `region.csv`, `zone.csv`, `woreda.csv`, `kebele1.csv` (location), `crop_name.csv` (all four), `crop_variety.csv`, `seed_variety.csv` (planning, cultivation). Same name, same file, in every form that uses it |
-| Location lists | generated from the registry's hierarchy: `build_location_media.py` |
+| Media | `odk/media/`: `region.csv`, `zone.csv`, `woreda.csv`, `kebele1.csv` (location), `crop_name.csv` (all four), `crop_variety.csv`, `seed_variety.csv` (planning, cultivation). Same name, same file, in every form that uses it |
+| Location lists | generated from the registry's hierarchy: `odk/build_location_media.py` |
 | Transform | `cropsown-extension/.../templates/csr_odk_transform.j2`, read from the MinIO `templates` bucket |
 | Connector | `ci/connector/` (release `cropsown-connector`, namespace `crop`): one pipeline per form, data model `CSR_DATA_MODEL`, partner `crop-partner` |
 | Registry routing | `zz_cropsown_odk_ingestion.sql`: the form id at the front of the message id picks the stage's intake form |
@@ -45,7 +45,7 @@ to `1.2`) is not what Collect shows.
 ## Location lists
 
 Planning and cultivation pick region → zone → woreda → kebele from
-`media/region.csv`, `zone.csv`, `woreda.csv` and `kebele1.csv` (each filtered by
+`odk/media/region.csv`, `zone.csv`, `woreda.csv` and `kebele1.csv` (each filtered by
 its parent). They are generated from the registry's own geo attribute values
 (`meta_data/lookup-data/g2p_attribute_values.sql`: `REGION_ET04`,
 `ZONE_ET0408`, `WOREDA_ET040801`, `KEBELE_ET040801101001`), which are the
@@ -73,8 +73,8 @@ differed from the registry's (`Wereda 01` for Akaki Kality Sub City).
 **When the hierarchy changes:**
 
 ```sh
-python docs/odk/build_location_media.py          # rewrites media/{region,zone,woreda,kebele1}.csv
-python docs/odk/build_location_media.py --check  # what CI runs (test/test_odk_location_media.py)
+python odk/build_location_media.py          # rewrites odk/media/{region,zone,woreda,kebele1}.csv
+python odk/build_location_media.py --check  # what CI runs (test/test_odk_location_media.py)
 ```
 
 then publish the new CSVs on the planning and cultivation forms (below).
@@ -119,7 +119,7 @@ for F in crop_sown_registry_plan crop_sown_registry_prep; do
   curl -s -X POST "$C/v1/projects/$P/forms/$F/draft" -H "Authorization: Bearer $T"     # copies the published version
   for m in region.csv zone.csv woreda.csv kebele1.csv; do
     curl -s -X POST "$C/v1/projects/$P/forms/$F/draft/attachments/$m" -H "Authorization: Bearer $T" \
-      -H 'Content-Type: text/csv' --data-binary @docs/odk/media/$m; done
+      -H 'Content-Type: text/csv' --data-binary @odk/media/$m; done
   curl -s -X POST "$C/v1/projects/$P/forms/$F/draft/publish?version=<new version>" -H "Authorization: Bearer $T"
 done
 ```
