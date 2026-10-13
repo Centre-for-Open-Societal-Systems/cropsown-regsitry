@@ -48,9 +48,9 @@ FARMER_PERSONAL_SECTION = "farmer_farmer_personal_identification_section_01"
 FARMER_SOCIO_SECTION = "farmer_farmer_socio_economic_and_health_section_04"
 FARMER_LOCATION_SECTION = "farmer_farmer_location_section_03"
 FARMER_LAND_SECTION = "farmer_farm_farm_details_section_01"
-FARMER_CROP_SECTION = "a7d69d0c-ed5b-4d78-b2b5-90dfe40c8aa2"
-FARMER_INPUT_SECTION = "43c0b48b-3af1-41a4-8399-48e7ab718e80"
-FARMER_LIVESTOCK_SECTION = "2b73b4c3-b3f0-48cc-bba7-2b522b62e785"
+FARMER_CROP_SECTION = "farmer_crop_crop_details_section_01"
+FARMER_INPUT_SECTION = "farmer_farm_input_farm_input_details_section_01"
+FARMER_LIVESTOCK_SECTION = "farmer_livestock_livestock_details_section_01"
 FARMER_MEMBERSHIP_SECTION = "farmer_membership_membership_details_01"
 
 ARTIFACT_INTAKE = "registry.intake_form"
@@ -1063,7 +1063,7 @@ def crop_payload(land_id: str, index: int) -> dict:
         "link_internal_record_id": land_id,
         "commodity": commodity,
         "planted_date": planted,
-        "season": "SEASON_SUMMER",
+        "season": "SEASON_MEHER",
         "end_use": "FOOD_HUMAN_CONSUMPTION",
     }
 
