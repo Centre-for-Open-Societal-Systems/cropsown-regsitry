@@ -40,10 +40,12 @@ class HouseholdSubmissionValidationTests(unittest.TestCase):
         self.assertRejected(_hh(), [_m("MALE", False, "SPOUSE"), _m("MALE", False, "CHILD"), _m("FEMALE", False, "CHILD")], "must be marked as the head")
         self.assertRejected(_hh(), [_m("MALE", True), _m("MALE", True), _m("FEMALE", False, "CHILD")], "Only one household member")
 
-    def test_non_head_needs_relationship_and_head_is_self(self):
+    def test_non_head_needs_relationship_and_head_relationship_is_cleared(self):
         self.assertRejected(_hh(), [_m("MALE", True), _m("MALE", False, None), _m("FEMALE", False, "CHILD")], "required for every member")
-        self.assertRejected(_hh(), [_m("MALE", True, "CHILD"), _m("MALE", False, "CHILD"), _m("FEMALE", False, "CHILD")], "other than SELF")
-        validate_household_roster(_hh(), [_m("MALE", True, "SELF"), _m("MALE", False, "CHILD"), _m("FEMALE", False, "SPOUSE")])
+        members = [_m("MALE", True, "CHILD"), _m("MALE", False, "CHILD"), _m("FEMALE", False, "SPOUSE")]
+        validate_household_roster(_hh(), members)
+        self.assertIsNone(members[0]["relationship_to_the_head"])
+        self.assertEqual(members[1]["relationship_to_the_head"], "CHILD")
 
     def test_gender_tally_must_match(self):
         self.assertRejected(_hh(), [_m("MALE", True), _m("FEMALE", False, "SPOUSE"), _m("FEMALE", False, "CHILD")], "1 male / 2 female")
