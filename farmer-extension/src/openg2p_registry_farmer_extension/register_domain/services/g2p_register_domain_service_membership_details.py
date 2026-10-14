@@ -7,13 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 
-from .domain_validation_utils import as_bool, fallback_record_name, is_blank, validate_enum_values, validation_error
+from .domain_validation_utils import as_bool, fallback_record_name, validate_enum_values
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
-_MEMBERSHIP_NAME_FIELDS = {
+_DEPENDENT_MEMBERSHIP_FIELDS = {
     "is_primary_cooperative_member": "primary_cooperative_name",
     "is_cooperative_union_member": "cooperative_union_name",
+    "is_farmer_cluster_member": "farmer_cluster_role",
 }
 
 
@@ -29,27 +30,21 @@ def _enum_fields() -> dict:
 class G2PRegisterDomainServiceMembershipDetails(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
+            # Drop dependent values before the enum check so a leftover cluster
+            # role is removed rather than rejected when membership is not yes.
+            self._clear_dependent_membership_fields(record)
             validate_enum_values(record, _enum_fields())
-            self._clear_membership_names_without_membership(record)
-            self._validate_cluster_membership(record)
 
     @staticmethod
-    def _clear_membership_names_without_membership(record: dict) -> bool:
+    def _clear_dependent_membership_fields(record: dict) -> bool:
         cleared = False
-        for flag_field, name_field in _MEMBERSHIP_NAME_FIELDS.items():
+        for flag_field, dependent_field in _DEPENDENT_MEMBERSHIP_FIELDS.items():
             if flag_field not in record:
                 continue
             if as_bool(record.get(flag_field)) is not True:
-                record[name_field] = None
+                record[dependent_field] = None
                 cleared = True
         return cleared
-
-    def _validate_cluster_membership(self, record: dict) -> None:
-        is_member = as_bool(record.get("is_farmer_cluster_member"))
-        if is_member is False and not is_blank(record.get("farmer_cluster_role")):
-            validation_error(
-                "farmer_cluster_role must be empty when is_farmer_cluster_member is false"
-            )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for membership details")
@@ -103,7 +98,7 @@ class G2PRegisterDomainServiceMembershipDetails(G2PRegisterDomainService):
                 ChangeActionEnum.NO_CHANGE.value,
             }:
                 continue
-            if self._clear_membership_names_without_membership(record):
+            if self._clear_dependent_membership_fields(record):
                 cleared = True
         if cleared:
             flag_modified(payload_obj, "change_payload")
