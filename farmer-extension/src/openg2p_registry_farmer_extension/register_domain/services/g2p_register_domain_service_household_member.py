@@ -3,9 +3,11 @@ from contextvars import ContextVar
 from datetime import date
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
+from openg2p_registry_core.models.enum import ChangeActionEnum
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from .domain_validation_utils import as_bool, as_int, fallback_record_name, is_blank, parse_date, validation_error
 from .utils.household_roster import (
@@ -86,28 +88,34 @@ class G2PRegisterDomainServiceHouseholdMember(G2PRegisterDomainService):
             # Partial payload that does not touch headship (e.g. an API change
             # request editing another field) — nothing to check here.
             return
+        # The form hides relationship once is_head is ticked, but a value chosen
+        # first is still submitted. Drop it so the head is stored without one.
+        self._clear_relationship_when_head(record)
+        if self._is_head(record):
+            return
         relationship = record.get("relationship_to_the_head")
         if not is_blank(relationship) and str(relationship) not in _allowed_relationships():
             validation_error(
                 "relationship_to_the_head must be one of "
                 + ", ".join(sorted(_allowed_relationships()))
             )
-        if self._is_head(record):
-            if not is_blank(relationship) and str(relationship) != _HEAD_RELATIONSHIP:
-                validation_error(
-                    "The household head cannot have a relationship_to_the_head other than SELF"
-                )
-            # Keep the stored row self-describing: the head is SELF.
-            record["relationship_to_the_head"] = _HEAD_RELATIONSHIP
-        else:
-            if is_blank(relationship):
-                validation_error(
-                    "relationship_to_the_head is required for every member who is not the head"
-                )
-            if str(relationship) == _HEAD_RELATIONSHIP:
-                validation_error(
-                    "relationship_to_the_head SELF is reserved for the head; tick is_head instead"
-                )
+        if is_blank(relationship):
+            validation_error(
+                "relationship_to_the_head is required for every member who is not the head"
+            )
+        if str(relationship) == _HEAD_RELATIONSHIP:
+            validation_error(
+                "relationship_to_the_head SELF is reserved for the head; tick is_head instead"
+            )
+
+    @staticmethod
+    def _clear_relationship_when_head(record: dict) -> bool:
+        if "is_head" not in record:
+            return False
+        if as_bool(record.get("is_head")) is not True:
+            return False
+        record["relationship_to_the_head"] = None
+        return True
 
     # ── set-level rules ──────────────────────────────────────────────────────
 
@@ -195,7 +203,25 @@ class G2PRegisterDomainServiceHouseholdMember(G2PRegisterDomainService):
         return " ".join(record_name).strip() or fallback_record_name(payload, "Household member")
 
     async def pre_approve(self, change_request: G2PRegisterChangeRequest, session: AsyncSession):
+        from openg2p_registry_core.models import G2PRegisterChangeRequestPayload
+
         from ..models.household_member import G2PRegisterHouseholdMember
+
+        payload_obj = await session.get(
+            G2PRegisterChangeRequestPayload, change_request.change_request_id
+        )
+        if payload_obj and payload_obj.change_payload:
+            cleared = False
+            for record in payload_obj.change_payload:
+                if record.get("edit_action") in {
+                    ChangeActionEnum.DELETE.value,
+                    ChangeActionEnum.NO_CHANGE.value,
+                }:
+                    continue
+                if self._clear_relationship_when_head(record):
+                    cleared = True
+            if cleared:
+                flag_modified(payload_obj, "change_payload")
 
         await recompute_households_for_change_request(
             session,

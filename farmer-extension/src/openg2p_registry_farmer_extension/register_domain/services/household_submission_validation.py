@@ -14,13 +14,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .domain_validation_utils import as_bool, as_int, is_blank, validation_error
 
 HOUSEHOLD_REGISTER_MNEMONIC = "Household"
-_HEAD_RELATIONSHIP = "SELF"
 
 
 def _get(obj, key: str):
     if isinstance(obj, dict):
         return obj.get(key)
     return getattr(obj, key, None)
+
+
+def _set(obj, key: str, value) -> None:
+    if isinstance(obj, dict):
+        obj[key] = value
+    else:
+        setattr(obj, key, value)
 
 
 def _gender(member) -> str:
@@ -59,13 +65,10 @@ def validate_household_roster(household, members: list) -> None:
         validation_error("Only one household member can be marked as the head (is_head)")
 
     for member in members:
-        relationship = _get(member, "relationship_to_the_head")
         if as_bool(_get(member, "is_head")):
-            if not is_blank(relationship) and str(relationship).upper() != _HEAD_RELATIONSHIP:
-                validation_error(
-                    f"The household head cannot have a relationship_to_the_head other than {_HEAD_RELATIONSHIP}"
-                )
-        elif is_blank(relationship):
+            # A relationship chosen before is_head is not part of the head row.
+            _set(member, "relationship_to_the_head", None)
+        elif is_blank(_get(member, "relationship_to_the_head")):
             validation_error("relationship_to_the_head is required for every member who is not the head")
 
     expected_male = as_int(_get(household, "number_of_male_members"))
