@@ -303,7 +303,10 @@ pipeline {
                     // a real Stop pressed DURING a deploy now reads FAILED. A Stop
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
-                        sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                        // Set-but-empty BASE_DOMAIN keeps the release's hosts; an
+                        // unset one means the script's .openg2p.test default, so pass
+                        // it explicitly in case Jenkins drops an empty environment value.
+                        sh 'BASE_DOMAIN="${BASE_DOMAIN:-}" bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                     }
                 }
             }
