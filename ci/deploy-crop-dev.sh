@@ -44,8 +44,6 @@
 #   REGISTRY_HOST    default crop-registry-development.oanstaging.com (staff UI)
 #   STAFF_API_HOST   default staff-crop-development.oanstaging.com
 #   PARTNER_API_HOST default partner-crop-development.oanstaging.com
-#   STAFF_IAM_URL    default https://staff-iam-development.oanstaging.com
-#   COOKIE_DOMAIN    default .oanstaging.com
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
@@ -80,8 +78,6 @@ BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
 REGISTRY_HOST="${REGISTRY_HOST:-crop-registry-development.oanstaging.com}"
 STAFF_API_HOST="${STAFF_API_HOST:-staff-crop-development.oanstaging.com}"
 PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop-development.oanstaging.com}"
-STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam-development.oanstaging.com}"
-COOKIE_DOMAIN="${COOKIE_DOMAIN:-.oanstaging.com}"
 # Keycloak and MinIO are commons' public names. The <namespace>.openg2p.test ones
 # resolve nowhere in the cluster: finalize failed on keycloak.crop.openg2p.test
 # ("Name does not resolve") and ingestion could not load its templates from
@@ -211,6 +207,11 @@ if [ -n "$BASE_DOMAIN" ]; then
 global:
   idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.${BASE_DOMAIN}'
   aweHostname: 'awe.${BASE_DOMAIN}'
+registry:
+  staffUi:
+    iamPublicUrl: 'https://staff-iam.${BASE_DOMAIN}'
+    envVars:
+      COOKIE_DOMAIN: '.${BASE_DOMAIN}'
 EOF
   VALUE_FILES+=(-f "$WORK/ci-hosts.yaml")
 else
@@ -260,14 +261,10 @@ registry:
       REGISTRY_CELERY_WORKERS_AWE_CALLBACK_HMAC_SECRET:
         secretKeyRef: {name: ${HELM_RELEASE}-awe-callback-hmac, key: hmac-secret}
   staffUi:
-    iamPublicUrl: '${STAFF_IAM_URL}'
     partnerIngestUrl: 'https://${PARTNER_API_HOST}/partner/ingest_data?data_model=dcivc'
-    envVars:
-      APP_URL: 'https://${REGISTRY_HOST}'
-      COOKIE_DOMAIN: '${COOKIE_DOMAIN}'
 EOF
 VALUE_FILES+=(-f "$WORK/ci-public.yaml")
-echo "public hosts: ui=${REGISTRY_HOST} staff-api=${STAFF_API_HOST} partner-api=${PARTNER_API_HOST}  iam=${STAFF_IAM_URL}  cookie=${COOKIE_DOMAIN}  keycloak=${KEYCLOAK_URL}  minio=${MINIO_HOST}"
+echo "public hosts: ui=${REGISTRY_HOST} staff-api=${STAFF_API_HOST} partner-api=${PARTNER_API_HOST}  keycloak=${KEYCLOAK_URL}  minio=${MINIO_HOST}"
 # The pull secret goes on the namespace's `default` ServiceAccount, which every
 # pod in this release uses, NOT through global.imagePullSecrets: with that value
 # set, the idgenerator subchart (0.0.0-develop.42) renders

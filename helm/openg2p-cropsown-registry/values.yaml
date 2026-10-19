@@ -138,17 +138,16 @@ registry:
           infestation:
             idLength: 5
 
-  # staffUi's image is set by the pipeline (docker/staff-ui). Browsers reach it
-  # on global.registryHostname (APP_URL follows it); its IAM URL and cookie
-  # domain are on .oanstaging.com too, the same pattern farmer uses
-  # (staff-iam-development). The partner ingest URL names the partner API host
-  # set above rather than the subchart's partner-<registryHostname>.
+  # staffUi's image is set by the pipeline (docker/staff-ui). Its browser-facing
+  # IAM URL and cookie domain are on the <namespace>.openg2p.test base domain.
+  # The partner ingest URL names the partner API host set above
+  # rather than the subchart's partner-<registryHostname>.
   # beneApi is consumed as-is from the openg2p-registry base image.
   staffUi:
-    iamPublicUrl: 'https://staff-iam-development.oanstaging.com'
+    iamPublicUrl: 'https://staff-iam.{{ .Release.Namespace }}.openg2p.test'
     partnerIngestUrl: 'https://partner-crop-development.oanstaging.com/partner/ingest_data?data_model=dcivc'
     envVars:
-      COOKIE_DOMAIN: '.oanstaging.com'
+      COOKIE_DOMAIN: '.{{ .Release.Namespace }}.openg2p.test'
 
   # ── Crop sown e2e sanity suite (image built here; Set 2 field tests) ────────
   # The subchart ships the reference (Individual) sanity values; override them
