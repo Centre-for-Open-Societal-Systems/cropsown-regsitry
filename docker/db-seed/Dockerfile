@@ -10,7 +10,7 @@
 #
 # Build context = repo root (so cropsown-extension/ and docker/db-seed/ are both
 # reachable).
-ARG RP_VERSION=0.0.0-develop.296
+ARG RP_VERSION=1.2.2-rc.544
 FROM openg2p/openg2p-registry-db-seed:${RP_VERSION}
 
 # The RP db-seed image ships the reference registry's seed; clear it so only
@@ -30,4 +30,9 @@ COPY docker/db-seed/sample-data/                                               /
 COPY docker/local-dev/geo-seed/ethiopia_geo_seed.sql/                          /seed/geo-seed/
 COPY docker/db-seed/entrypoint-cropsown.sh                                     /seed/entrypoint-cropsown.sh
 RUN chmod +x /seed/entrypoint-cropsown.sh
+
+# Reporting layer read by cropsown-registry-dashboard-api: the cs_rpt_* views.
+# Applied and refreshed by the chart's reporting jobs
+# (templates/reporting-views.yaml), not by the seed entrypoint.
+COPY docker/db-seed/reporting_views.sql                                        /seed/reporting_views.sql
 ENTRYPOINT ["/seed/entrypoint-cropsown.sh"]

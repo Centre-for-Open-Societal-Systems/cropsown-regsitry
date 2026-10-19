@@ -11,20 +11,20 @@
 
 -- 1. Every registration belongs to the season its crop plan is for.
 UPDATE "public"."g2p_register_crop_sowns" r
-   SET "season" = p."season"
+   SET "production_season" = p."season"
   FROM (SELECT DISTINCT ON ("link_internal_record_id")
                "link_internal_record_id", "season"
           FROM "public"."g2p_register_plannings"
          WHERE "season" IS NOT NULL
          ORDER BY "link_internal_record_id", "internal_record_id") p
  WHERE p."link_internal_record_id" = r."internal_record_id"
-   AND r."season" IS NULL;
+   AND r."production_season" IS NULL;
 
 -- 2. CROP/REG/2026/00123 -> REG/S1/2026/00123, keeping the sequence number so
 --    the old and new ids map one to one.
 UPDATE "public"."g2p_register_crop_sowns"
    SET "functional_record_id" =
-       'REG/S' || CASE "season"
+       'REG/S' || CASE "production_season"
             WHEN 'CROP_SEASON_MEHER'      THEN '1'
             WHEN 'CROP_SEASON_BELG'       THEN '2'
             WHEN 'CROP_SEASON_IRRIGATION' THEN '3'
@@ -32,7 +32,7 @@ UPDATE "public"."g2p_register_crop_sowns"
        || '/' || split_part("functional_record_id", '/', 3)
        || '/' || split_part("functional_record_id", '/', 4)
  WHERE "functional_record_id" LIKE 'CROP/REG/%'
-   AND "season" IS NOT NULL;
+   AND "production_season" IS NOT NULL;
 
 -- 3. search_text embeds the functional id, so the old one would otherwise stay
 --    searchable and the new one would not be.

@@ -44,7 +44,6 @@ class G2PCluster:
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
     cluster_id: Mapped[str] = mapped_column(String, nullable=True)
     cluster_area_timad: Mapped[float] = mapped_column(Numeric, nullable=True)
-    gps_location: Mapped[str] = mapped_column(String, nullable=True)
     region: Mapped[str] = mapped_column(String, nullable=True)
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
@@ -56,17 +55,41 @@ class G2PCluster:
 
     collected_by_combiner: Mapped[float] = mapped_column(Numeric, nullable=True)
 
+    # ── Establishing Date ────────────────────────────────────────────────────────
+    establishing_date: Mapped[date] = mapped_column(Date, nullable=True)
+    establishing_date_ec: Mapped[str] = mapped_column(String, nullable=True)
+
+    # ── Reference & Commodity ──────────────────────────────────────────────────
+    reference: Mapped[str] = mapped_column(String, nullable=True)
+    primary_commodity: Mapped[str] = mapped_column(String, nullable=True)
+    secondary_commodity: Mapped[str] = mapped_column(String, nullable=True)
+
+    # ── FPC Type & Leadership ──────────────────────────────────────────────────
+    fpc_type: Mapped[str] = mapped_column(String, nullable=True)
+    leader: Mapped[str] = mapped_column(String, nullable=True)
+    co_leader: Mapped[str] = mapped_column(String, nullable=True)
+    coordinator: Mapped[str] = mapped_column(String, nullable=True)
+    secretary: Mapped[str] = mapped_column(String, nullable=True)
+
     # ── Survey Personnel ────────────────────────────────────────────────────────
     da_name: Mapped[str] = mapped_column(String, nullable=True)
     da_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
     supervisor_name: Mapped[str] = mapped_column(String, nullable=True)
     supervisor_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
 
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    altitude: Mapped[str] = mapped_column(String, nullable=True)
+
 
 # All Register classes should have the prefix G2PRegister
-class G2PRegisterCluster(G2PRegister, G2PGeo, G2PCluster):
+class G2PRegisterCluster(G2PRegister, G2PCluster, G2PGeo):
     __tablename__ = "g2p_register_clusters"
     __table_args__ = {"extend_existing": True}
+
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    altitude: Mapped[str] = mapped_column(String, nullable=True)
 
     def get_search_text_fields(self) -> str:
         """Return cluster information fields used to build search_text."""
@@ -78,15 +101,23 @@ class G2PRegisterCluster(G2PRegister, G2PGeo, G2PCluster):
 
 
 # All Register History classes should have the prefix G2PRegisterHistory
-class G2PRegisterHistoryCluster(G2PRegisterHistory, G2PGeoHistory, G2PCluster):
+class G2PRegisterHistoryCluster(G2PRegisterHistory, G2PCluster, G2PGeoHistory):
     __tablename__ = "g2p_register_history_clusters"
     __table_args__ = {"extend_existing": True}
 
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    altitude: Mapped[str] = mapped_column(String, nullable=True)
+
 
 # All Intake Form classes should have the prefix G2PIntakeForm
-class G2PIntakeFormCluster(G2PIntakeForm, G2PRegister, G2PGeo, G2PCluster):
+class G2PIntakeFormCluster(G2PIntakeForm, G2PRegister, G2PCluster, G2PGeo):
     __tablename__ = "g2p_intake_form_clusters"
     __table_args__ = {"extend_existing": True}
+
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    altitude: Mapped[str] = mapped_column(String, nullable=True)
 
     async def get_link_internal_record_id(self, session):
         from .crop_sown import G2PIntakeFormCropSown

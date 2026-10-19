@@ -14,6 +14,32 @@ from contextvars import ContextVar
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
 _active_session: ContextVar = ContextVar("odk_active_session", default=None)
 
+# The docker-compose names are only the fallback: a cluster sets the AWE settings
+# per service (REGISTRY_STAFF_PORTAL_API_AWE_*, REGISTRY_CELERY_WORKERS_AWE_*), and
+# overriding them with http://awe:8000 broke every finalize on dev with
+# "Name does not resolve".
+_AWE_ENV_PREFIXES = (
+    "REGISTRY_CORE_",
+    "REGISTRY_CELERY_WORKERS_",
+    "REGISTRY_STAFF_PORTAL_API_",
+    "REGISTRY_PARTNER_API_",
+)
+_AWE_DEFAULTS = {
+    "AWE_BASE_URL": "http://awe:8000",
+    "AWE_DEFAULT_CALLBACK_URL": "http://staff-api:8000/awe/webhooks/decision",
+    "AWE_CALLBACK_SECRET_ID": "00000000-0000-4000-8000-000000000001",
+    "AWE_CALLBACK_HMAC_SECRET": "dev-registry-awe-callback-secret",
+}
+
+
+def _awe_setting(name: str) -> str:
+    """An AWE setting from the first service prefix that sets it, else the compose default."""
+    for prefix in _AWE_ENV_PREFIXES:
+        value = os.environ.get(prefix + name, "").strip()
+        if value:
+            return value
+    return _AWE_DEFAULTS[name]
+
 
 def _get_registry_engine():
     """Construct an AsyncEngine connected to the primary registry database."""
@@ -207,6 +233,249 @@ def _ensure_master_data_engine():
         _logger.debug("ODK Hook: Error initializing master data engine: %s", e)
 
 
+_master_data_engine = None
+
+
+def _get_master_data_engine():
+    global _master_data_engine
+    if _master_data_engine is not None:
+        return _master_data_engine
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    hostname = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("COMMON_DB_HOSTNAME")
+        or "postgres"
+    )
+    port = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("MASTER_DATA_DB_PORT")
+        or "5432"
+    )
+    dbname = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("MASTER_DATA_DB_DBNAME")
+        or "master_data"
+    )
+    username = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("MASTER_DATA_DB_USERNAME")
+        or "master_data_user"
+    )
+    password = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("MASTER_DATA_DB_PASSWORD")
+        or "master_data_pass"
+    )
+    dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
+    _master_data_engine = create_async_engine(dsn, poolclass=NullPool)
+    return _master_data_engine
+
+
+_GEO_LABEL_CACHE: dict[str, str] = {
+    "central_ethiopia": "Central Ethiopia",
+    "amhara": "Amhara",
+    "dire": "Dire Dawa",
+    "dire_dawa": "Dire Dawa",
+    "oromia": "Oromia",
+    "benishangul": "Benishangul-Gumuz",
+    "ethiopia_somali": "Somali",
+    "somali": "Somali",
+    "tigray": "Tigray",
+    "afar": "Afar",
+    "sidama": "Sidama",
+    "south_ethiopian": "South Ethiopian",
+    "south_west_ethiopia": "South West Ethiopia",
+    "gambela": "Gambela",
+    "harari": "Harari",
+    "addis_ababa": "Addis Ababa",
+    "ET01": "Tigray",
+    "ET02": "Afar",
+    "ET03": "Amhara",
+    "ET04": "Oromia",
+    "ET05": "Somali",
+    "ET06": "Benishangul-Gumuz",
+    "ET07": "Central Ethiopia",
+    "ET08": "South Ethiopian",
+    "ET11": "South West Ethiopia",
+    "ET12": "Gambela",
+    "ET13": "Harari",
+    "ET14": "Addis Ababa",
+    "ET15": "Dire Dawa",
+    "ET16": "Sidama",
+}
+
+
+async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | None:
+    """Resolve an administrative code or mnemonic to a human-readable display label."""
+    if not code:
+        return None
+    code_str = str(code).strip()
+    if not code_str:
+        return None
+    if code_str in _GEO_LABEL_CACHE:
+        return _GEO_LABEL_CACHE[code_str]
+
+    clean_code = code_str
+    for pfx in ("KEBELE_", "WOREDA_", "ZONE_", "REGION_"):
+        if clean_code.startswith(pfx):
+            clean_code = clean_code[len(pfx):]
+            break
+
+    if clean_code in _GEO_LABEL_CACHE:
+        return _GEO_LABEL_CACHE[clean_code]
+
+    try:
+        engine = _get_master_data_engine()
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from sqlalchemy import text
+
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            candidates = [
+                code_str,
+                clean_code,
+                f"{level_prefix}-{code_str}" if level_prefix else code_str,
+                f"{level_prefix}-{clean_code}" if level_prefix else clean_code,
+                f"zone-{code_str}",
+                f"woreda-{code_str}",
+                f"kebele-{code_str}",
+                f"region-{code_str}",
+            ]
+            q = text(
+                "SELECT level_value_mnemonic FROM g2p_geo_level_values "
+                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
+                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
+                "OR level_value_id = :c7 OR level_value_id = :c8 "
+                "OR level_value_id ILIKE :c_like "
+                "LIMIT 1"
+            )
+            res = await session.execute(
+                q,
+                {
+                    "c1": candidates[0],
+                    "c2": candidates[1],
+                    "c3": candidates[2],
+                    "c4": candidates[3],
+                    "c5": candidates[4],
+                    "c6": candidates[5],
+                    "c7": candidates[6],
+                    "c8": candidates[7],
+                    "c_like": f"%{clean_code}",
+                },
+            )
+            row = res.fetchone()
+            if row and row[0]:
+                _GEO_LABEL_CACHE[code_str] = row[0]
+                return row[0]
+    except Exception as e:
+        _logger.warning("ODK Hook: Geo resolution error for %s: %s", code_str, e)
+
+    cleaned = code_str.replace("_", " ").title() if "_" in code_str else code_str
+    _GEO_LABEL_CACHE[code_str] = cleaned
+    return cleaned
+
+
+async def build_geo_hierarchy_from_db(val: str | None) -> dict | None:
+    """Build full geo hierarchy JSON and canonical level_value_id from master-data."""
+    if not val:
+        return None
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+
+    clean_val = val_str
+    for pfx in ("KEBELE_", "WOREDA_", "ZONE_", "REGION_"):
+        if clean_val.startswith(pfx):
+            clean_val = clean_val[len(pfx):]
+            break
+
+    try:
+        engine = _get_master_data_engine()
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from sqlalchemy import text
+
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            candidates = [
+                val_str,
+                clean_val,
+                f"kebele-{clean_val}",
+                f"woreda-{clean_val}",
+                f"zone-{clean_val}",
+                f"region-{clean_val}",
+            ]
+            q = text(
+                "SELECT level_value_id FROM g2p_geo_level_values "
+                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
+                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
+                "OR level_value_id ILIKE :c_like LIMIT 1"
+            )
+            res = await session.execute(
+                q,
+                {
+                    "c1": candidates[0],
+                    "c2": candidates[1],
+                    "c3": candidates[2],
+                    "c4": candidates[3],
+                    "c5": candidates[4],
+                    "c6": candidates[5],
+                    "c_like": f"%{clean_val}",
+                },
+            )
+            row = res.fetchone()
+            if not row:
+                return None
+            lowest_id = row[0]
+
+            hierarchy = []
+            curr = lowest_id
+            while curr:
+                r = await session.execute(
+                    text(
+                        "SELECT lv.level_value_id, lv.level_value_mnemonic, lv.parent_level_value_id, l.level_mnemonic "
+                        "FROM g2p_geo_level_values lv "
+                        "JOIN g2p_geo_levels l ON lv.level_id = l.level_id "
+                        "WHERE lv.level_value_id = :val_id"
+                    ),
+                    {"val_id": curr},
+                )
+                node = r.fetchone()
+                if not node:
+                    break
+                hierarchy.append(
+                    {
+                        "level": node.level_mnemonic,
+                        "level_mnemonic": node.level_mnemonic,
+                        "level_value_id": node.level_value_id,
+                        "level_value_mnemonic": node.level_value_mnemonic,
+                    }
+                )
+                curr = node.parent_level_value_id
+            hierarchy.reverse()
+            return {"hierarchy": hierarchy, "lowest_level_value_id": lowest_id}
+    except Exception as e:
+        _logger.debug("ODK Hook: build_geo_hierarchy_from_db error: %s", e)
+        return None
+
+
 def _alias_extension_modules():
     """Ensure openg2p_registry_extensions and all its subpackages alias to cropsown extension."""
     ext = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_cropsown_extension")
@@ -265,7 +534,7 @@ def _patch_request_response_helper():
 def _patch_celery_worker():
     """Patch ingest_data_worker to bind dbengine and active session."""
     try:
-        import openg2p_registry_celery_worker.tasks.ingest_data_worker as worker_mod
+        worker_mod = importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_worker")
         if worker_mod and not hasattr(worker_mod, "_orig_save_sections_async"):
             orig_save_sections_async = worker_mod._save_sections_async
             worker_mod._orig_save_sections_async = orig_save_sections_async
@@ -303,7 +572,8 @@ def _patch_celery_worker():
                                     res = await session.execute(
                                         text("""
                                             SELECT farmer_name, farmer_id, region, zone, woreda, kebele,
-                                                   address_line_1, address_line_2, latitude, longitude, gps_coordinate
+                                                   address_line_1, address_line_2, latitude, longitude,
+                                                   latitude || ', ' || longitude as gps_coordinate
                                             FROM g2p_intake_form_crop_sowns
                                             WHERE fayda_fan_id = :fayda AND farmer_name IS NOT NULL AND farmer_name != ''
                                             ORDER BY created_at DESC LIMIT 1
@@ -349,49 +619,71 @@ def _patch_celery_worker():
                                     row["record_name"] = str(f_id)
                                 else:
                                     row["record_name"] = None
-                                for attr_id, code_key, name_key in (
-                                    ("REGION", "region", "region_name"),
-                                    ("ZONE", "zone", "zone_name"),
-                                    ("WOREDA", "woreda", "woreda_name"),
-                                    ("KEBELE", "kebele", "kebele_name"),
+                                for level_pfx, code_key, name_key in (
+                                    ("region", "region", "region_name"),
+                                    ("zone", "zone", "zone_name"),
+                                    ("woreda", "woreda", "woreda_name"),
+                                    ("kebele", "kebele", "kebele_name"),
                                 ):
-                                    val = row.get(code_key)
+                                    val = row.get(code_key) or row.get(name_key)
                                     if val:
                                         val_str = str(val).strip()
                                         try:
-                                            q = text("""
-                                                SELECT value_id, value_display FROM g2p_attribute_values 
-                                                WHERE attribute_id = :attr_id 
-                                                  AND (value_id = :val OR value_code = :val 
-                                                       OR value_display ILIKE :val
-                                                       OR value_id = (:attr_id || '_' || :val)
-                                                       OR value_id = (:attr_id || '_ET' || :val)
-                                                       OR value_code LIKE ('%' || :val)
-                                                       OR value_id LIKE ('%' || :val))
-                                                ORDER BY 
-                                                  CASE WHEN value_id = :val THEN 1
-                                                       WHEN value_code = :val THEN 2
-                                                       WHEN value_id = (:attr_id || '_' || :val) THEN 3
-                                                       ELSE 4 END
-                                                LIMIT 1
-                                            """)
-                                            res = (await session.execute(q, {"attr_id": attr_id, "val": val_str})).first()
-                                            if res:
-                                                row[code_key] = res[0]
-                                                row[name_key] = res[1]
-                                            else:
+                                            resolved = await resolve_geo_label(val_str, level_pfx)
+                                            if resolved:
+                                                row[name_key] = resolved
+                                            elif not row.get(name_key):
                                                 row[name_key] = val_str
                                         except Exception as err:
-                                            _logger.debug("Error looking up display name for %s: %s", val_str, err)
-                                            row[name_key] = val_str
+                                            _logger.debug("Error resolving geo label for %s: %s", val_str, err)
+                                            if not row.get(name_key):
+                                                row[name_key] = val_str
 
-                        # Ensure cs_cropsown_location has gps_coordinate
+                        # Also resolve geo labels across child sections (e.g. planning, cluster)
+                        for sec in ("cs_planning_details", "cs_cultivation_cluster_details", "cs_cluster_details"):
+                            for s_row in (transformed_data.get(sec) or []):
+                                for level_pfx, code_key, name_key in (
+                                    ("region", "region", "region_name"),
+                                    ("zone", "zone", "zone_name"),
+                                    ("woreda", "woreda", "woreda_name"),
+                                    ("kebele", "kebele", "kebele_name"),
+                                ):
+                                    val = s_row.get(code_key) or s_row.get(name_key)
+                                    if val:
+                                        try:
+                                            resolved = await resolve_geo_label(str(val).strip(), level_pfx)
+                                            if resolved:
+                                                s_row[name_key] = resolved
+                                        except Exception:
+                                            pass
+
+                        # Ensure cs_cropsown_location has gps_coordinate and geo_code_hierarchy_json
                         loc_rows = transformed_data.get("cs_cropsown_location") or []
                         for lr in loc_rows:
                             lat = lr.get("latitude")
                             lon = lr.get("longitude")
                             if lat and lon and not lr.get("gps_coordinate"):
                                 lr["gps_coordinate"] = f"{lat}, {lon}"
+
+                        # Enrich geo_code_hierarchy_json and canonical geo_lowest_level_value_id
+                        for sec_key in ("cs_intake_record", "cs_common_intake_record", "cs_cropsown_location"):
+                            for r in (transformed_data.get(sec_key) or []):
+                                lowest_val = r.get("geo_lowest_level_value_id") or r.get("kebele") or r.get("woreda")
+                                if lowest_val and not r.get("geo_code_hierarchy_json"):
+                                    geo_res = await build_geo_hierarchy_from_db(lowest_val)
+                                    if geo_res:
+                                        r["geo_code_hierarchy_json"] = geo_res
+                                        r["geo_lowest_level_value_id"] = geo_res["lowest_level_value_id"]
+                                        # Also ensure region, zone, woreda, kebele codes match canonical attribute values
+                                        for h in geo_res.get("hierarchy", []):
+                                            lvl = h.get("level")
+                                            val_id = h.get("level_value_id")
+                                            val_mnemonic = h.get("level_value_mnemonic")
+                                            if lvl in ("region", "zone", "woreda", "kebele") and val_id:
+                                                code = str(val_id).upper().replace("-", "_")
+                                                r[lvl] = code
+                                                if val_mnemonic:
+                                                    r[f"{lvl}_name"] = val_mnemonic
                     except Exception as e:
                         _logger.debug("Error in auto-enriching intake submission: %s", e)
 
@@ -407,8 +699,82 @@ def _patch_celery_worker():
 
             worker_mod._save_sections_async = patched_save_sections_async
             _logger.info("ODK Hook: Patched ingest_data_worker._save_sections_async")
+
+            orig_finalize_submission_async = getattr(worker_mod, "_finalize_submission_async", None)
+            if orig_finalize_submission_async and not hasattr(worker_mod, "_odk_patched_finalize"):
+                worker_mod._odk_patched_finalize = True
+
+                async def patched_finalize_submission_async(submission_id: str, session) -> None:
+                    token = await _get_awe_service_token()
+                    from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
+                    await G2PIntakeFormDataService.get_component().finalize_submission_with_session(
+                        submission_id,
+                        session,
+                        bearer_token=token,
+                    )
+
+                worker_mod._finalize_submission_async = patched_finalize_submission_async
+                _logger.info("ODK Hook: Patched ingest_data_worker._finalize_submission_async with AWE service token")
+
+            try:
+                from openg2p_registry_core.config import Settings as CoreSettings
+                from openg2p_registry_core.helpers import AweHelper
+                core_cfg = CoreSettings.get_config(strict=False)
+                core_cfg.awe_enabled = True
+                core_cfg.awe_base_url = _awe_setting("AWE_BASE_URL")
+                core_cfg.awe_default_callback_url = _awe_setting("AWE_DEFAULT_CALLBACK_URL")
+                core_cfg.awe_callback_secret_id = _awe_setting("AWE_CALLBACK_SECRET_ID")
+                core_cfg.awe_callback_hmac_secret = _awe_setting("AWE_CALLBACK_HMAC_SECRET")
+                awe_h = AweHelper.get_component()
+                if awe_h:
+                    awe_h._base_url = core_cfg.awe_base_url
+            except Exception as e:
+                _logger.debug("Could not patch core settings AWE config: %s", e)
     except Exception as e:
         _logger.debug("Could not patch ingest_data_worker: %s", e)
+
+
+_cached_awe_token = None
+_cached_awe_token_expiry = 0
+
+
+async def _get_awe_service_token() -> str | None:
+    """Acquire and cache a Keycloak client-credentials token for background AWE calls."""
+    global _cached_awe_token, _cached_awe_token_expiry
+    import time
+    import urllib.request
+    import urllib.parse
+    import json
+
+    now = time.time()
+    if _cached_awe_token and now < _cached_awe_token_expiry - 60:
+        return _cached_awe_token
+    try:
+        keycloak_url = (
+            os.environ.get("KEYCLOAK_BASE_URL")
+            or os.environ.get("KEYCLOAK_URL")
+            or "http://keycloak:8080"
+        ).rstrip("/")
+        realm = os.environ.get("KEYCLOAK_REALM", "staff")
+        client_id = os.environ.get("AUTH_CLIENT_ID", "cropsown-staff-portal")
+        client_secret = os.environ.get("AUTH_CLIENT_SECRET", "cropsown-staff-portal-secret")
+
+        token_url = f"{keycloak_url}/realms/{realm}/protocol/openid-connect/token"
+        data = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }).encode("utf-8")
+        req = urllib.request.Request(token_url, data=data)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            _cached_awe_token = body.get("access_token")
+            expires_in = body.get("expires_in", 300)
+            _cached_awe_token_expiry = now + expires_in
+            return _cached_awe_token
+    except Exception as exc:
+        _logger.warning("Could not obtain AWE service token from Keycloak: %s", exc)
+        return None
 
 
 def _connect_celery_signals():
@@ -430,6 +796,39 @@ def _patch_intake_form_data_service():
         from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
         from sqlalchemy import select, text
         from decimal import Decimal
+
+        if not hasattr(G2PIntakeFormDataService, "_odk_patched_finalize_submission_with_session"):
+            G2PIntakeFormDataService._odk_patched_finalize_submission_with_session = True
+            orig_finalize_submission = G2PIntakeFormDataService.finalize_submission_with_session
+
+            async def patched_finalize_submission_with_session(
+                self,
+                submission_id: str,
+                session,
+                finalized_by: str | None = None,
+                bearer_token: str | None = None,
+                requester_sub: str | None = None,
+            ):
+                if not bearer_token:
+                    bearer_token = await _get_awe_service_token()
+                try:
+                    from openg2p_registry_core.helpers import AweHelper
+                    awe_h = AweHelper.get_component()
+                    if awe_h:
+                        awe_h._base_url = _awe_setting("AWE_BASE_URL")
+                except Exception:
+                    pass
+                return await orig_finalize_submission(
+                    self,
+                    submission_id,
+                    session,
+                    finalized_by=finalized_by,
+                    bearer_token=bearer_token,
+                    requester_sub=requester_sub,
+                )
+
+            G2PIntakeFormDataService.finalize_submission_with_session = patched_finalize_submission_with_session
+            _logger.info("ODK Hook: Patched G2PIntakeFormDataService.finalize_submission_with_session with AWE service token")
 
         if not hasattr(G2PIntakeFormDataService, "_odk_patched_serialize_model"):
             G2PIntakeFormDataService._odk_patched_serialize_model = True
@@ -613,13 +1012,60 @@ def _patch_intake_form_data_service():
         _logger.debug("Could not patch G2PIntakeFormDataService: %s", e)
 
 
+def _patch_crop_sown_service():
+    """Skip only H5/H6 identity cross-record mismatches during ODK ingestion."""
+    try:
+        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_crop_sown import (
+            G2PRegisterDomainServiceCropSown,
+        )
+        from openg2p_registry_core.errors import G2PRegistryException
+
+        if hasattr(G2PRegisterDomainServiceCropSown, "_odk_patched_fayda_checks"):
+            return
+        G2PRegisterDomainServiceCropSown._odk_patched_fayda_checks = True
+        orig_validate_fayda_season_and_year = (
+            G2PRegisterDomainServiceCropSown._validate_fayda_season_and_year
+        )
+
+        async def patched_validate_fayda_season_and_year(self, record: dict, session):
+            try:
+                await orig_validate_fayda_season_and_year(self, record, session)
+            except G2PRegistryException as validation_exc:
+                if _active_session.get() is not session:
+                    raise
+
+                reason = str(validation_exc)
+                if "does not match registered Crop Season" in reason:
+                    rule_id = "H5"
+                elif "does not match registered Crop Year" in reason:
+                    rule_id = "H6"
+                else:
+                    raise
+
+                _logger.warning(
+                    "ODK identity validation skipped: %s reason=%s fayda_id=%s submission_id=%s",
+                    rule_id,
+                    reason,
+                    record.get("fayda_fan_id") or record.get("fayda_id"),
+                    record.get("submission_id"),
+                )
+
+        G2PRegisterDomainServiceCropSown._validate_fayda_season_and_year = (
+            patched_validate_fayda_season_and_year
+        )
+        _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCropSown H5/H6")
+    except Exception as e:
+        _logger.debug("Could not patch G2PRegisterDomainServiceCropSown H5/H6: %s", e)
+
+
 def _patch_cultivation_service():
     """Patch G2PRegisterDomainServiceCultivation to fall back to intake form plannings."""
     try:
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_cultivation import (
             G2PRegisterDomainServiceCultivation,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import parse_date
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import parse_date
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceCultivation, "_odk_patched_cultivation"):
@@ -628,6 +1074,18 @@ def _patch_cultivation_service():
 
         orig_resolve_planning_date = G2PRegisterDomainServiceCultivation._resolve_planning_date
         orig_resolve_season_bounds = G2PRegisterDomainServiceCultivation._resolve_season_bounds
+        orig_validate_date_after_planning = G2PRegisterDomainServiceCultivation._validate_date_after_planning
+
+        async def patched_validate_date_after_planning(self, record: dict, session):
+            try:
+                await orig_validate_date_after_planning(self, record, session)
+            except G2PRegistryException as exc:
+                if _active_session.get() is not session:
+                    raise
+                _logger.warning(
+                    "ODK cross-stage validation skipped: C6 reason=%s land_id=%s submission_id=%s",
+                    str(exc), record.get("land_id"), record.get("submission_id"),
+                )
 
         async def patched_resolve_planning_date(self, record: dict, session):
             res = await orig_resolve_planning_date(self, record, session)
@@ -667,6 +1125,7 @@ def _patch_cultivation_service():
 
         G2PRegisterDomainServiceCultivation._resolve_planning_date = patched_resolve_planning_date
         G2PRegisterDomainServiceCultivation._resolve_season_bounds = patched_resolve_season_bounds
+        G2PRegisterDomainServiceCultivation._validate_date_after_planning = patched_validate_date_after_planning
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceCultivation")
     except Exception as e:
         _logger.debug("Could not patch G2PRegisterDomainServiceCultivation: %s", e)
@@ -678,10 +1137,11 @@ def _patch_sowing_service():
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_sowing import (
             G2PRegisterDomainServiceSowing,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import (
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import (
             parse_date,
             validation_error,
         )
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceSowing, "_odk_patched_sowing"):
@@ -694,7 +1154,16 @@ def _patch_sowing_service():
 
         async def patched_validate_sowing_area(self, record: dict, session):
             try:
-                await orig_validate_sowing_area(self, record, session)
+                try:
+                    await orig_validate_sowing_area(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW6 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 area_sown = float(record.get("area_sown") or 0)
@@ -715,7 +1184,16 @@ def _patch_sowing_service():
 
         async def patched_validate_sowing_after_cult(self, record: dict, session):
             try:
-                await orig_validate_sowing_after_cult(self, record, session)
+                try:
+                    await orig_validate_sowing_after_cult(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW5 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 sowing_date = parse_date(record.get("sowing_date"))
                 land_id = str(record.get("land_id") or "").strip()
@@ -751,7 +1229,16 @@ def _patch_sowing_service():
 
         async def patched_validate_land_id(self, record: dict, session):
             try:
-                await orig_validate_land_id(self, record, session)
+                try:
+                    await orig_validate_land_id(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: SW4 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -778,10 +1265,13 @@ def _patch_harvest_service():
         from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_harvest import (
             G2PRegisterDomainServiceHarvest,
         )
-        from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_base import (
+        from openg2p_registry_cropsown_extension.register_domain.services.domain_validation_utils import (
+            as_float,
+            get_attribute_variants,
             parse_date,
             validation_error,
         )
+        from openg2p_registry_core.errors import G2PRegistryException
         from sqlalchemy import text
 
         if hasattr(G2PRegisterDomainServiceHarvest, "_odk_patched_harvest"):
@@ -791,13 +1281,43 @@ def _patch_harvest_service():
         orig_validate_harvest_after_sowing = G2PRegisterDomainServiceHarvest._validate_harvest_after_sowing
         orig_validate_harvest_area = G2PRegisterDomainServiceHarvest._validate_harvest_area_after_sowing
         orig_validate_land_id = G2PRegisterDomainServiceHarvest._validate_land_id_matches_sowing
+        orig_validate_harvest_season_date = G2PRegisterDomainServiceHarvest._validate_date_in_season_enhanced
+
+        async def patched_validate_harvest_season_date(self, record: dict, field: str, session):
+            try:
+                await orig_validate_harvest_season_date(self, record, field, session)
+            except G2PRegistryException as validation_exc:
+                if _active_session.get() is not session:
+                    raise
+                if not str(validation_exc).startswith("Cluster Harvest Date ("):
+                    raise
+                _logger.warning(
+                    "ODK cross-stage validation skipped: HV3 reason=%s land_id=%s submission_id=%s field=%s",
+                    str(validation_exc), record.get("land_id"), record.get("submission_id"), field,
+                )
 
         async def patched_validate_harvest_after_sowing(self, record: dict, session):
             harvest_date = parse_date(record.get("harvest_date"))
             if harvest_date is None:
                 return
             try:
-                await orig_validate_harvest_after_sowing(self, record, session)
+                try:
+                    await orig_validate_harvest_after_sowing(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        reason = str(validation_exc)
+                        if "A sowing record is required" in reason:
+                            rule_id = "HV6"
+                        elif "must be after the Sowing Date" in reason:
+                            rule_id = "HV5"
+                        else:
+                            raise
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: %s reason=%s land_id=%s submission_id=%s",
+                            rule_id, reason, record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -844,7 +1364,19 @@ def _patch_harvest_service():
 
         async def patched_validate_harvest_area(self, record: dict, session):
             try:
-                await orig_validate_harvest_area(self, record, session)
+                try:
+                    await orig_validate_harvest_area(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        reason = str(validation_exc)
+                        if not ("Area Harvested (" in reason and "cannot exceed" in reason):
+                            raise
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: HV7 reason=%s land_id=%s submission_id=%s",
+                            reason, record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 area_harvested = float(record.get("area_harvested") or 0)
@@ -874,9 +1406,57 @@ def _patch_harvest_service():
                         return
                 raise exc
 
+            # The domain validator above compares against the active register and
+            # the current submission. ODK submits each lifecycle stage as a
+            # separate intake submission, so an earlier pending ODK Sowing is not
+            # visible to those queries. During ODK ingestion only, use that
+            # staged Sowing as the HV7 comparison source and skip just this
+            # cross-stage mismatch. Manual/UI calls keep the original behavior.
+            if _active_session.get() is session and session:
+                land_id = str(record.get("land_id") or "").strip()
+                area_harvested = as_float(
+                    record.get("area_harvested")
+                    if record.get("area_harvested") is not None
+                    else record.get("cluster_area_harvested")
+                )
+                if land_id and area_harvested is not None and area_harvested > 0:
+                    season_vars = get_attribute_variants(record.get("season"), "CROP_SEASON")
+                    query = (
+                        "SELECT area_sown FROM g2p_intake_form_sowings "
+                        "WHERE TRIM(land_id) = :land_id AND area_sown IS NOT NULL"
+                    )
+                    params = {"land_id": land_id}
+                    if season_vars:
+                        query += " AND season = ANY(:season_vars)"
+                        params["season_vars"] = season_vars
+                    query += " ORDER BY created_at DESC LIMIT 1"
+                    result = await session.execute(text(query), params)
+                    row = result.fetchone()
+                    if row and row[0] is not None:
+                        area_sown = float(row[0])
+                        if area_harvested > area_sown:
+                            _logger.warning(
+                                "ODK cross-stage validation skipped: HV7 reason=%s "
+                                "land_id=%s submission_id=%s",
+                                f"Area Harvested ({area_harvested} ha) cannot exceed "
+                                f"Area Sown in Sowing ({area_sown} ha).",
+                                land_id,
+                                record.get("submission_id"),
+                            )
+                            return
+
         async def patched_validate_land_id(self, record: dict, session):
             try:
-                await orig_validate_land_id(self, record, session)
+                try:
+                    await orig_validate_land_id(self, record, session)
+                except G2PRegistryException as validation_exc:
+                    if _active_session.get() is session:
+                        _logger.warning(
+                            "ODK cross-stage validation skipped: HV4 reason=%s land_id=%s submission_id=%s",
+                            str(validation_exc), record.get("land_id"), record.get("submission_id"),
+                        )
+                        return
+                    raise
             except Exception as exc:
                 land_id = str(record.get("land_id") or "").strip()
                 if session and land_id:
@@ -892,6 +1472,7 @@ def _patch_harvest_service():
         G2PRegisterDomainServiceHarvest._validate_harvest_after_sowing = patched_validate_harvest_after_sowing
         G2PRegisterDomainServiceHarvest._validate_harvest_area_after_sowing = patched_validate_harvest_area
         G2PRegisterDomainServiceHarvest._validate_land_id_matches_sowing = patched_validate_land_id
+        G2PRegisterDomainServiceHarvest._validate_date_in_season_enhanced = patched_validate_harvest_season_date
         _logger.info("ODK Hook: Patched G2PRegisterDomainServiceHarvest")
     except Exception as e:
         _logger.debug("Could not patch G2PRegisterDomainServiceHarvest: %s", e)
@@ -909,6 +1490,7 @@ def install_hooks():
     _patch_request_response_helper()
     _patch_celery_worker()
     _patch_intake_form_data_service()
+    _patch_crop_sown_service()
     _patch_cultivation_service()
     _patch_sowing_service()
     _patch_harvest_service()
