@@ -287,7 +287,7 @@ pipeline {
                 HELM_RELEASE          = 'cropsown-registry'
                 // No BASE_DOMAIN here: ci/deploy-crop-dev.sh's defaults own the
                 // hosts — the portal, staff API and partner API on their public
-                // *-development.oanstaging.com names (like farmer's), the rest on
+                // *.development.oanstaging.com names and the shared Gateway; the rest on
                 // <namespace>.openg2p.test.
             }
             steps {

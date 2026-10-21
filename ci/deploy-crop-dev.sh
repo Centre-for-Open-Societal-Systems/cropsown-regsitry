@@ -37,15 +37,15 @@
 #   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) — the
 #                    other hosts (idgenerator, awe, dashboard-api); not the
 #                    portal/API public hosts, Keycloak or MinIO below
-#   KEYCLOAK_URL     default https://keycloak-development.oanstaging.com — the
+#   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com — the
 #                    Keycloak the APIs call (staff API's AWE token, approvers)
-#   MINIO_HOST       default minio-api.commons-dev.oanstaging.com — the shared
+#   MINIO_HOST       default minio-farmer.development.oanstaging.com — the shared
 #                    MinIO (templates bucket, documents, browser pre-signed URLs)
-#   REGISTRY_HOST    default crop-registry-development.oanstaging.com (staff UI)
-#   STAFF_API_HOST   default staff-crop-development.oanstaging.com
-#   PARTNER_API_HOST default partner-crop-development.oanstaging.com
-#   STAFF_IAM_URL    default https://staff-iam-development.oanstaging.com
-#   COOKIE_DOMAIN    default .oanstaging.com
+#   REGISTRY_HOST    default crop-registry.development.oanstaging.com (staff UI)
+#   STAFF_API_HOST   default staff-crop.development.oanstaging.com
+#   PARTNER_API_HOST default partner-crop.development.oanstaging.com
+#   STAFF_IAM_URL    default https://staff-iam.development.oanstaging.com
+#   COOKIE_DOMAIN    default .development.oanstaging.com
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
@@ -75,19 +75,18 @@ HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
 # Unset means the dev default; set but EMPTY means "do not touch the release's
 # hosts" (staging, whose hosts are not <namespace>.openg2p.test).
 BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
-# The public oanstaging.com names, the same pattern as farmer's
-# (farmer-registry-development, staff-farmer-development, partner-farmer-development).
-REGISTRY_HOST="${REGISTRY_HOST:-crop-registry-development.oanstaging.com}"
-STAFF_API_HOST="${STAFF_API_HOST:-staff-crop-development.oanstaging.com}"
-PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop-development.oanstaging.com}"
-STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam-development.oanstaging.com}"
-COOKIE_DOMAIN="${COOKIE_DOMAIN:-.oanstaging.com}"
+# Canonical public hosts use the shared development wildcard and Istio Gateway.
+REGISTRY_HOST="${REGISTRY_HOST:-crop-registry.development.oanstaging.com}"
+STAFF_API_HOST="${STAFF_API_HOST:-staff-crop.development.oanstaging.com}"
+PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop.development.oanstaging.com}"
+STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam.development.oanstaging.com}"
+COOKIE_DOMAIN="${COOKIE_DOMAIN:-.development.oanstaging.com}"
 # Keycloak and MinIO are commons' public names. The <namespace>.openg2p.test ones
 # resolve nowhere in the cluster: finalize failed on keycloak.crop.openg2p.test
 # ("Name does not resolve") and ingestion could not load its templates from
 # minio-api.crop.openg2p.test.
-KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak-development.oanstaging.com}"
-MINIO_HOST="${MINIO_HOST:-minio-api.commons-dev.oanstaging.com}"
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
+MINIO_HOST="${MINIO_HOST:-minio-farmer.development.oanstaging.com}"
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
 # iam-register takes its token from the PUBLIC Keycloak URL
@@ -231,10 +230,10 @@ global:
 registry:
   staffApi:
     hostname: '${STAFF_API_HOST}'
-    istio: {virtualservice: {host: '${STAFF_API_HOST}'}}
+    istio: {virtualservice: {host: '${STAFF_API_HOST}', gateway: istio-system/development}}
   partnerApi:
     hostname: '${PARTNER_API_HOST}'
-    istio: {virtualservice: {host: '${PARTNER_API_HOST}'}}
+    istio: {virtualservice: {host: '${PARTNER_API_HOST}', gateway: istio-system/development}}
     # The cropsown extension rebuilds the DB settings from COMMON_DB_* (or the
     # staff API's) and otherwise falls back to host "postgres", so without these
     # every /partner/ingest_data failed with "Name does not resolve". Staff API
@@ -260,6 +259,8 @@ registry:
       REGISTRY_CELERY_WORKERS_AWE_CALLBACK_HMAC_SECRET:
         secretKeyRef: {name: ${HELM_RELEASE}-awe-callback-hmac, key: hmac-secret}
   staffUi:
+    hostname: '${REGISTRY_HOST}'
+    istio: {virtualservice: {host: '${REGISTRY_HOST}', gateway: istio-system/development}}
     iamPublicUrl: '${STAFF_IAM_URL}'
     partnerIngestUrl: 'https://${PARTNER_API_HOST}/partner/ingest_data?data_model=dcivc'
     envVars:
@@ -380,6 +381,9 @@ VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "
 # chart or values mistake then fails here, before anything is changed.
 helm template "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" "${VALUES[@]}" > "$WORK/rendered.yaml"
 echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
+# Client dry-run converts YAML to JSON without applying resources or logging Secrets.
+kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
+  python3 ci/check-new-dev-routes.py crop --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"
 
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
