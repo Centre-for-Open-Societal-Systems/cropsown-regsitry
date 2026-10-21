@@ -79,7 +79,7 @@ if command -v aws >/dev/null 2>&1; then
 fi
 
 # Staging's own values: the same DBs, secrets and hosts as the running release.
-helm get values "$RELEASE" -n "$NS" -o yaml > "$WORK/values.yaml"
+helm get values "$RELEASE" -n "$NS" --all -o yaml > "$WORK/values.yaml"
 helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
 helm repo update openg2p >/dev/null
 helm dependency build "$CHART" >/dev/null

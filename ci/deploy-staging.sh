@@ -6,7 +6,10 @@
 # copies of one helm command in the Jenkinsfile, and the copies drifted: when the
 # dev deploy learned to fetch the helm the agent lacks, staging kept failing on
 # "helm not found". So this sets the staging release and hands over to
-# ci/deploy-dev.sh; see its header for every other variable.
+# ci/deploy-dev.sh; see its header for every other variable. This manual path
+# requires an existing staging release and preserves ALL its current values
+# before applying image overrides. It does not configure new staging installs.
+# Jenkins uses staging-set-images.sh and staging-run-db-seed.sh instead.
 #
 # Which cluster it lands in is KUBECONFIG's call. In Jenkins that is the
 # staging-rke2-kubeconfig credential, the RKE2 cluster on the staging EC2
@@ -36,5 +39,6 @@ fi
 
 export RELEASE_NAME="${STAGING_RELEASE:-cropsown-registry}"
 export NAMESPACE="${STAGING_NAMESPACE:-crop}"
+export PRESERVE_RELEASE_VALUES=true
 
 exec "$(dirname "${BASH_SOURCE[0]}")/deploy-dev.sh" "$@"
