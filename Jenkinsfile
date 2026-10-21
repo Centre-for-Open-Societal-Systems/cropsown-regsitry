@@ -33,6 +33,7 @@ pipeline {
         ECR_BASE       = 'gen2/cropsown-registry'
         // The dashboard service follows the openg2p/<registry>/<image> convention.
         DASHBOARD_API_ECR = 'openg2p/cropsown-registry/dashboard-api'
+        DASHBOARD_UI_ECR = 'oan/cropsown-registry/dashboard-ui'
 
         HELM_NAMESPACE = 'crop'
         HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
@@ -246,7 +247,7 @@ pipeline {
                         done
 
                         if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
-                            UI_IMAGE="${ECR_REGISTRY}/openg2p/cropsown-registry/dashboard-ui:${DASHBOARD_UI_SHA}"
+                            UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${DASHBOARD_UI_SHA}"
                             docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
                               -f .build/dashboard-ui/Dockerfile -t "$UI_IMAGE" .build/dashboard-ui
                             docker push "$UI_IMAGE"
@@ -346,7 +347,7 @@ pipeline {
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
-                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${ECR_REGISTRY}/openg2p/cropsown-registry/dashboard-ui" "${DASHBOARD_UI_SHA}"'
+                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${ECR_REGISTRY}/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
                     }
                 }
             }
