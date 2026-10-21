@@ -290,7 +290,7 @@ pipeline {
             // not the build context, and not a checkout of its own: it deploys
             // exactly this commit without needing GitHub access.
             steps {
-                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**,.ecr-token,.ecr-registry"
+                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**,helm/cropsown-registry-dashboard/**,helm/environments/dev/dashboard-ui.yaml,.ecr-token,.ecr-registry"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
             }
