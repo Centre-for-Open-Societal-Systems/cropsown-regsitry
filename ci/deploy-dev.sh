@@ -34,6 +34,8 @@
 #   NAMESPACE       default crop
 #   RELEASE_NAME    default cropsown-registry
 #   CHART_DIR       default helm/openg2p-cropsown-registry
+#   PRESERVE_RELEASE_VALUES true to require an existing release and layer its
+#                   complete current values before image overrides (default false)
 #   KUBECONFIG      the cluster to deploy to
 #   CREATE_NAMESPACE false to deploy without helm's --create-namespace, for an
 #                   account that may not manage namespaces (default true)
@@ -177,6 +179,20 @@ if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; 
   die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"
 fi
 
+# Preserve inherited settings too: chart defaults can change between releases.
+# The staging wrapper requires this mode and refuses a missing release rather
+# than installing with a different environment's defaults. Never print values.
+RELEASE_VALUES=()
+if [ "${PRESERVE_RELEASE_VALUES:-false}" = "true" ]; then
+  VALUES_SNAPSHOT="$(umask 077; mktemp)"
+  trap 'rm -f "$VALUES_SNAPSHOT"' EXIT
+  if ! helm get values "$RELEASE_NAME" --namespace "$NAMESPACE" --all -o yaml > "$VALUES_SNAPSHOT"; then
+    die "cannot preserve existing release values; refusing the upgrade"
+  fi
+  [ -s "$VALUES_SNAPSHOT" ] || die "empty release values; refusing the upgrade"
+  RELEASE_VALUES=(-f "$VALUES_SNAPSHOT")
+fi
+
 # The wrapper chart owns no templates; every manifest comes from the pinned
 # openg2p-registry subchart, so the dependency must be present before install.
 helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
@@ -215,6 +231,7 @@ helm upgrade --install "${RELEASE_NAME}" "./${CHART_DIR}" \
   --namespace "${NAMESPACE}" \
   ${NS_FLAG[@]+"${NS_FLAG[@]}"} \
   --timeout 10m \
+  ${RELEASE_VALUES[@]+"${RELEASE_VALUES[@]}"} \
   "${SETS[@]}"
 
 note "Waiting for rollout"
