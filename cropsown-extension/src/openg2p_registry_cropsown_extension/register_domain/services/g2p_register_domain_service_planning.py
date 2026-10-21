@@ -16,7 +16,11 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        _logger.warning("VALIDATION RECORDS PAYLOAD: %s", records)
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        _logger.warning("ACTIVE RECORDS PAYLOAD: %s", active_records)
+        for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -26,22 +30,15 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            if not str(record.get("land_id") or "").strip():
+                validation_error("Land ID is required in Crop Planning.")
             if not str(record.get("season") or "").strip():
                 validation_error("Season is required in Crop Planning.")
             if not str(record.get("commodity") or "").strip():
                 validation_error("Crop is required in Crop Planning.")
 
-            prod_season = record.get("production_season")
-            submission_id = record.get("submission_id")
-            if session and submission_id and not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    prod_season = row_hdr[0]
+            from .domain_validation_utils import resolve_production_season
+            prod_season = await resolve_production_season(record, session)
 
             season = record.get("season")
             if prod_season and season:
@@ -52,13 +49,14 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
                         f"Season '{season}' in Crop Planning Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
                     )
 
+
             compute_season_parts(record)
             self._validate_date_in_season(record, "planned_date")
             self._validate_planned_area(record)
             self._validate_planned_date(record)
             compute_ec_date(record, "planned_date", "planned_date_ec")
-        self._validate_cumulative_planned_area(records)
-        self._validate_no_duplicate_commodity_season(records)
+        self._validate_cumulative_planned_area(active_records)
+        self._validate_no_duplicate_commodity_season(active_records)
 
     def _validate_planned_area(self, record: dict) -> None:
         planned_area = as_float(record.get("planned_area"))
@@ -66,7 +64,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             validation_error("planned_area must be greater than zero when provided")
             
         land_area = as_float(record.get("land_area"))
-        if planned_area is not None and land_area is not None:
+        if planned_area is not None and land_area is not None and land_area > 0:
             if planned_area > land_area:
                 validation_error(f"Planned Crop Area ({planned_area} ha) cannot be greater than Total Land Area ({land_area} ha).")
 
@@ -79,8 +77,8 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
 
         for land_id, land_records in by_land.items():
             total_planned = sum(as_float(r.get("planned_area")) or 0.0 for r in land_records)
-            land_area = next((as_float(r.get("land_area")) for r in land_records if as_float(r.get("land_area")) is not None), None)
-            if land_area is not None and total_planned > land_area + 1e-6:
+            land_area = next((as_float(r.get("land_area")) for r in land_records if as_float(r.get("land_area")) is not None and as_float(r.get("land_area")) > 0), None)
+            if land_area is not None and land_area > 0 and total_planned > land_area + 1e-6:
                 validation_error(
                     f"Total Planned Crop Area ({total_planned:g} ha) across all records for Land ID '{land_id}' "
                     f"exceeds Total Land Area ({land_area:g} ha)."

@@ -41,6 +41,11 @@ pipeline {
         // chart deploys no dashboard, so its image would be published for nothing.
         SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
 
+        // The ODK ingestion connector, as <image>:<build context>. Each builds
+        // from the Dockerfile in its own directory, not docker/<name>/.
+        // connector-service is one image for the chart's api, worker and beat.
+        CONNECTOR_IMAGES = 'connector-service:openg2p-connector-service connector-ui:openg2p-connector-ui'
+
         // cropsown-registry-dashboard-api lives in its own (public) repository and
         // is built here beside the registry images, as dashboard-api. Each branch
         // builds the dashboard-api branch of the same name and falls back to
@@ -81,6 +86,11 @@ pipeline {
         }
 
         stage('Checkout dashboard-api') {
+            // TEMPORARY: cropsown-registry-dashboard-api has not been merged to its
+            // staging branch yet, so staging builds skip it ('Update staging
+            // images' never uses the dashboard-api image). Drop this `when` once
+            // it is merged.
+            when { not { branch 'staging' } }
             steps {
                 script {
                     // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
@@ -182,19 +192,44 @@ pipeline {
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
 
-                        # The dashboard service, from its own repository (cloned by
-                        # 'Checkout dashboard-api'), with its own build context.
-                        IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
-                        echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
-                        docker build --pull \
-                            --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
-                            --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
-                            --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
-                            -f .build/dashboard-api/Dockerfile \
-                            -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
-                        docker push "${IMAGE}:${IMAGE_TAG}"
-                        docker push "${IMAGE}:${BRANCH_NAME}"
-                        docker rmi "${IMAGE}:${IMAGE_TAG}" || true
+                        # The connector service and its UI, each with its own
+                        # directory as build context.
+                        for PAIR in ${CONNECTOR_IMAGES}; do
+                            NAME="${PAIR%%:*}"
+                            CONTEXT="${PAIR#*:}"
+                            IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${NAME}"
+                            echo "--- ${NAME} (${CONTEXT}) -> ${IMAGE}:${IMAGE_TAG} ---"
+
+                            docker build --pull \
+                                -f "${CONTEXT}/Dockerfile" \
+                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" "${CONTEXT}"
+
+                            aws ecr describe-repositories --region "${AWS_REGION}" \
+                                --repository-names "${ECR_BASE}/${NAME}" >/dev/null 2>&1 \
+                              || aws ecr create-repository --region "${AWS_REGION}" \
+                                    --repository-name "${ECR_BASE}/${NAME}" >/dev/null
+
+                            docker push "${IMAGE}:${IMAGE_TAG}"
+                            docker push "${IMAGE}:${BRANCH_NAME}"
+                            docker rmi "${IMAGE}:${IMAGE_TAG}" || true
+                        done
+
+                        # Skipped when 'Checkout dashboard-api' did not run (staging).
+                        if [ -n "${DASHBOARD_API_SHA:-}" ]; then
+                            # The dashboard service, from its own repository (cloned by
+                            # 'Checkout dashboard-api'), with its own build context.
+                            IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
+                            echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
+                            docker build --pull \
+                                --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
+                                --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
+                                --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
+                                -f .build/dashboard-api/Dockerfile \
+                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
+                            docker push "${IMAGE}:${IMAGE_TAG}"
+                            docker push "${IMAGE}:${BRANCH_NAME}"
+                            docker rmi "${IMAGE}:${IMAGE_TAG}" || true
+                        fi
 
                         # An ECR pull token for the deploy node to write into the
                         # namespace's imagePullSecret. The cluster's own
@@ -244,16 +279,16 @@ pipeline {
                 timeout(time: 60, unit: 'MINUTES')
             }
             environment {
-                // The dev cluster (RKE2 at 10.0.1.166), as its crop-ci service
+                // The dev cluster (RKE2 at 10.0.1.58), as its crop-ci service
                 // account.
-                KUBECONFIG_CREDENTIAL = 'gen2-dev-kubeconfig'
+                KUBECONFIG_CREDENTIAL = 'crop-dev-kubeconfig'
                 // The subchart rejects release names over 18 characters, and
                 // cropsown-registry is 17.
                 HELM_RELEASE          = 'cropsown-registry'
-                // Dev's public hosts are <namespace>.openg2p.test; the subchart
-                // defaults them to .openg2p.org placeholders, which breaks
-                // Keycloak, MinIO and IAM.
-                BASE_DOMAIN           = '{{ .Release.Namespace }}.openg2p.test'
+                // No BASE_DOMAIN here: ci/deploy-crop-dev.sh's defaults own the
+                // hosts — the portal, staff API and partner API on their public
+                // *.development.oanstaging.com names and the shared Gateway; the rest on
+                // <namespace>.openg2p.test.
             }
             steps {
                 // The workspace outlives builds, and nothing cleans a file this

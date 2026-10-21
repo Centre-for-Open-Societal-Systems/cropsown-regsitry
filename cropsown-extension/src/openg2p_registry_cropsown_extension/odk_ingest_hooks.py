@@ -14,6 +14,32 @@ from contextvars import ContextVar
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
 _active_session: ContextVar = ContextVar("odk_active_session", default=None)
 
+# The docker-compose names are only the fallback: a cluster sets the AWE settings
+# per service (REGISTRY_STAFF_PORTAL_API_AWE_*, REGISTRY_CELERY_WORKERS_AWE_*), and
+# overriding them with http://awe:8000 broke every finalize on dev with
+# "Name does not resolve".
+_AWE_ENV_PREFIXES = (
+    "REGISTRY_CORE_",
+    "REGISTRY_CELERY_WORKERS_",
+    "REGISTRY_STAFF_PORTAL_API_",
+    "REGISTRY_PARTNER_API_",
+)
+_AWE_DEFAULTS = {
+    "AWE_BASE_URL": "http://awe:8000",
+    "AWE_DEFAULT_CALLBACK_URL": "http://staff-api:8000/awe/webhooks/decision",
+    "AWE_CALLBACK_SECRET_ID": "00000000-0000-4000-8000-000000000001",
+    "AWE_CALLBACK_HMAC_SECRET": "dev-registry-awe-callback-secret",
+}
+
+
+def _awe_setting(name: str) -> str:
+    """An AWE setting from the first service prefix that sets it, else the compose default."""
+    for prefix in _AWE_ENV_PREFIXES:
+        value = os.environ.get(prefix + name, "").strip()
+        if value:
+            return value
+    return _AWE_DEFAULTS[name]
+
 
 def _get_registry_engine():
     """Construct an AsyncEngine connected to the primary registry database."""
@@ -207,6 +233,249 @@ def _ensure_master_data_engine():
         _logger.debug("ODK Hook: Error initializing master data engine: %s", e)
 
 
+_master_data_engine = None
+
+
+def _get_master_data_engine():
+    global _master_data_engine
+    if _master_data_engine is not None:
+        return _master_data_engine
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    hostname = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("COMMON_DB_HOSTNAME")
+        or "postgres"
+    )
+    port = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("MASTER_DATA_DB_PORT")
+        or "5432"
+    )
+    dbname = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("MASTER_DATA_DB_DBNAME")
+        or "master_data"
+    )
+    username = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("MASTER_DATA_DB_USERNAME")
+        or "master_data_user"
+    )
+    password = (
+        os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("MASTER_DATA_DB_PASSWORD")
+        or "master_data_pass"
+    )
+    dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
+    _master_data_engine = create_async_engine(dsn, poolclass=NullPool)
+    return _master_data_engine
+
+
+_GEO_LABEL_CACHE: dict[str, str] = {
+    "central_ethiopia": "Central Ethiopia",
+    "amhara": "Amhara",
+    "dire": "Dire Dawa",
+    "dire_dawa": "Dire Dawa",
+    "oromia": "Oromia",
+    "benishangul": "Benishangul-Gumuz",
+    "ethiopia_somali": "Somali",
+    "somali": "Somali",
+    "tigray": "Tigray",
+    "afar": "Afar",
+    "sidama": "Sidama",
+    "south_ethiopian": "South Ethiopian",
+    "south_west_ethiopia": "South West Ethiopia",
+    "gambela": "Gambela",
+    "harari": "Harari",
+    "addis_ababa": "Addis Ababa",
+    "ET01": "Tigray",
+    "ET02": "Afar",
+    "ET03": "Amhara",
+    "ET04": "Oromia",
+    "ET05": "Somali",
+    "ET06": "Benishangul-Gumuz",
+    "ET07": "Central Ethiopia",
+    "ET08": "South Ethiopian",
+    "ET11": "South West Ethiopia",
+    "ET12": "Gambela",
+    "ET13": "Harari",
+    "ET14": "Addis Ababa",
+    "ET15": "Dire Dawa",
+    "ET16": "Sidama",
+}
+
+
+async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | None:
+    """Resolve an administrative code or mnemonic to a human-readable display label."""
+    if not code:
+        return None
+    code_str = str(code).strip()
+    if not code_str:
+        return None
+    if code_str in _GEO_LABEL_CACHE:
+        return _GEO_LABEL_CACHE[code_str]
+
+    clean_code = code_str
+    for pfx in ("KEBELE_", "WOREDA_", "ZONE_", "REGION_"):
+        if clean_code.startswith(pfx):
+            clean_code = clean_code[len(pfx):]
+            break
+
+    if clean_code in _GEO_LABEL_CACHE:
+        return _GEO_LABEL_CACHE[clean_code]
+
+    try:
+        engine = _get_master_data_engine()
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from sqlalchemy import text
+
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            candidates = [
+                code_str,
+                clean_code,
+                f"{level_prefix}-{code_str}" if level_prefix else code_str,
+                f"{level_prefix}-{clean_code}" if level_prefix else clean_code,
+                f"zone-{code_str}",
+                f"woreda-{code_str}",
+                f"kebele-{code_str}",
+                f"region-{code_str}",
+            ]
+            q = text(
+                "SELECT level_value_mnemonic FROM g2p_geo_level_values "
+                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
+                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
+                "OR level_value_id = :c7 OR level_value_id = :c8 "
+                "OR level_value_id ILIKE :c_like "
+                "LIMIT 1"
+            )
+            res = await session.execute(
+                q,
+                {
+                    "c1": candidates[0],
+                    "c2": candidates[1],
+                    "c3": candidates[2],
+                    "c4": candidates[3],
+                    "c5": candidates[4],
+                    "c6": candidates[5],
+                    "c7": candidates[6],
+                    "c8": candidates[7],
+                    "c_like": f"%{clean_code}",
+                },
+            )
+            row = res.fetchone()
+            if row and row[0]:
+                _GEO_LABEL_CACHE[code_str] = row[0]
+                return row[0]
+    except Exception as e:
+        _logger.warning("ODK Hook: Geo resolution error for %s: %s", code_str, e)
+
+    cleaned = code_str.replace("_", " ").title() if "_" in code_str else code_str
+    _GEO_LABEL_CACHE[code_str] = cleaned
+    return cleaned
+
+
+async def build_geo_hierarchy_from_db(val: str | None) -> dict | None:
+    """Build full geo hierarchy JSON and canonical level_value_id from master-data."""
+    if not val:
+        return None
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+
+    clean_val = val_str
+    for pfx in ("KEBELE_", "WOREDA_", "ZONE_", "REGION_"):
+        if clean_val.startswith(pfx):
+            clean_val = clean_val[len(pfx):]
+            break
+
+    try:
+        engine = _get_master_data_engine()
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from sqlalchemy import text
+
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            candidates = [
+                val_str,
+                clean_val,
+                f"kebele-{clean_val}",
+                f"woreda-{clean_val}",
+                f"zone-{clean_val}",
+                f"region-{clean_val}",
+            ]
+            q = text(
+                "SELECT level_value_id FROM g2p_geo_level_values "
+                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
+                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
+                "OR level_value_id ILIKE :c_like LIMIT 1"
+            )
+            res = await session.execute(
+                q,
+                {
+                    "c1": candidates[0],
+                    "c2": candidates[1],
+                    "c3": candidates[2],
+                    "c4": candidates[3],
+                    "c5": candidates[4],
+                    "c6": candidates[5],
+                    "c_like": f"%{clean_val}",
+                },
+            )
+            row = res.fetchone()
+            if not row:
+                return None
+            lowest_id = row[0]
+
+            hierarchy = []
+            curr = lowest_id
+            while curr:
+                r = await session.execute(
+                    text(
+                        "SELECT lv.level_value_id, lv.level_value_mnemonic, lv.parent_level_value_id, l.level_mnemonic "
+                        "FROM g2p_geo_level_values lv "
+                        "JOIN g2p_geo_levels l ON lv.level_id = l.level_id "
+                        "WHERE lv.level_value_id = :val_id"
+                    ),
+                    {"val_id": curr},
+                )
+                node = r.fetchone()
+                if not node:
+                    break
+                hierarchy.append(
+                    {
+                        "level": node.level_mnemonic,
+                        "level_mnemonic": node.level_mnemonic,
+                        "level_value_id": node.level_value_id,
+                        "level_value_mnemonic": node.level_value_mnemonic,
+                    }
+                )
+                curr = node.parent_level_value_id
+            hierarchy.reverse()
+            return {"hierarchy": hierarchy, "lowest_level_value_id": lowest_id}
+    except Exception as e:
+        _logger.debug("ODK Hook: build_geo_hierarchy_from_db error: %s", e)
+        return None
+
+
 def _alias_extension_modules():
     """Ensure openg2p_registry_extensions and all its subpackages alias to cropsown extension."""
     ext = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_cropsown_extension")
@@ -303,7 +572,8 @@ def _patch_celery_worker():
                                     res = await session.execute(
                                         text("""
                                             SELECT farmer_name, farmer_id, region, zone, woreda, kebele,
-                                                   address_line_1, address_line_2, latitude, longitude, gps_coordinate
+                                                   address_line_1, address_line_2, latitude, longitude,
+                                                   latitude || ', ' || longitude as gps_coordinate
                                             FROM g2p_intake_form_crop_sowns
                                             WHERE fayda_fan_id = :fayda AND farmer_name IS NOT NULL AND farmer_name != ''
                                             ORDER BY created_at DESC LIMIT 1
@@ -349,49 +619,71 @@ def _patch_celery_worker():
                                     row["record_name"] = str(f_id)
                                 else:
                                     row["record_name"] = None
-                                for attr_id, code_key, name_key in (
-                                    ("REGION", "region", "region_name"),
-                                    ("ZONE", "zone", "zone_name"),
-                                    ("WOREDA", "woreda", "woreda_name"),
-                                    ("KEBELE", "kebele", "kebele_name"),
+                                for level_pfx, code_key, name_key in (
+                                    ("region", "region", "region_name"),
+                                    ("zone", "zone", "zone_name"),
+                                    ("woreda", "woreda", "woreda_name"),
+                                    ("kebele", "kebele", "kebele_name"),
                                 ):
-                                    val = row.get(code_key)
+                                    val = row.get(code_key) or row.get(name_key)
                                     if val:
                                         val_str = str(val).strip()
                                         try:
-                                            q = text("""
-                                                SELECT value_id, value_display FROM g2p_attribute_values 
-                                                WHERE attribute_id = :attr_id 
-                                                  AND (value_id = :val OR value_code = :val 
-                                                       OR value_display ILIKE :val
-                                                       OR value_id = (:attr_id || '_' || :val)
-                                                       OR value_id = (:attr_id || '_ET' || :val)
-                                                       OR value_code LIKE ('%' || :val)
-                                                       OR value_id LIKE ('%' || :val))
-                                                ORDER BY 
-                                                  CASE WHEN value_id = :val THEN 1
-                                                       WHEN value_code = :val THEN 2
-                                                       WHEN value_id = (:attr_id || '_' || :val) THEN 3
-                                                       ELSE 4 END
-                                                LIMIT 1
-                                            """)
-                                            res = (await session.execute(q, {"attr_id": attr_id, "val": val_str})).first()
-                                            if res:
-                                                row[code_key] = res[0]
-                                                row[name_key] = res[1]
-                                            else:
+                                            resolved = await resolve_geo_label(val_str, level_pfx)
+                                            if resolved:
+                                                row[name_key] = resolved
+                                            elif not row.get(name_key):
                                                 row[name_key] = val_str
                                         except Exception as err:
-                                            _logger.debug("Error looking up display name for %s: %s", val_str, err)
-                                            row[name_key] = val_str
+                                            _logger.debug("Error resolving geo label for %s: %s", val_str, err)
+                                            if not row.get(name_key):
+                                                row[name_key] = val_str
 
-                        # Ensure cs_cropsown_location has gps_coordinate
+                        # Also resolve geo labels across child sections (e.g. planning, cluster)
+                        for sec in ("cs_planning_details", "cs_cultivation_cluster_details", "cs_cluster_details"):
+                            for s_row in (transformed_data.get(sec) or []):
+                                for level_pfx, code_key, name_key in (
+                                    ("region", "region", "region_name"),
+                                    ("zone", "zone", "zone_name"),
+                                    ("woreda", "woreda", "woreda_name"),
+                                    ("kebele", "kebele", "kebele_name"),
+                                ):
+                                    val = s_row.get(code_key) or s_row.get(name_key)
+                                    if val:
+                                        try:
+                                            resolved = await resolve_geo_label(str(val).strip(), level_pfx)
+                                            if resolved:
+                                                s_row[name_key] = resolved
+                                        except Exception:
+                                            pass
+
+                        # Ensure cs_cropsown_location has gps_coordinate and geo_code_hierarchy_json
                         loc_rows = transformed_data.get("cs_cropsown_location") or []
                         for lr in loc_rows:
                             lat = lr.get("latitude")
                             lon = lr.get("longitude")
                             if lat and lon and not lr.get("gps_coordinate"):
                                 lr["gps_coordinate"] = f"{lat}, {lon}"
+
+                        # Enrich geo_code_hierarchy_json and canonical geo_lowest_level_value_id
+                        for sec_key in ("cs_intake_record", "cs_common_intake_record", "cs_cropsown_location"):
+                            for r in (transformed_data.get(sec_key) or []):
+                                lowest_val = r.get("geo_lowest_level_value_id") or r.get("kebele") or r.get("woreda")
+                                if lowest_val and not r.get("geo_code_hierarchy_json"):
+                                    geo_res = await build_geo_hierarchy_from_db(lowest_val)
+                                    if geo_res:
+                                        r["geo_code_hierarchy_json"] = geo_res
+                                        r["geo_lowest_level_value_id"] = geo_res["lowest_level_value_id"]
+                                        # Also ensure region, zone, woreda, kebele codes match canonical attribute values
+                                        for h in geo_res.get("hierarchy", []):
+                                            lvl = h.get("level")
+                                            val_id = h.get("level_value_id")
+                                            val_mnemonic = h.get("level_value_mnemonic")
+                                            if lvl in ("region", "zone", "woreda", "kebele") and val_id:
+                                                code = str(val_id).upper().replace("-", "_")
+                                                r[lvl] = code
+                                                if val_mnemonic:
+                                                    r[f"{lvl}_name"] = val_mnemonic
                     except Exception as e:
                         _logger.debug("Error in auto-enriching intake submission: %s", e)
 
@@ -407,8 +699,82 @@ def _patch_celery_worker():
 
             worker_mod._save_sections_async = patched_save_sections_async
             _logger.info("ODK Hook: Patched ingest_data_worker._save_sections_async")
+
+            orig_finalize_submission_async = getattr(worker_mod, "_finalize_submission_async", None)
+            if orig_finalize_submission_async and not hasattr(worker_mod, "_odk_patched_finalize"):
+                worker_mod._odk_patched_finalize = True
+
+                async def patched_finalize_submission_async(submission_id: str, session) -> None:
+                    token = await _get_awe_service_token()
+                    from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
+                    await G2PIntakeFormDataService.get_component().finalize_submission_with_session(
+                        submission_id,
+                        session,
+                        bearer_token=token,
+                    )
+
+                worker_mod._finalize_submission_async = patched_finalize_submission_async
+                _logger.info("ODK Hook: Patched ingest_data_worker._finalize_submission_async with AWE service token")
+
+            try:
+                from openg2p_registry_core.config import Settings as CoreSettings
+                from openg2p_registry_core.helpers import AweHelper
+                core_cfg = CoreSettings.get_config(strict=False)
+                core_cfg.awe_enabled = True
+                core_cfg.awe_base_url = _awe_setting("AWE_BASE_URL")
+                core_cfg.awe_default_callback_url = _awe_setting("AWE_DEFAULT_CALLBACK_URL")
+                core_cfg.awe_callback_secret_id = _awe_setting("AWE_CALLBACK_SECRET_ID")
+                core_cfg.awe_callback_hmac_secret = _awe_setting("AWE_CALLBACK_HMAC_SECRET")
+                awe_h = AweHelper.get_component()
+                if awe_h:
+                    awe_h._base_url = core_cfg.awe_base_url
+            except Exception as e:
+                _logger.debug("Could not patch core settings AWE config: %s", e)
     except Exception as e:
         _logger.debug("Could not patch ingest_data_worker: %s", e)
+
+
+_cached_awe_token = None
+_cached_awe_token_expiry = 0
+
+
+async def _get_awe_service_token() -> str | None:
+    """Acquire and cache a Keycloak client-credentials token for background AWE calls."""
+    global _cached_awe_token, _cached_awe_token_expiry
+    import time
+    import urllib.request
+    import urllib.parse
+    import json
+
+    now = time.time()
+    if _cached_awe_token and now < _cached_awe_token_expiry - 60:
+        return _cached_awe_token
+    try:
+        keycloak_url = (
+            os.environ.get("KEYCLOAK_BASE_URL")
+            or os.environ.get("KEYCLOAK_URL")
+            or "http://keycloak:8080"
+        ).rstrip("/")
+        realm = os.environ.get("KEYCLOAK_REALM", "staff")
+        client_id = os.environ.get("AUTH_CLIENT_ID", "cropsown-staff-portal")
+        client_secret = os.environ.get("AUTH_CLIENT_SECRET", "cropsown-staff-portal-secret")
+
+        token_url = f"{keycloak_url}/realms/{realm}/protocol/openid-connect/token"
+        data = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }).encode("utf-8")
+        req = urllib.request.Request(token_url, data=data)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            _cached_awe_token = body.get("access_token")
+            expires_in = body.get("expires_in", 300)
+            _cached_awe_token_expiry = now + expires_in
+            return _cached_awe_token
+    except Exception as exc:
+        _logger.warning("Could not obtain AWE service token from Keycloak: %s", exc)
+        return None
 
 
 def _connect_celery_signals():
@@ -430,6 +796,39 @@ def _patch_intake_form_data_service():
         from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
         from sqlalchemy import select, text
         from decimal import Decimal
+
+        if not hasattr(G2PIntakeFormDataService, "_odk_patched_finalize_submission_with_session"):
+            G2PIntakeFormDataService._odk_patched_finalize_submission_with_session = True
+            orig_finalize_submission = G2PIntakeFormDataService.finalize_submission_with_session
+
+            async def patched_finalize_submission_with_session(
+                self,
+                submission_id: str,
+                session,
+                finalized_by: str | None = None,
+                bearer_token: str | None = None,
+                requester_sub: str | None = None,
+            ):
+                if not bearer_token:
+                    bearer_token = await _get_awe_service_token()
+                try:
+                    from openg2p_registry_core.helpers import AweHelper
+                    awe_h = AweHelper.get_component()
+                    if awe_h:
+                        awe_h._base_url = _awe_setting("AWE_BASE_URL")
+                except Exception:
+                    pass
+                return await orig_finalize_submission(
+                    self,
+                    submission_id,
+                    session,
+                    finalized_by=finalized_by,
+                    bearer_token=bearer_token,
+                    requester_sub=requester_sub,
+                )
+
+            G2PIntakeFormDataService.finalize_submission_with_session = patched_finalize_submission_with_session
+            _logger.info("ODK Hook: Patched G2PIntakeFormDataService.finalize_submission_with_session with AWE service token")
 
         if not hasattr(G2PIntakeFormDataService, "_odk_patched_serialize_model"):
             G2PIntakeFormDataService._odk_patched_serialize_model = True

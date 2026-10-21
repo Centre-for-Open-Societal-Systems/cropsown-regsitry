@@ -11,7 +11,9 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
-        for record in records:
+        from .domain_validation_utils import is_record_deleted
+        active_records = [r for r in records if not is_record_deleted(r)]
+        for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
@@ -19,17 +21,10 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
             validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
             validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
-            prod_season = record.get("production_season")
-            submission_id = record.get("submission_id")
-            if session and submission_id and not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    prod_season = row_hdr[0]
+            from .domain_validation_utils import resolve_production_season
+            prod_season = await resolve_production_season(record, session)
+            if prod_season and not record.get("production_season"):
+                record["production_season"] = prod_season
 
             season = record.get("season")
             if prod_season and season:
@@ -40,6 +35,9 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
                         f"Season '{season}' in Cluster Information Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
                     )
 
+            from .domain_compute_utils import compute_cluster_area, compute_season_parts, compute_ec_date
+            compute_ec_date(record, "establishing_date", "establishing_date_ec")
+
             compute_season_parts(record)
             compute_cluster_area(record)
             self._validate_cluster_area(record)
@@ -49,11 +47,35 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
             self._validate_collected_by_combiner(record)
             if session:
                 await self._validate_land_id_matches_planning(record, session=session)
+        self._validate_no_duplicate_cluster(active_records)
+
+    def _validate_no_duplicate_cluster(self, records: list[dict]) -> None:
+        seen: set[tuple[str, str, str]] = set()
+        for record in records:
+            cluster_name = str(
+                record.get("cluster_name")
+                or record.get("cluster_id")
+                or record.get("primary_commodity")
+                or record.get("commodity")
+                or ""
+            ).strip()
+            season = str(record.get("season") or record.get("production_season") or "").strip()
+            land_id = str(record.get("land_id") or "").strip()
+            if not cluster_name and not land_id:
+                continue
+            key = (cluster_name, season, land_id)
+            if key in seen:
+                validation_error(
+                    "Duplicate cluster entries for the same season and land are not allowed"
+                )
+            seen.add(key)
+
+    _validate_no_duplicate_commodity_season = _validate_no_duplicate_cluster
 
     def _validate_cluster_area(self, record: dict) -> None:
         area = as_float(record.get("cluster_area_hectare"))
-        if area is not None and area <= 0:
-            validation_error("cluster_area_hectare must be greater than zero when provided")
+        if area is not None and area < 0:
+            validation_error("cluster_area_hectare must not be negative")
 
     def _validate_smallholders(self, record: dict) -> None:
         for field in ("number_of_smallholders",):
@@ -162,6 +184,14 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
         keys = [
             "functional_record_id",
             "cluster_name",
+            "reference",
+            "primary_commodity",
+            "secondary_commodity",
+            "fpc_type",
+            "leader",
+            "co_leader",
+            "coordinator",
+            "secretary",
             "agro_ecological_zone",
             "season",
             "cluster_area_hectare",

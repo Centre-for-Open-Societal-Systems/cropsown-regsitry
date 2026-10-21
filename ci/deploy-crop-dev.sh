@@ -2,9 +2,9 @@
 # Deploy cropsown-registry to the dev cluster's `crop` namespace with helm.
 #
 # The Jenkinsfile's Deploy to Dev stage runs this on the vpn-agent2 node with the
-# gen2-dev-kubeconfig credential (the crop-ci service account of the RKE2 cluster
-# at https://10.0.1.166:6443). It is a script, not inline Groovy, so a deploy by
-# hand is the same command:
+# crop-dev-kubeconfig credential (the crop-ci service account of the RKE2 cluster
+# at https://10.0.1.58:6443, set up by ci/k8s/crop-ci-dev.yaml). It is a script,
+# not inline Groovy, so a deploy by hand is the same command:
 #
 #   KUBECONFIG=<kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/deploy-crop-dev.sh develop-42
 #
@@ -31,8 +31,21 @@
 #   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
+#   EXPECTED_SERVER  default https://10.0.1.58:6443 — refuse any other API server
+#                    (empty disables the check)
 #   HELM_CHART_DIR   default helm/openg2p-cropsown-registry
-#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template)
+#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) — the
+#                    other hosts (idgenerator, awe, dashboard-api); not the
+#                    portal/API public hosts, Keycloak or MinIO below
+#   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com — the
+#                    Keycloak the APIs call (staff API's AWE token, approvers)
+#   MINIO_HOST       default minio-farmer.development.oanstaging.com — the shared
+#                    MinIO (templates bucket, documents, browser pre-signed URLs)
+#   REGISTRY_HOST    default crop-registry.development.oanstaging.com (staff UI)
+#   STAFF_API_HOST   default staff-crop.development.oanstaging.com
+#   PARTNER_API_HOST default partner-crop.development.oanstaging.com
+#   STAFF_IAM_URL    default https://staff-iam.development.oanstaging.com
+#   COOKIE_DOMAIN    default .development.oanstaging.com
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
@@ -43,6 +56,9 @@
 #   HELM_TIMEOUT     default 40m
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
+#   OUTSIDE_CHART    true|false, default true   also move the Deployments helm does
+#                                               not manage (connector, public staff UI)
+#                                               to this build's images
 set -euo pipefail
 
 TAG="${1:-${TAG:-}}"
@@ -54,10 +70,23 @@ ECR_BASE="${ECR_BASE:-gen2/cropsown-registry}"
 DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
+EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
 HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
 # Unset means the dev default; set but EMPTY means "do not touch the release's
 # hosts" (staging, whose hosts are not <namespace>.openg2p.test).
 BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
+# Canonical public hosts use the shared development wildcard and Istio Gateway.
+REGISTRY_HOST="${REGISTRY_HOST:-crop-registry.development.oanstaging.com}"
+STAFF_API_HOST="${STAFF_API_HOST:-staff-crop.development.oanstaging.com}"
+PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop.development.oanstaging.com}"
+STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam.development.oanstaging.com}"
+COOKIE_DOMAIN="${COOKIE_DOMAIN:-.development.oanstaging.com}"
+# Keycloak and MinIO are commons' public names. The <namespace>.openg2p.test ones
+# resolve nowhere in the cluster: finalize failed on keycloak.crop.openg2p.test
+# ("Name does not resolve") and ingestion could not load its templates from
+# minio-api.crop.openg2p.test.
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
+MINIO_HOST="${MINIO_HOST:-minio-farmer.development.oanstaging.com}"
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
 # iam-register takes its token from the PUBLIC Keycloak URL
@@ -89,7 +118,17 @@ say() { echo "=== $* ==="; }
 
 # ── 1. Preflight ───────────────────────────────────────────────────────────────
 say "Deploy target"
-echo "server:    $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+SERVER="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+echo "server:    ${SERVER}"
+# The server comes from the kubeconfig credential, not this repo. A credential
+# still holding the old dev cluster's kubeconfig (10.0.1.166) deployed there
+# without complaint, so stop before touching anything.
+if [ -n "$EXPECTED_SERVER" ] && [ "${SERVER%/}" != "${EXPECTED_SERVER%/}" ]; then
+  echo "ERROR: KUBECONFIG points at ${SERVER:-<none>}, expected ${EXPECTED_SERVER}." >&2
+  echo "  Replace the Jenkins credential (crop-dev-kubeconfig) with the crop-ci kubeconfig" >&2
+  echo "  for ${EXPECTED_SERVER} — see ci/k8s/make-crop-ci-kubeconfig.sh." >&2
+  exit 1
+fi
 echo "namespace: ${HELM_NAMESPACE}"
 echo "release:   ${HELM_RELEASE}"
 echo "images:    ${ECR}/*:${TAG}"
@@ -157,6 +196,11 @@ fi
 say "helm dependency build"
 helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
 helm repo update openg2p >/dev/null
+# Chart.lock and charts/ are gitignored, so neither checkout nor unstash clears
+# them: a lock left in the agent's workspace by an older build still pins the
+# previous openg2p-registry version, and `helm dependency build` then fails with
+# "the lock file (Chart.lock) is out of sync". Resolve fresh from Chart.yaml.
+rm -f "$HELM_CHART_DIR/Chart.lock" "$HELM_CHART_DIR"/charts/*.tgz
 helm dependency build "$HELM_CHART_DIR"
 
 # ── 3. Values this build owns ──────────────────────────────────────────────────
@@ -164,16 +208,8 @@ VALUE_FILES=()
 if [ -n "$BASE_DOMAIN" ]; then
   cat > "$WORK/ci-hosts.yaml" <<EOF
 global:
-  registryHostname: '{{ .Release.Name }}.${BASE_DOMAIN}'
-  keycloakBaseUrl: 'https://keycloak.${BASE_DOMAIN}'
-  minioHost: 'minio-api.${BASE_DOMAIN}'
   idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.${BASE_DOMAIN}'
   aweHostname: 'awe.${BASE_DOMAIN}'
-registry:
-  staffUi:
-    iamPublicUrl: 'https://staff-iam.${BASE_DOMAIN}'
-    envVars:
-      COOKIE_DOMAIN: '.${BASE_DOMAIN}'
 EOF
   VALUE_FILES+=(-f "$WORK/ci-hosts.yaml")
 else
@@ -181,6 +217,58 @@ else
   # whatever the release already carries.
   echo "BASE_DOMAIN is empty: leaving the release's host values untouched."
 fi
+# The portal and its APIs are served on the public oanstaging.com names, not
+# BASE_DOMAIN. Written on every deploy, after the live release's values: an
+# earlier deploy stored the .openg2p.test ones on the release, and layering
+# current-values.yaml would otherwise keep putting them back — the VirtualService
+# hosts edited by hand in Rancher were reverted the same way.
+cat > "$WORK/ci-public.yaml" <<EOF
+global:
+  registryHostname: '${REGISTRY_HOST}'
+  keycloakBaseUrl: '${KEYCLOAK_URL}'
+  minioHost: '${MINIO_HOST}'
+registry:
+  staffApi:
+    hostname: '${STAFF_API_HOST}'
+    istio: {virtualservice: {host: '${STAFF_API_HOST}', gateway: istio-system/development}}
+  partnerApi:
+    hostname: '${PARTNER_API_HOST}'
+    istio: {virtualservice: {host: '${PARTNER_API_HOST}', gateway: istio-system/development}}
+    # The cropsown extension rebuilds the DB settings from COMMON_DB_* (or the
+    # staff API's) and otherwise falls back to host "postgres", so without these
+    # every /partner/ingest_data failed with "Name does not resolve". Staff API
+    # and celery already carry the same block on the release.
+    envVars:
+      COMMON_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      COMMON_DB_PORT: '5432'
+      COMMON_DB_DBNAME: cropsown_registry
+      COMMON_DB_USERNAME: cropsown_registry_user
+    envVarsFrom:
+      COMMON_DB_PASSWORD:
+        secretKeyRef: {name: cropsown-registry, key: cropsown-registry-db-user}
+  celeryWorker:
+    # The worker finalizes ODK-ingested submissions and starts their AWE workflow,
+    # but carried no AWE settings (only the staff API did), so the extension fell
+    # back to the docker-compose http://awe:8000. Same values as the staff API's.
+    envVars:
+      REGISTRY_CELERY_WORKERS_AWE_ENABLED: 'true'
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: http://commons-services-awe.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: http://${HELM_RELEASE}-staff-portal-api.${HELM_NAMESPACE}.svc.cluster.local/awe/webhooks/decision
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_SECRET_ID: ${HELM_RELEASE}
+    envVarsFrom:
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_HMAC_SECRET:
+        secretKeyRef: {name: ${HELM_RELEASE}-awe-callback-hmac, key: hmac-secret}
+  staffUi:
+    hostname: '${REGISTRY_HOST}'
+    istio: {virtualservice: {host: '${REGISTRY_HOST}', gateway: istio-system/development}}
+    iamPublicUrl: '${STAFF_IAM_URL}'
+    partnerIngestUrl: 'https://${PARTNER_API_HOST}/partner/ingest_data?data_model=dcivc'
+    envVars:
+      APP_URL: 'https://${REGISTRY_HOST}'
+      COOKIE_DOMAIN: '${COOKIE_DOMAIN}'
+EOF
+VALUE_FILES+=(-f "$WORK/ci-public.yaml")
+echo "public hosts: ui=${REGISTRY_HOST} staff-api=${STAFF_API_HOST} partner-api=${PARTNER_API_HOST}  iam=${STAFF_IAM_URL}  cookie=${COOKIE_DOMAIN}  keycloak=${KEYCLOAK_URL}  minio=${MINIO_HOST}"
 # The pull secret goes on the namespace's `default` ServiceAccount, which every
 # pod in this release uses, NOT through global.imagePullSecrets: with that value
 # set, the idgenerator subchart (0.0.0-develop.42) renders
@@ -297,6 +385,9 @@ VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "
 # chart or values mistake then fails here, before anything is changed.
 helm template "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" "${VALUES[@]}" > "$WORK/rendered.yaml"
 echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
+# Client dry-run converts YAML to JSON without applying resources or logging Secrets.
+kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
+  python3 ci/check-new-dev-routes.py crop --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"
 
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
@@ -339,6 +430,34 @@ for D in $DEPLOYMENTS; do
     exit 1
   fi
 done
+
+# ── 6b. Deployments outside the chart ─────────────────────────────────────────
+# The connector (api, worker, beat, ui) and the public staff portal
+# (<release>-staff-portal-ui-pub) are not in this chart, so helm never moves
+# them: they stayed on develop-69 while the release went to develop-74. This
+# build pushes their images (connector-service, connector-ui, staff-ui), so point
+# them at the same tag. Only the image changes; a Deployment that does not exist
+# in this namespace is skipped.
+if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
+  say "Deployments outside the chart"
+  for PAIR in "cropsown-connector-api:connector-service" "cropsown-connector-worker:connector-service" \
+              "cropsown-connector-beat:connector-service" "cropsown-connector-ui:connector-ui" \
+              "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
+    D="${PAIR%%:*}"
+    IMG="${ECR}/${PAIR#*:}:${TAG}"
+    if ! kubectl get deploy "$D" "${NS[@]}" >/dev/null 2>&1; then
+      echo "${D}: not in ${HELM_NAMESPACE}, skipped"
+      continue
+    fi
+    C="$(kubectl get deploy "$D" "${NS[@]}" -o jsonpath='{.spec.template.spec.containers[0].name}')"
+    kubectl set image "deploy/${D}" "${C}=${IMG}" "${NS[@]}"
+    if ! kubectl rollout status "deploy/${D}" "${NS[@]}" --timeout="${ROLLOUT_TIMEOUT:-420s}"; then
+      echo "ERROR: ${D} did not roll out on ${IMG}. Undo: kubectl -n ${HELM_NAMESPACE} rollout undo deploy/${D}" >&2
+      kubectl logs "deploy/${D}" "${NS[@]}" --all-containers --prefix --tail=40 >&2 || true
+      exit 1
+    fi
+  done
+fi
 
 # ── 7. Schema drift gate ───────────────────────────────────────────────────────
 # The API pods run `migrate` on start, which now adds model columns an existing

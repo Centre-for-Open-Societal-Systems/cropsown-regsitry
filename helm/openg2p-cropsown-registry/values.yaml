@@ -16,14 +16,29 @@
 # ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
 global:
   registryVariant: 'cropsown-registry'
-  # Public hosts, on the environment's base domain <namespace>.openg2p.test
-  # (crop.openg2p.test). The subchart defaults them all to <namespace>.openg2p.org,
-  # a placeholder that resolves nowhere here, which broke Keycloak, MinIO and IAM.
-  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
+  # The staff portal's public host, on oanstaging.com like farmer's
+  # (farmer-registry.development.oanstaging.com). The subchart derives the
+  # staff UI's VirtualService host, APP_URL/REDIRECT_URL, the Keycloak redirect
+  # URI and the VC did:web from it. The staff and partner API hosts are set
+  # explicitly under registry.staffApi / registry.partnerApi below, because the
+  # subchart's default (staff-/partner-<registryHostname>) is not their name.
+  registryHostname: 'crop-registry.development.oanstaging.com'
+  # Other hosts, on <namespace>.openg2p.test (crop.openg2p.test). The subchart
+  # defaults them to <namespace>.openg2p.org, a placeholder that resolves nowhere
+  # here, which broke Keycloak, MinIO and IAM.
   keycloakBaseUrl: 'https://keycloak.{{ .Release.Namespace }}.openg2p.test'
   minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.test'
   idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
   aweHostname: 'awe.{{ .Release.Namespace }}.openg2p.test'
+  # AWE and the staff API talk to each other inside the cluster. The subchart
+  # defaults both to the public https hosts, which use the self-signed Local CA:
+  # AWE's webhook to the staff API failed with CERTIFICATE_VERIFY_FAILED, so
+  # approved intake forms never reached the registry (44 failed deliveries,
+  # 2026-10-07..09). aweDefaultCallbackUrl also becomes caller_service of this
+  # release's callback_secret row (awe_meta_data/40_callback_secret.sql.tpl
+  # upserts it on every db-seed). AWE runs in <aweReleaseName>, commons-services.
+  aweBaseUrl: 'http://{{ .Values.global.aweReleaseName }}-awe.{{ .Release.Namespace }}.svc.cluster.local'
+  aweDefaultCallbackUrl: 'http://{{ .Release.Name }}-staff-portal-api.{{ .Release.Namespace }}.svc.cluster.local/awe/webhooks/decision'
 
 # ── openg2p-registry subchart overrides ───────────────────────────────────────
 registry:
@@ -34,22 +49,56 @@ registry:
     image:
       repository: openg2p/openg2p-cropsown-registry-staff-api
       tag: 0.0.0-develop
+    envVars:
+      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
+      KEYCLOAK_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      KEYCLOAK_REALM: '{{ tpl (default "staff" .Values.global.keycloakRealm) $ }}'
+      AUTH_CLIENT_ID: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientId) $ }}'
+    envVarsFrom:
+      AUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientSecret) $ }}'
+          key: '{{ tpl (default "client_secret" .Values.global.authClientSecretKey) $ }}'
+    # Public API host, like farmer's staff-farmer.development.oanstaging.com.
+    hostname: 'staff-crop.development.oanstaging.com'
+    istio:
+      virtualservice:
+        host: 'staff-crop.development.oanstaging.com'
+        gateway: istio-system/development
   partnerApi:
     image:
       repository: openg2p/openg2p-cropsown-registry-partner-api
       tag: 0.0.0-develop
+    # Like farmer's partner-farmer.development.oanstaging.com.
+    hostname: 'partner-crop.development.oanstaging.com'
+    istio:
+      virtualservice:
+        host: 'partner-crop.development.oanstaging.com'
+        gateway: istio-system/development
   celeryWorker:
     image:
       repository: openg2p/openg2p-cropsown-registry-celery
       tag: 0.0.0-develop
+    envVars:
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
+      # The subchart sets no --concurrency, so prefork starts one process per
+      # CPU (48 on the dev node), each loading the whole app: the worker sat at
+      # 3.5Gi of its 4Gi limit. 8 is a throughput choice with memory headroom.
+      CELERY_OPTS: "worker -Q registry_worker_queue --concurrency=8 --loglevel=info"
   celeryBeat:
     image:
       repository: openg2p/openg2p-cropsown-registry-celery
       tag: 0.0.0-develop
+    envVars:
+      # The beat producer only schedules and enqueues; with 48 processes it went
+      # over its 3Gi limit ~17s after start (OOMKilled, CrashLoopBackOff).
+      CELERY_OPTS: "worker --beat --concurrency=2 --loglevel=info --schedule=/tmp/celery-beat-schedule.db"
   dbSeed:
     image:
       repository: openg2p/openg2p-cropsown-registry-db-seed
       tag: 0.0.0-develop
+    envVars:
+      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
     # The images/templates loaders are generic and safe to enable. Sample data is
     # NOT: the platform's load_sample_data.py is hardcoded to the reference
     # (farmer) registry's tables, so it cannot load crop sown records. The crop
@@ -91,13 +140,21 @@ registry:
           infestation:
             idLength: 5
 
-  # staffUi's image is set by the pipeline (docker/staff-ui). Its browser-facing
-  # IAM URL and cookie domain are on the same .openg2p.test base domain as the
-  # globals above. beneApi is consumed as-is from the openg2p-registry base image.
+  # staffUi's image is set by the pipeline (docker/staff-ui). Browsers reach it
+  # on global.registryHostname (APP_URL follows it); its IAM URL and cookie
+  # domain use .development.oanstaging.com (the shared staff IAM). The partner
+  # ingest URL names the partner API host set above rather than the subchart's
+  # partner-<registryHostname>.
+  # beneApi is consumed as-is from the openg2p-registry base image.
   staffUi:
-    iamPublicUrl: 'https://staff-iam.{{ .Release.Namespace }}.openg2p.test'
+    istio:
+      virtualservice:
+        host: '{{ tpl .Values.global.registryHostname $ }}'
+        gateway: istio-system/development
+    iamPublicUrl: 'https://staff-iam.development.oanstaging.com'
+    partnerIngestUrl: 'https://partner-crop.development.oanstaging.com/partner/ingest_data?data_model=dcivc'
     envVars:
-      COOKIE_DOMAIN: '.{{ .Release.Namespace }}.openg2p.test'
+      COOKIE_DOMAIN: '.development.oanstaging.com'
 
   # ── Crop sown e2e sanity suite (image built here; Set 2 field tests) ────────
   # The subchart ships the reference (Individual) sanity values; override them
@@ -121,7 +178,7 @@ registry:
     # (must match the cropsown-extension seed metadata).
     farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
     crTabId: "cropsown_cropsown_tab"
-    crSectionId: "cropsown_survey_personnel_section_02"
+    crSectionId: "cropsown_cropsown_record_section_01"
 
 # ── Reporting layer and dashboard service (this chart's own templates) ────────
 # The cs_rpt_* views the dashboard service reads (templates/reporting-views.yaml,

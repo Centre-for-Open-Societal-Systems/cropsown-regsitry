@@ -1,5 +1,8 @@
 # Crop Sown Registry
 
+For the current development hosts, shared Istio Gateway and deployment guard,
+see the [new-dev routing guide](docs/new-dev-routing.md).
+
 An installable **Crop Sown Registry** built as a thin extension of the OpenG2P
 [registry platform](https://github.com/OpenG2P/registry-platform), following the
 same inverted build model as the
@@ -748,7 +751,9 @@ pieces fit together.
 
 `Jenkinsfile` is the self-hosted pipeline. It builds six images from
 `docker/*/Dockerfile` — `staff-api`, `partner-api`, `celery`, `db-seed`,
-`sanity-tests` and `dashboard-ui` — publishes them to a private ECR under
+`sanity-tests` and `dashboard-ui` — plus `connector-service` and
+`connector-ui` from `openg2p-connector-service/` and `openg2p-connector-ui/`,
+publishes them to a private ECR under
 branch-derived tags, and deploys `develop` to the dev cluster's `crop`
 namespace. A `staging` build pushes its images and then moves staging's app
 Deployments onto them with `ci/staging-set-images.sh`: images only, no helm
@@ -780,8 +785,8 @@ an unsatisfiable label does not fail a build — it queues until the 90-minute
 timeout, which is how a successful build ended up red.
 
 **The agent must be on the openg2p-Gen2 WireGuard VPN.** The dev cluster's API
-server, `10.15.0.1:6443` (what `rancher.openg2p.test` resolves to), is routable
-only over that VPN; off it, the dev deploy fails on `dial tcp 10.15.0.1:6443:
+server, `10.0.1.58:6443` (what `rancher.openg2p.test` resolves to), is routable
+only over that VPN; off it, the dev deploy fails on `dial tcp 10.0.1.58:6443:
 i/o timeout`. Get a peer config issued for the agent by whoever runs the
 openg2p-Gen2 WireGuard server — not a copy of a person's, since two machines on
 one key knock each other off — and, once, as root on the agent (on the host, if
@@ -792,7 +797,7 @@ Jenkins runs in a container):
 sudo ./ci/setup-agent-vpn.sh jenkins-agent.conf
 ```
 
-It narrows the tunnel to the API server (`10.15.0.1/32`), so CI reaches that and
+It narrows the tunnel to the API server (`10.0.1.58/32`), so CI reaches that and
 nothing else on the dev network, enables it across reboots, and checks the API
 server answers. The deploy scripts check the same before running helm, and
 when they cannot connect the build ends **UNSTABLE** rather than failed: the
