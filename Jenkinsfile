@@ -52,6 +52,7 @@ pipeline {
         // develop where there is none. Set DASHBOARD_API_REF on the job (a branch
         // or tag) to pin one instead.
         DASHBOARD_API_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/cropsown-registry-dashboard-api.git'
+        DASHBOARD_UI_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/oan_cropsown_dashboard.git'
 
         // How long helm may wait on the chart's post-upgrade hook Jobs, kept WELL
         // inside the Deploy stage's own 60-minute timeout. At the script's 40m
@@ -109,6 +110,36 @@ pipeline {
                     env.DASHBOARD_API_REF_USED = ref
                     env.DASHBOARD_API_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-api rev-parse --short=12 HEAD').trim()
                     echo "dashboard-api: ${ref} @ ${env.DASHBOARD_API_SHA}"
+                    sh 'bash ci/dashboard/verify-api.sh .build/dashboard-api'
+                }
+            }
+        }
+
+        stage('Checkout dashboard-ui') {
+            // TEMPORARY: cropsown-registry-dashboard-ui has not been merged to its
+            // staging branch yet, so staging builds skip it ('Update staging
+            // images' never uses the dashboard-ui image). Drop this `when` once
+            // it is merged.
+            when { not { branch 'staging' } }
+            steps {
+                script {
+                    // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
+                    def ref = env.DASHBOARD_UI_REF
+                    if (!ref) {
+                        def wanted = env.CHANGE_BRANCH ?: env.BRANCH_NAME
+                        def found = wanted && sh(returnStatus: true,
+                            script: "git ls-remote --exit-code --heads ${DASHBOARD_UI_REPO} 'refs/heads/${wanted}' > /dev/null") == 0
+                        ref = found ? wanted : 'develop'
+                    }
+                    // .build/ is git-ignored, so the clone never enters a commit.
+                    sh "rm -rf .build/dashboard-ui && git clone --quiet --depth 1 --branch '${ref}' ${DASHBOARD_UI_REPO} .build/dashboard-ui"
+                    if (!fileExists('.build/dashboard-ui/Dockerfile')) {
+                        error("dashboard-ui ${ref} has no Dockerfile: merge the service into that branch of ${DASHBOARD_UI_REPO}, or set DASHBOARD_UI_REF")
+                    }
+                    env.DASHBOARD_UI_REF_USED = ref
+                    env.DASHBOARD_UI_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-ui rev-parse --short=12 HEAD').trim()
+                    echo "dashboard-ui: ${ref} @ ${env.DASHBOARD_UI_SHA}"
+                    sh 'bash ci/dashboard/verify-source.sh .build/dashboard-ui'
                 }
             }
         }
@@ -214,6 +245,12 @@ pipeline {
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
 
+                        if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
+                            UI_IMAGE="${ECR_REGISTRY}/openg2p/cropsown-registry/dashboard-ui:${DASHBOARD_UI_SHA}"
+                            docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
+                              -f .build/dashboard-ui/Dockerfile -t "$UI_IMAGE" .build/dashboard-ui
+                            docker push "$UI_IMAGE"
+                        fi
                         # Skipped when 'Checkout dashboard-api' did not run (staging).
                         if [ -n "${DASHBOARD_API_SHA:-}" ]; then
                             # The dashboard service, from its own repository (cloned by
@@ -309,6 +346,7 @@ pipeline {
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${ECR_REGISTRY}/openg2p/cropsown-registry/dashboard-ui" "${DASHBOARD_UI_SHA}"'
                     }
                 }
             }

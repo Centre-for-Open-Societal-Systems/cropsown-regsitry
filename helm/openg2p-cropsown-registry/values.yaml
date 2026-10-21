@@ -219,6 +219,13 @@ reporting:
       memory: 512Mi
 
 dashboardApi:
+  # Generic auth interface; environment-specific trust remains in registry Helm.
+  auth:
+    enabled: true
+    issuer: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ .Values.global.keycloakRealm | default "staff" }}'
+    iamUrl: ""
+    audience: cropsown-registry-dashboard-api
+    role: charts:read
   enabled: false
   image:
     repository: ""

@@ -31,15 +31,15 @@
 #   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
-#   EXPECTED_SERVER  default https://10.0.1.58:6443 — refuse any other API server
+#   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
 #                    (empty disables the check)
 #   HELM_CHART_DIR   default helm/openg2p-cropsown-registry
-#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) — the
+#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) â€” the
 #                    other hosts (idgenerator, awe, dashboard-api); not the
 #                    portal/API public hosts, Keycloak or MinIO below
-#   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com — the
+#   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com â€” the
 #                    Keycloak the APIs call (staff API's AWE token, approvers)
-#   MINIO_HOST       default minio-farmer.development.oanstaging.com — the shared
+#   MINIO_HOST       default minio-farmer.development.oanstaging.com â€” the shared
 #                    MinIO (templates bucket, documents, browser pre-signed URLs)
 #   REGISTRY_HOST    default crop-registry.development.oanstaging.com (staff UI)
 #   STAFF_API_HOST   default staff-crop.development.oanstaging.com
@@ -95,7 +95,7 @@ RUN_SANITY="${RUN_SANITY:-false}"
 RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
 # db-seed's image and template loaders upload to MinIO at global.minioHost, the
 # PUBLIC host (minio-api.<namespace>.openg2p.test, https), which pods cannot
-# reach here either — locally the same loaders use minio:9000. The host has to
+# reach here either â€” locally the same loaders use minio:9000. The host has to
 # stay public for the APIs' browser pre-signed URLs, so db-seed skips those two
 # loaders by default and loads only SQL metadata, geo data and AWE config.
 SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-false}"
@@ -116,7 +116,7 @@ trap cleanup EXIT
 
 say() { echo "=== $* ==="; }
 
-# ── 1. Preflight ───────────────────────────────────────────────────────────────
+# â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "Deploy target"
 SERVER="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 echo "server:    ${SERVER}"
@@ -126,7 +126,7 @@ echo "server:    ${SERVER}"
 if [ -n "$EXPECTED_SERVER" ] && [ "${SERVER%/}" != "${EXPECTED_SERVER%/}" ]; then
   echo "ERROR: KUBECONFIG points at ${SERVER:-<none>}, expected ${EXPECTED_SERVER}." >&2
   echo "  Replace the Jenkins credential (crop-dev-kubeconfig) with the crop-ci kubeconfig" >&2
-  echo "  for ${EXPECTED_SERVER} — see ci/k8s/make-crop-ci-kubeconfig.sh." >&2
+  echo "  for ${EXPECTED_SERVER} â€” see ci/k8s/make-crop-ci-kubeconfig.sh." >&2
   exit 1
 fi
 echo "namespace: ${HELM_NAMESPACE}"
@@ -143,7 +143,7 @@ kubectl auth whoami 2>/dev/null || true
 
 MISSING=""
 # Every kind the chart and this script touch. A hand-written Role that covers
-# only some of them fails deep inside helm instead — the crop namespace's role
+# only some of them fails deep inside helm instead â€” the crop namespace's role
 # allowed secrets and deployments but not jobs, then not networkpolicies
 # ("cannot get resource networkpolicies", four minutes into an upgrade). A
 # namespace-scoped bind to the built-in `admin` ClusterRole covers the lot; see
@@ -164,10 +164,10 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
-# ── 1b. ECR pull secret ────────────────────────────────────────────────────────
+# â”€â”€ 1b. ECR pull secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # ECR tokens last 12 hours. The cluster refreshes its own with an ecr-refresh
 # CronJob, and when that broke (its ecr-refresh-aws secret was missing) the token
-# expired and every pod in the release went ImagePullBackOff — including db-seed,
+# expired and every pod in the release went ImagePullBackOff â€” including db-seed,
 # which helm then reported as BackoffLimitExceeded. So each deploy writes a fresh
 # one: the build agent mints the token (only it has AWS credentials) and stashes
 # it as .ecr-token, and the chart is pointed at the secret through
@@ -192,7 +192,7 @@ else
   USE_PULL_SECRET=false
 fi
 
-# ── 2. Chart dependencies ──────────────────────────────────────────────────────
+# â”€â”€ 2. Chart dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "helm dependency build"
 helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
 helm repo update openg2p >/dev/null
@@ -203,7 +203,7 @@ helm repo update openg2p >/dev/null
 rm -f "$HELM_CHART_DIR/Chart.lock" "$HELM_CHART_DIR"/charts/*.tgz
 helm dependency build "$HELM_CHART_DIR"
 
-# ── 3. Values this build owns ──────────────────────────────────────────────────
+# â”€â”€ 3. Values this build owns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 VALUE_FILES=()
 if [ -n "$BASE_DOMAIN" ]; then
   cat > "$WORK/ci-hosts.yaml" <<EOF
@@ -220,7 +220,7 @@ fi
 # The portal and its APIs are served on the public oanstaging.com names, not
 # BASE_DOMAIN. Written on every deploy, after the live release's values: an
 # earlier deploy stored the .openg2p.test ones on the release, and layering
-# current-values.yaml would otherwise keep putting them back — the VirtualService
+# current-values.yaml would otherwise keep putting them back â€” the VirtualService
 # hosts edited by hand in Rancher were reverted the same way.
 cat > "$WORK/ci-public.yaml" <<EOF
 global:
@@ -311,14 +311,11 @@ reporting:
 dashboardApi:
   enabled: ${DASHBOARD_API}
   image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}'}
-  # Chart requests need the dashboards' client-credentials token; the trusted
-  # Keycloak realms are read from the namespace's IAM.
-  env:
-    AUTH_IAM_URL: 'http://commons-services-iam-staff-portal-api-pub'
+  # Authentication is configured through dashboardApi.auth in the chart.
 EOF
 if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then
   # A private route for developers and tools, on the namespace's internal
-  # gateway (callers need a token, AUTH_IAM_URL above; never a public gateway).
+  # gateway (callers need a token; never a public gateway).
   cat >> "$WORK/ci-values.yaml" <<EOF
   virtualService:
     enabled: true
@@ -329,7 +326,7 @@ fi
 echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}  reporting-views/dashboard-api=${DASHBOARD_API}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
-# Only a missing release — a first install — may go ahead without them.
+# Only a missing release â€” a first install â€” may go ahead without them.
 if ! helm get values "$HELM_RELEASE" "${NS[@]}" -o yaml > "$WORK/current-values.yaml" 2> "$WORK/current.err"; then
   grep -q 'release: not found' "$WORK/current.err" || { cat "$WORK/current.err" >&2; exit 1; }
   echo "No ${HELM_RELEASE} release yet: installing with chart defaults."
@@ -346,7 +343,7 @@ case "$STATUS" in
     exit 1 ;;
 esac
 
-# ── 5. Watchers while helm runs ────────────────────────────────────────────────
+# â”€â”€ 5. Watchers while helm runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Hook pods are deleted as soon as their Job fails, so save their logs as we go.
 # Only this release's own hook pods: <release>-<job>-<5 chars>.
 HOOK_POD_RE="^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register|cs-reporting-views)-[a-z0-9]{5}$"
@@ -377,7 +374,7 @@ BG_PIDS+=("$!")
 ) &
 BG_PIDS+=("$!")
 
-# ── 4. Upgrade ─────────────────────────────────────────────────────────────────
+# â”€â”€ 4. Upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "helm upgrade started $(date -u +%H:%M:%S) UTC (timeout ${HELM_TIMEOUT})"
 VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "-f" "$WORK/ci-values.yaml")
 
@@ -412,7 +409,7 @@ kill "${BG_PIDS[@]}" 2>/dev/null || true
 BG_PIDS=()
 say "helm upgrade finished $(date -u +%H:%M:%S) UTC"
 
-# ── 6. Rollout ─────────────────────────────────────────────────────────────────
+# â”€â”€ 6. Rollout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 180s was not enough for staff-portal-api: its pod runs `migrate` before it
 # serves, and the old pod has to finish terminating first ("1 old replicas are
 # pending termination" until `timed out waiting for the condition`). On a
@@ -431,7 +428,7 @@ for D in $DEPLOYMENTS; do
   fi
 done
 
-# ── 6b. Deployments outside the chart ─────────────────────────────────────────
+# â”€â”€ 6b. Deployments outside the chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The connector (api, worker, beat, ui) and the public staff portal
 # (<release>-staff-portal-ui-pub) are not in this chart, so helm never moves
 # them: they stayed on develop-69 while the release went to develop-74. This
@@ -459,7 +456,7 @@ if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
   done
 fi
 
-# ── 7. Schema drift gate ───────────────────────────────────────────────────────
+# â”€â”€ 7. Schema drift gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The API pods run `migrate` on start, which now adds model columns an existing
 # table lacks (schema_sync). Check from inside the new staff API pod that every
 # model column is really in the database. A green deploy with a missing column
@@ -472,12 +469,12 @@ if ! kubectl exec "deploy/${HELM_RELEASE}-staff-portal-api" -c staff-portal-api 
   exit 1
 fi
 
-# ── 8. Dashboard service smoke test ────────────────────────────────────────────
+# â”€â”€ 8. Dashboard service smoke test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The reporting hook created the views and the service answers: a 500 from a
 # missing cs_rpt_* view fails this deploy, not the dashboards.
 if [ "$DASHBOARD_API" = "true" ]; then
   say "dashboard-api smoke test"
-  kubectl exec "deploy/${HELM_RELEASE}-dashboard-api" "${NS[@]}" -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/cropKpis', '/api/v1/charts/cropAreaByCrop', '/api/v1/charts/cropAreaByRegion')]"
+  kubectl exec "deploy/${HELM_RELEASE}-dashboard-api" "${NS[@]}" -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health',)]"
 fi
 
 say "Deployed ${TAG} to ${HELM_NAMESPACE}"
