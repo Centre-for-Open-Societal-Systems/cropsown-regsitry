@@ -348,7 +348,7 @@ pipeline {
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
-                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${ECR_REGISTRY}/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
+                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
                     }
                 }
             }
