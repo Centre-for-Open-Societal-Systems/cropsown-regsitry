@@ -35,3 +35,5 @@ jobs:
           helm dependency build helm/openg2p-cropsown-registry
       - name: Render isolated dev and staging routing profiles
         run: python -m pytest test/test_chart_environments.py -q
+      - name: Dashboard deployment stash and digest label regressions
+        run: python -m pytest test/test_dashboard_delivery.py -q
