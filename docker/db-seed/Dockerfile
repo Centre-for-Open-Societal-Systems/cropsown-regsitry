@@ -36,3 +36,6 @@ RUN chmod +x /seed/entrypoint-cropsown.sh
 # (templates/reporting-views.yaml), not by the seed entrypoint.
 COPY docker/db-seed/reporting_views.sql                                        /seed/reporting_views.sql
 ENTRYPOINT ["/seed/entrypoint-cropsown.sh"]
+
+# Optional Secret-backed staff provisioning after normal seed stages.
+COPY docker/db-seed/staff_access.py /seed/staff_access.py

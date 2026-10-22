@@ -119,3 +119,5 @@ SQL
 }
 
 rewrite_approver_rules
+
+python3 /seed/staff_access.py
