@@ -9,3 +9,18 @@ On Submit, the existing two-approval flow looks up the Farmer ID and FAN togethe
 A successful lookup raises a separate Farmer register change-request alongside the Crop intake approval item. Normal approval makes the local Farmer reference active. An existing active Farmer reference or pending Farmer request is reused without a duplicate. A lookup failure is logged and leaves the original Crop intake workflow running. This does not add autofill while typing FAN or replay historical submissions.
 
 Both `CROPSOWN_FARMER_ENRICHMENT_ENABLED` and `CROPSOWN_TWO_CR_ENABLED` are required. Startup installs the existing helper once, after intake validation hooks. Enabled hook-installation failures fail startup. Jenkins checks configuration and signing Secret metadata before deployment, and checks both workloads and their hook-installation logs after rollout. Missing configuration or hooks fails the deployment stage.
+
+Both identifiers must exist on the same active source Farmer. An empty source
+`foundational_id` produces no match even when the Farmer ID is valid. Complete
+and approve the source Farmer identity through its normal workflow before
+retrying the reference operation; never copy an unverified intake FAN into the
+source registry or weaken the lookup to an ID-only search. Draft intakes do not
+trigger enrichment. Existing finalized submissions must be inspected before any
+targeted retry; do not replay approval or ingestion to retry a lookup.
+
+Lookup diagnostics use the application logger and omit Farmer IDs, FANs, tokens
+and payloads. Even reuse of an active reference requires a successful identity
+lookup. Missing/invalid identifiers, malformed/multiple results or a returned
+UIN that differs from the requested FAN do not create a reference. Outages leave
+the normal Crop approval workflow running; those submissions require a reviewed
+retry after recovery. See `postman/README.md` for executable HTTP fault tests.
