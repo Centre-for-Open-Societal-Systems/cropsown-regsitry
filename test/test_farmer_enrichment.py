@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sqlite3
+import re
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -177,3 +178,18 @@ def test_policy_seed_removes_known_duplicates_and_preserves_custom_configuration
     assert not c.execute('SELECT 1 FROM g2p_registry_awe_policy_configurations WHERE awe_policy_config_id=?',(old[0],)).fetchone()
     assert c.execute('SELECT 1 FROM g2p_registry_awe_policy_configurations WHERE awe_policy_config_id=?',('custom',)).fetchone()
     assert c.execute("SELECT policy_key FROM g2p_registry_awe_policy_configurations WHERE register_id='fa120001-0000-4000-8000-000000000001'").fetchone()==('registry.change_request.cropsown',)
+
+
+def test_farmer_change_fields_obey_the_section_editable_field_contract():
+    from datetime import date
+    source=(EXT/'meta_data/register-metadata/zz_farmer_register.sql').read_text(encoding='utf-8')
+    allowed=set(re.findall(r'"widget-data-path":"fa120001-0000-4000-8000-000000000001\.([a-z_]+)"',source))
+    assert allowed
+    path=EXT/'register_domain/services/farmer_register_crossref.py'
+    tree=ast.parse(path.read_text(encoding='utf-8'))
+    function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_cr_fields')
+    scope={'date':date}
+    exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),scope)
+    fields=scope['_cr_fields']('FR-123456789012',{'first_name':'Test','last_name':'Farmer','date_of_birth':date(1990,1,1)},'Test Farmer')
+    assert set(fields)<=allowed
+    assert fields['first_name']=='Test' and fields['date_of_birth']=='1990-01-01'

@@ -173,20 +173,17 @@ async def _draft_shell_for(farmer_id: str, farmer_name: str, fayda: str | None) 
 
 
 def _cr_fields(farmer_id: str, fields: dict, farmer_name: str) -> dict:
-    """The Farmer-register change-payload: enriched identity, DRAFT status."""
+    """Editable Farmer identity fields; status and display names are server-derived."""
     dob = fields.get("date_of_birth")
     return {
         "farmer_id": farmer_id,
         "fayda_fan_id": fields.get("fayda_fan_id"),
-        "farmer_name": farmer_name,
         "first_name": fields.get("first_name"),
         "middle_name": fields.get("middle_name"),
         "last_name": fields.get("last_name"),
         "gender": fields.get("gender"),
         "date_of_birth": dob.isoformat() if isinstance(dob, date) else dob,
         "mobile_number": fields.get("mobile_number"),
-        "status": "APPROVAL_STATUS_DRAFT",
-        "record_name": farmer_name,
     }
 
 
@@ -358,6 +355,17 @@ def _install_approve_register(farmer_register_id: str) -> None:
                 self._update_existing_record(existing, schema_instance.dict(), change_payload, register_class)
                 _logger.info("two-CR approve: updated Farmer row internal_id=%s name=%s",
                              change_request.internal_record_id, change_payload.get("farmer_name"))
+            # These derived fields are intentionally absent from the editable
+            # section payload. Compute them only when normal approval succeeds.
+            farmer_name = compose_farmer_name(
+                getattr(existing, "first_name", None),
+                getattr(existing, "middle_name", None),
+                getattr(existing, "last_name", None),
+            )
+            if farmer_name:
+                self._set_if_column(existing, "farmer_name", farmer_name)
+                self._set_if_column(existing, "record_name", farmer_name)
+            self._set_if_column(existing, "search_text", existing.get_search_text_fields())
             self._set_if_column(existing, "record_status", "ACTIVE")
             self._set_if_column(existing, "status", "APPROVAL_STATUS_APPROVED")
             self._set_if_column(existing, "last_approved_at", change_request.approved_at)
