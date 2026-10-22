@@ -150,6 +150,10 @@ def build_search_request(farmer_id: str | None, fayda: str | None, cfg: dict) ->
 
     Whichever of the two is provided becomes an ``$eq`` clause; SQLAlchemy ANDs
     them, so a record returns only when both belong to the same farmer."""
+    # The intake accepts FAN as four groups of four digits. Farmer Registry
+    # stores its foundational ID without display spaces; consent uses that
+    # same canonical identifier.
+    fayda = "".join(str(fayda).split()) if not is_blank(fayda) else None
     now = datetime.now(timezone.utc)
     timestamp = now.isoformat()
     query: dict = {}

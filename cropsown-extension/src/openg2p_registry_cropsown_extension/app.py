@@ -116,6 +116,13 @@ class Initializer(BaseInitializer):
         except Exception as exc:
             _logger.warning("Could not initialize cropsown intake hooks: %s", exc)
 
+        # Wrap the already-installed intake validation hooks. When enabled,
+        # a wiring failure must not silently disable the requested workflow.
+        if os.environ.get("CROPSOWN_TWO_CR_ENABLED", "false").strip().lower() in {"true", "1", "yes"}:
+            from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
+            from .register_domain.services.farmer_register_crossref import install
+            install(G2PIntakeFormDataService)
+
         try:
             from .register_domain.controllers import (
                 G2PApproverResolverController,
