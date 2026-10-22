@@ -200,18 +200,7 @@ def test_native_update_retry_guard_locks_then_reuses_processed_request(tmp_path)
     spec=importlib.util.spec_from_file_location('retry_guard',path)
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     worker=tmp_path/'worker.py'
-    worker.write_text('''async def process(ingest_id):
-    async with maker() as session:
-        async with session.begin():
-                classified = await session.get(IncomingClassifiedData, ingest_id)
-                if classified is None:
-                    raise ValueError("missing")
-                if (
-                    classified.pipeline_action or "ADD"
-                ) != "UPDATE":
-                    raise ValueError("action")
-                await create_request()
-''')
+    worker.write_text((ROOT/'test/fixtures/change_request_ingest_worker_rc544.py.txt').read_text())
     source=module.apply(worker);assert module.apply(worker)==source
     assert '.with_for_update()' in source
     class Context:
@@ -225,4 +214,10 @@ def test_native_update_retry_guard_locks_then_reuses_processed_request(tmp_path)
     create=AsyncMock()
     scope={'maker':Context,'select':lambda *_:Query(),'IncomingClassifiedData':types.SimpleNamespace(ingest_id='id'),
            'ProcessStatusEnum':types.SimpleNamespace(PROCESSED=types.SimpleNamespace(value='PROCESSED')),'create_request':create}
-    exec(source,scope);asyncio.run(scope['process']('same-event'));create.assert_not_awaited()
+    tree=ast.parse(source)
+    functions=[node for node in tree.body if isinstance(node,ast.AsyncFunctionDef) and node.name in ['_process_change_request_ingest_async','_mark_change_request_ingest_failure']]
+    scope.update({'_session_maker':Context,'_logger':Mock(),'datetime':Mock()})
+    exec(compile(ast.Module(body=functions,type_ignores=[]),str(worker),'exec'),scope)
+    asyncio.run(scope['_process_change_request_ingest_async']('same-event'))
+    asyncio.run(scope['_mark_change_request_ingest_failure']('same-event','notification failed',Context))
+    create.assert_not_awaited()
