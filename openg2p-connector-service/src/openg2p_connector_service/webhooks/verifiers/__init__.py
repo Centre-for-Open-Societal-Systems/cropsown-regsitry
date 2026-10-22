@@ -29,12 +29,10 @@ def verify_webhook(
 ) -> None:
     """Dispatch to the named verifier.
 
-    No-op when secret is empty OR verifier_name is 'none'. Use
-    ``webhook_verifier=none`` for hubs that send a ``hub.secret`` on
-    subscribe but do not include ``X-Hub-Signature-256`` on delivery
-    (e.g. MOSIP KafkaHub).
+    Only the explicit verifier_name 'none' disables verification. MOSIP WebSub
+    sends X-Hub-Signature; hmac_sha256 accepts that header and the -256 variant.
     """
-    if not secret or verifier_name == "none":
+    if verifier_name == "none":
         return
     fn = verifier_registry.get(verifier_name)
     if fn is None:

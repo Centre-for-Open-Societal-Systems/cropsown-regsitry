@@ -53,3 +53,11 @@ jobs:
           CROP_FARMER_SIMULATION_URL=http://127.0.0.1:49180/farmer python -m pytest test/test_farmer_enrichment_http.py -q
       - name: Dashboard deployment stash and digest label regressions
         run: python -m pytest test/test_dashboard_delivery.py -q
+      - name: Connector WebSub security and pipeline regressions
+        env:
+          CONNECTOR_CELERY_BROKER_URL: memory://
+          CONNECTOR_CELERY_RESULT_BACKEND: cache+memory://
+        run: |
+          pip install --quiet -e './openg2p-connector-service[dev]'
+          cd openg2p-connector-service
+          python -m pytest tests -q

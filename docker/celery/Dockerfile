@@ -21,6 +21,8 @@ COPY cropsown-extension/ /app/cropsown-extension/
 # when bumping RP_VERSION.
 COPY docker/celery/patches/intake_form_register_ingest_worker.py /usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/tasks/intake_form_register_ingest_worker.py
 COPY docker/celery/patches/import_file_process_worker.py /usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/tasks/import_file_process_worker.py
+COPY docker/celery/patches/guard_change_request_retries.py /tmp/guard_change_request_retries.py
+RUN python /tmp/guard_change_request_retries.py && rm /tmp/guard_change_request_retries.py
 # Build-only escape hatch for networks that intercept TLS (corporate proxy, AV,
 # some WSL setups): pip then sees a self-signed root CA and cannot verify
 # pypi.org. Empty by default, so CI and Helm builds are unchanged. Locally:

@@ -61,12 +61,14 @@ class PartnerIngestClient:
         # Detect application-level failures via the G2P response envelope and
         # raise so the connector treats them as failures (→ DLQ) rather than
         # silently logging them as success with an empty correlation_id.
+        if not isinstance(body, dict):
+            raise ValueError("Partner API returned an invalid response envelope")
         response_header = body.get("response_header") or {}
-        if response_header.get("response_status") == "ERROR":
+        message = body.get("message") or {}
+        if response_header.get("response_status") == "ERROR" or body.get("errors") or (isinstance(message, dict) and (message.get("error") or {}).get("code")):
             err_code = response_header.get("response_error_code", "")
-            err_msg = response_header.get("response_error_message", "unknown")
             raise ValueError(
-                f"Partner API rejected payload: [{err_code}] {err_msg}"
+                f"Partner API rejected payload: [{err_code}]"
             )
 
         # Keys may be present with JSON null — dict.get("k", {}) returns None if k maps to null.
@@ -75,7 +77,10 @@ class PartnerIngestClient:
         correlation_id = (
             response_payload.get("correlation_id")
             or body.get("correlation_id", "")
+            or (message.get("correlation_id") if isinstance(message, dict) else None)
             or ""
         )
+        if not isinstance(correlation_id, str) or not correlation_id.strip():
+            raise ValueError("Partner API omitted a correlation_id")
         _logger.info("Registry accepted payload, correlation_id=%s", correlation_id)
         return correlation_id

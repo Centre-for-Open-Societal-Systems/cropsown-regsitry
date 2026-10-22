@@ -98,6 +98,7 @@ async def test_webhook_by_slug(app_client):
         platform="generic",
         transport_type="webhook",
         webhook_path_slug="my-test-slug",
+        webhook_verifier="none",
     ))
     assert resp.status_code == 201
 
@@ -115,6 +116,7 @@ async def test_websub_uses_webhook_delivery_path(app_client):
         platform="edrmc_websub",
         transport_type="websub",
         webhook_path_slug="edrmc-websub",
+        webhook_verifier="none",
     ))
     assert resp.status_code == 201
     cid = resp.json()["connector_id"]

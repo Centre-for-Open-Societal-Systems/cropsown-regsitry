@@ -48,6 +48,19 @@ def _extract_payload(
 ) -> tuple[str | None, dict]:
     """Return (source_event_id, data) after optional envelope extraction."""
     cfg = connector.get_source_config()
+    if connector.transport_type == "websub" and cfg.get("websub_content_envelope"):
+        content = body_json.get("hub.content")
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except ValueError:
+                raise HTTPException(400, "Invalid WebSub content") from None
+        if not isinstance(content, dict):
+            raise HTTPException(400, "WebSub content must be a JSON object")
+        event_id = content.get("event_id")
+        if not isinstance(event_id, str) or not event_id.strip():
+            raise HTTPException(400, "WebSub event_id is required")
+        return event_id, content
     data_path = cfg.get("webhook_payload_envelope", cfg.get("data_path"))
 
     if data_path:
@@ -64,15 +77,14 @@ def _extract_payload(
 
 async def _handle_webhook(connector_id: str, request: Request, *, by_slug: bool = False):
     raw_body = await request.body()
+    connector = await _resolve_connector(connector_id, by_slug=by_slug)
+    secret = connector.webhook_secret or get_settings().webhook_default_secret
+    verify_webhook(connector.webhook_verifier, secret, raw_body, dict(request.headers))
 
     try:
         body_json = json.loads(raw_body)
     except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(400, f"Invalid JSON body: {exc}") from exc
-
-    connector = await _resolve_connector(connector_id, by_slug=by_slug)
-    secret = connector.webhook_secret or get_settings().webhook_default_secret
-    verify_webhook(connector.webhook_verifier, secret, raw_body, dict(request.headers))
 
     source_event_id, data = _extract_payload(body_json, connector)
 
