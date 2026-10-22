@@ -47,6 +47,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 from openg2p_fastapi_common.context import dbengine
+from openg2p_fastapi_common.config import Settings as CommonSettings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -56,7 +57,7 @@ from .farmer_registry_enrichment import (
     to_farmer_fields,
 )
 
-_logger = logging.getLogger("g2p-cropsown-two-cr")
+_logger = logging.getLogger(CommonSettings.get_config(strict=False).logging_default_logger_name)
 
 _DEFAULT_REGISTER_ID = "fa120001-0000-4000-8000-000000000001"
 _DEFAULT_TAB_ID = "cropsown_farmer_tab"
