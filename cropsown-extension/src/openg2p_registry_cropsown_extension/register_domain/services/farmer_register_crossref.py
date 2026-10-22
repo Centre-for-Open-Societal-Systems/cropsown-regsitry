@@ -248,7 +248,9 @@ async def raise_farmer_change_request(submission_id: str, bearer_token: str | No
 
                     internal_record_id = await _draft_shell_for(farmer_id, farmer_name, fields.get("fayda_fan_id"))
 
-                    change = ChangePayload(internal_record_id=internal_record_id, edit_action="ADD")
+                    # This scalar REGISTER section permits UPDATE, not ADD.
+                    # The hidden shell already exists; normal approval fills it.
+                    change = ChangePayload(internal_record_id=internal_record_id, edit_action="UPDATE")
                     payload_fields = _cr_fields(farmer_id, fields, farmer_name)
                     try:
                         change.__pydantic_extra__ = dict(getattr(change, "__pydantic_extra__", None) or {})
