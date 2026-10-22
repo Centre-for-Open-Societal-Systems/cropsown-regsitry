@@ -7,11 +7,14 @@ def apply(path):
     marker='# COSS: lock and reuse an already ingested UPDATE'
     if marker in source:return source
     old='classified = await session.get(IncomingClassifiedData, ingest_id)'
-    assert source.count(old)==1,'Pinned UPDATE worker changed; review retry guard'
+    assert source.count(old)==2,'Pinned UPDATE worker changed; review retry guard'
     source=source.replace(old,'classified = (await session.execute(select(IncomingClassifiedData).where(\n                    IncomingClassifiedData.ingest_id == ingest_id).with_for_update())).scalar_one_or_none()')
     anchor='                if (\n                    classified.pipeline_action'
     assert source.count(anchor)==1,'Pinned UPDATE dispatch changed; review retry guard'
     source=source.replace(anchor,'                '+marker+'\n                if classified.ingestion_status == ProcessStatusEnum.PROCESSED.value and classified.change_request_id:\n                    return\n'+anchor)
+    failure='        if classified.ingestion_number_of_attempts < _config.worker_max_attempts:'
+    assert source.count(failure)==1,'Pinned UPDATE failure handler changed; review retry guard'
+    source=source.replace(failure,'        if classified.ingestion_status == ProcessStatusEnum.PROCESSED.value and classified.change_request_id:\n            return\n'+failure)
     compile(source,str(path),'exec')
     path.write_text(source,encoding='utf-8')
     return source
