@@ -81,6 +81,23 @@ def test_connection_failure_does_not_escape(helper):
     with patch.dict(os.environ,{'CROPSOWN_FARMER_DCI_URL':'http://127.0.0.1:1/unreachable'}):
         assert asyncio.run(helper['fetch_farmer_record'](FID,FAN)) is None
 
+@pytest.mark.parametrize('mode',['success','zero','wrong-identity','timeout'])
+def test_notification_uses_current_lookup_and_raises_for_pipeline_retry(helper,mode):
+    base=os.environ.get('CROP_FARMER_SIMULATION_URL')
+    if not base:pytest.skip('Start the Postman simulation')
+    path=EXT.parents[1]/'ingestion_pipeline/enricher_services/farmer_reference.py'
+    node=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.ClassDef))
+    scope={**helper,'G2PPayloadEnricherInterface':object,'asyncio':asyncio}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),scope)
+    service=scope['G2PFarmerReferenceNotificationEnricher']()
+    with patch.dict(os.environ,{'CROPSOWN_FARMER_DCI_URL':base+'/'+mode}):
+        event={'farmer_id':FID,'fayda_fan_id':FAN,'first_name':'Stale Event Name'}
+        if mode=='success':
+            fields=service.enrich(event,None)
+            assert fields['first_name']=='Synthetic' and fields['first_name']!=event['first_name']
+        else:
+            with pytest.raises(ValueError,match='LOOKUP_NOT_RESOLVED'):service.enrich(event,None)
+
 @pytest.mark.parametrize('resolved,active,pending,expected',[(False,True,False,0),(True,True,False,0),(True,False,True,0),(True,False,False,1)])
 def test_reuse_requires_resolved_identity_and_concurrent_requests_deduplicate(resolved,active,pending,expected):
     import sys,types

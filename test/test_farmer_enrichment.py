@@ -193,3 +193,36 @@ def test_farmer_change_fields_obey_the_section_editable_field_contract():
     fields=scope['_cr_fields']('FR-123456789012',{'first_name':'Test','last_name':'Farmer','date_of_birth':date(1990,1,1)},'Test Farmer')
     assert set(fields)<=allowed
     assert fields['first_name']=='Test' and fields['date_of_birth']=='1990-01-01'
+
+def test_native_update_retry_guard_locks_then_reuses_processed_request(tmp_path):
+    import types
+    path=ROOT/'docker/celery/patches/guard_change_request_retries.py'
+    spec=importlib.util.spec_from_file_location('retry_guard',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    worker=tmp_path/'worker.py'
+    worker.write_text('''async def process(ingest_id):
+    async with maker() as session:
+        async with session.begin():
+                classified = await session.get(IncomingClassifiedData, ingest_id)
+                if classified is None:
+                    raise ValueError("missing")
+                if (
+                    classified.pipeline_action or "ADD"
+                ) != "UPDATE":
+                    raise ValueError("action")
+                await create_request()
+''')
+    source=module.apply(worker);assert module.apply(worker)==source
+    assert '.with_for_update()' in source
+    class Context:
+        async def __aenter__(self):return self
+        async def __aexit__(self,*a):pass
+        def begin(self):return self
+        async def execute(self,statement):return types.SimpleNamespace(scalar_one_or_none=lambda:types.SimpleNamespace(ingestion_status='PROCESSED',change_request_id='existing',pipeline_action='UPDATE'))
+    class Query:
+        def where(self,*a):return self
+        def with_for_update(self):return self
+    create=AsyncMock()
+    scope={'maker':Context,'select':lambda *_:Query(),'IncomingClassifiedData':types.SimpleNamespace(ingest_id='id'),
+           'ProcessStatusEnum':types.SimpleNamespace(PROCESSED=types.SimpleNamespace(value='PROCESSED')),'create_request':create}
+    exec(source,scope);asyncio.run(scope['process']('same-event'));create.assert_not_awaited()

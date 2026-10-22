@@ -1,3 +1,4 @@
+from .farmer_reference import G2PFarmerReferenceNotificationEnricher
 from .g2p_cropsown_enricher_services import (
     G2PDciCropSownCreateEnricherService,
     G2PDciCropSownUpdateEnricherService,

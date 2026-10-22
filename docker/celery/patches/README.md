@@ -1,5 +1,10 @@
 # Celery worker patches
 
+`guard_change_request_retries.py` applies a small build-time guard to the pinned
+native UPDATE worker: lock the classified row and reuse a completed change
+request on duplicate Celery delivery. It fails the image build when its pinned
+source anchors change, rather than silently applying an unreviewed patch.
+
 Files here are mounted over the corresponding modules inside the
 `openg2p/openg2p-registry-celery` base image (see `docker-compose.yml`,
 service `celery-worker`), the same way `core_pkg` and the extension are

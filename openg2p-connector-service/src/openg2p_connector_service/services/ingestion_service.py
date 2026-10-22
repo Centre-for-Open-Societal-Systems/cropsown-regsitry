@@ -1,6 +1,7 @@
 """Idempotent ingestion pipeline: dedupe -> validate -> map -> wrap -> send -> record."""
 
 import json
+import os
 import logging
 import time
 import uuid
@@ -8,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import jmespath
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,6 +88,10 @@ class IngestionService:
 
         # --- idempotency: return canonical run, bump counter — no new IngestionRun row ---
         if source_event_id:
+            if session.bind.dialect.name == "postgresql":
+                # Keep the per-event lock through send and the caller's commit.
+                await session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                                      {"key":connector_id+":"+source_event_id})
             ik_row = await session.execute(
                 select(IdempotencyKey).where(
                     IdempotencyKey.connector_id == connector_id,
@@ -127,10 +132,9 @@ class IngestionService:
         session.add(run)
 
         # --- optional envelope extraction ---
-        data = self._extract_envelope(connector, raw_data)
-
         # --- map ---
         try:
+            data = self._extract_envelope(connector, raw_data)
             mapped = self._apply_mapper(connector, data)
         except Exception as exc:
             self._attach_run_payload(run, source=raw_data, mapped=None, outbound=None)
@@ -228,6 +232,13 @@ class IngestionService:
     ) -> dict[str, Any]:
         """Apply optional JMESPath envelope extraction from source_config_json."""
         cfg = connector.get_source_config()
+        if connector.transport_type == "websub" and cfg.get("websub_content_envelope"):
+            content = raw_data.get("hub.content")
+            if isinstance(content, str):
+                content = json.loads(content)
+            if not isinstance(content, dict):
+                raise ValueError("WebSub content must be a JSON object")
+            raw_data = content
         envelope = cfg.get("webhook_payload_envelope") or cfg.get("data_path")
         if envelope:
             result = jmespath.search(envelope, raw_data)
@@ -243,7 +254,10 @@ class IngestionService:
         register_mnemonic_override: str | None = None,
     ) -> dict[str, Any]:
         """Wrap *data* in the G2P request envelope expected by Partner API."""
+        sign_payload = connector.get_source_config().get("sign_registry_payload")
         if isinstance(data.get("header"), dict) and data["header"].get("sender_id"):
+            if sign_payload:
+                raise ValueError("Prewrapped payloads are not accepted by a signing connector")
             return data
 
         sender_id = (connector.g2p_sender_id or "").strip()
@@ -264,7 +278,7 @@ class IngestionService:
         message_id = source_event_id or uuid.uuid4().hex
         payload: dict[str, Any] = {**data, "register_mnemonic": register_mnemonic}
 
-        return {
+        envelope = {
             "header": {
                 "message_id": message_id,
                 "sender_id": sender_id,
@@ -276,6 +290,20 @@ class IngestionService:
                 "payload": payload,
             },
         }
+        if sign_payload:
+            from jwt.api_jws import PyJWS
+            key = os.environ.get("CONNECTOR_SIGNING_KEY_PEM", "")
+            kid = os.environ.get("CONNECTOR_SIGNING_KID", "")
+            if not key or not kid:
+                raise ValueError("Registry payload signing is not configured")
+            payload = json.dumps(envelope["message"]["payload"], sort_keys=True,
+                                 separators=(",", ":"), ensure_ascii=False).encode()
+            try:
+                protected, _, signature = PyJWS().encode(payload, key, algorithm="EdDSA", headers={"kid":kid}).split(".")
+            except Exception:
+                raise ValueError("Registry payload signing failed") from None
+            envelope["header"].update(signature=protected+".."+signature, signature_algorithm="EdDSA")
+        return envelope
 
     def _resolve_route_targets(
         self,
