@@ -46,6 +46,10 @@ except Exception:
 __version__ = "1.0.0"
 __variant__ = "cropsown"
 
+if os.environ.get("CROPSOWN_TWO_CR_ENABLED", "false").strip().lower() in {"true", "1", "yes"}:
+    from .worker_hooks import connect
+    connect()
+
 try:
     from . import odk_ingest_hooks  # noqa: F401
 except ImportError:

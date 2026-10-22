@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sqlite3
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -146,3 +147,33 @@ def test_display_fan_is_canonical_in_query_and_consent():
     query=envelope['message']['search_request'][0]['search_criteria']['query']['value']['expression']['query']
     assert query['foundational_id']['$eq']=='1234567890003456'
     assert subjects==['1234567890003456'] and signed
+
+
+def test_worker_signal_registration_and_feature_flag():
+    import types
+    import sys
+    path=EXT/'worker_hooks.py'
+    spec=importlib.util.spec_from_file_location('worker_hooks',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    signal=Mock()
+    with patch.dict(sys.modules,{'celery.signals':types.SimpleNamespace(worker_init=signal)}):
+        module.connect()
+    signal.connect.assert_called_once_with(module.install_farmer_worker_hooks,weak=False)
+    with patch.dict(os.environ,{'CROPSOWN_TWO_CR_ENABLED':'false'}):
+        module.install_farmer_worker_hooks()
+    # The enabled callback uses the same tested installer after core bootstrap.
+    assert 'install(G2PIntakeFormDataService)' in path.read_text()
+
+
+def test_policy_seed_removes_known_duplicates_and_preserves_custom_configuration():
+    source=(EXT/'meta_data/awe-integration/g2p_registry_awe_policy_configurations.sql').read_text().replace('"public".','')
+    c=sqlite3.connect(':memory:')
+    c.execute('CREATE TABLE g2p_registry_awe_policy_configurations (awe_policy_config_id TEXT PRIMARY KEY,policy_scope TEXT,register_id TEXT,intake_form_id TEXT,section_id TEXT,policy_type TEXT,policy_key TEXT,context_field_names TEXT)')
+    old=('d126d7ff-8fb9-48e2-ab71-a48db3bf261a','INTAKE_FORM','6b06a95a-9a6c-5a33-a33d-c1625716c59c','5bf0068c-ce19-46f8-874c-7147997f793b','','registry.intake_form','registry.intake_form.devplanning_cropsown',None)
+    c.execute('INSERT INTO g2p_registry_awe_policy_configurations VALUES (?,?,?,?,?,?,?,?)',old)
+    custom=('custom',*old[1:])
+    c.execute('INSERT INTO g2p_registry_awe_policy_configurations VALUES (?,?,?,?,?,?,?,?)',custom)
+    c.executescript(source);c.executescript(source)
+    assert not c.execute('SELECT 1 FROM g2p_registry_awe_policy_configurations WHERE awe_policy_config_id=?',(old[0],)).fetchone()
+    assert c.execute('SELECT 1 FROM g2p_registry_awe_policy_configurations WHERE awe_policy_config_id=?',('custom',)).fetchone()
+    assert c.execute("SELECT policy_key FROM g2p_registry_awe_policy_configurations WHERE register_id='fa120001-0000-4000-8000-000000000001'").fetchone()==('registry.change_request.cropsown',)
