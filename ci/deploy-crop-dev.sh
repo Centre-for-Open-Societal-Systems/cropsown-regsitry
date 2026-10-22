@@ -376,7 +376,8 @@ BG_PIDS+=("$!")
 
 # â”€â”€ 4. Upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "helm upgrade started $(date -u +%H:%M:%S) UTC (timeout ${HELM_TIMEOUT})"
-VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "-f" "$WORK/ci-values.yaml")
+VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} \
+  "-f" "helm/environments/dev/farmer-enrichment.yaml" "-f" "$WORK/ci-values.yaml")
 
 # Render exactly what the upgrade applies, as farmer-registry's pipeline does: a
 # chart or values mistake then fails here, before anything is changed.
@@ -385,6 +386,8 @@ echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
 # Client dry-run converts YAML to JSON without applying resources or logging Secrets.
 kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
   python3 ci/check-new-dev-routes.py crop --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"
+kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
+  python3 ci/check-farmer-enrichment.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" --check-live-secret
 
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
@@ -429,6 +432,10 @@ for D in $DEPLOYMENTS; do
 done
 
 # â”€â”€ 6b. Deployments outside the chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+kubectl get deployment "$HELM_RELEASE-staff-portal-api" "$HELM_RELEASE-celery-worker" "${NS[@]}" -o json | \
+  python3 ci/check-farmer-enrichment.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" \
+    --check-live-secret --check-runtime-hooks
+
 # The connector (api, worker, beat, ui) and the public staff portal
 # (<release>-staff-portal-ui-pub) are not in this chart, so helm never moves
 # them: they stayed on develop-69 while the release went to develop-74. This

@@ -1,0 +1,28 @@
+# Crop's dedicated internal-intake identity. Private PEM stays in the cluster.
+registry:
+  staffApi:
+    envVars: &farmerLookup
+      CROPSOWN_TWO_CR_ENABLED: "true"
+      CROPSOWN_FARMER_ENRICHMENT_ENABLED: "true"
+      CROPSOWN_FARMER_DCI_URL: http://farmer-registry-partner-api.farmer.svc.cluster.local/dci/registry/sync/search
+      CROPSOWN_DCI_SENDER_ID: Crop_sown_partner_internal
+      CROPSOWN_DCI_RECEIVER_ID: farmer-registry
+      CROPSOWN_CM_SIGNING_KID: crop-lookup-ed25519-a26349ea5e745eb0
+      CROPSOWN_CM_ALG: EdDSA
+      CROPSOWN_CM_PARTNER_AUD: crop-registry
+      CROPSOWN_CM_CONTROLLER_ID: farmer-registry
+      CROPSOWN_CM_SCOPES: farmer_personal_details
+      CROPSOWN_CM_PURPOSE: registry_intake
+      CROPSOWN_FARMER_DCI_TIMEOUT: "10"
+      CROPSOWN_FARMER_REGISTER_ID: fa120001-0000-4000-8000-000000000001
+      CROPSOWN_FARMER_TAB_ID: cropsown_farmer_tab
+      CROPSOWN_FARMER_SECTION_ID: cropsown_farmer_identity_section_01
+      CROPSOWN_TWO_CR_INTAKE_TABLE: g2p_intake_form_crop_sowns
+    envVarsFrom: &farmerSigningKey
+      CROPSOWN_CM_SIGNING_KEY_PEM:
+        secretKeyRef:
+          name: crop-farmer-lookup-signing-ed25519
+          key: private-key.pem
+  celeryWorker:
+    envVars: *farmerLookup
+    envVarsFrom: *farmerSigningKey
