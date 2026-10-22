@@ -1,0 +1,10 @@
+version: 1
+name: Farmer DCI contract
+slug: farmer-dci
+protocol: http
+port: 49181
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

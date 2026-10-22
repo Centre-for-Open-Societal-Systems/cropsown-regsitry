@@ -137,7 +137,7 @@ def test_display_fan_is_canonical_in_query_and_consent():
     tree=ast.parse(path.read_text(encoding='utf-8'))
     function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='build_search_request')
     signed=[];subjects=[]
-    scope={'datetime':datetime,'timezone':timezone,'uuid':uuid,
+    scope={'datetime':datetime,'timezone':timezone,'uuid':uuid,'re':re,
            'is_blank':lambda v:v is None or not str(v).strip(),
            '_consent_jws':lambda subject,*_:subjects.append(subject) or 'consent',
            '_sign':lambda payload,*a,**k:signed.append(payload) or 'signature',

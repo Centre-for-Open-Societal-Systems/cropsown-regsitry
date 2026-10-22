@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install --quiet pytest "sqlalchemy[asyncio]>=2" aiosqlite PyYAML
+      - run: pip install --quiet pytest "sqlalchemy[asyncio]>=2" aiosqlite PyYAML httpx PyJWT cryptography orjson
       - name: openg2p-registry pin lockstep
         run: python -m pytest test/test_rp_pin_lockstep.py -q
       - name: schema sync adds new model columns to existing tables
@@ -37,5 +37,19 @@ jobs:
         run: python -m pytest test/test_chart_environments.py -q
       - name: Farmer enrichment configuration and startup wiring
         run: python -m pytest test/test_farmer_enrichment.py -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run real lookup client against DCI failure simulation
+        shell: bash
+        run: |
+          npm install --global postman-cli@1.73.0
+          postman simulation run postman/simulations/farmer-enrichment.sim.yaml --port 49180 --output ndjson > /tmp/crop-dci-simulation.ndjson 2>/tmp/crop-dci-simulation.err &
+          trap 'pkill -INT -f "postman simulation run postman/simulations/farmer-enrichment.sim.yaml" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:49180/farmer/success; then break; fi
+            sleep 1
+          done
+          CROP_FARMER_SIMULATION_URL=http://127.0.0.1:49180/farmer python -m pytest test/test_farmer_enrichment_http.py -q
       - name: Dashboard deployment stash and digest label regressions
         run: python -m pytest test/test_dashboard_delivery.py -q

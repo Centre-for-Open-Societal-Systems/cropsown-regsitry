@@ -216,13 +216,9 @@ async def raise_farmer_change_request(submission_id: str, bearer_token: str | No
         if not farmer_id:
             continue
         try:
-            if await _farmer_exists_active(farmer_id, cfg):
-                _logger.info("two-CR: farmer %s already ACTIVE in Farmer register — skipping duplicate CR", farmer_id)
-                continue
-
             personal = await fetch_farmer_record(farmer_id, fayda or None)
             if not personal:
-                _logger.warning("two-CR: farmer %s / fayda=%s not resolved (both-ID required) — skipping", farmer_id, fayda or "-")
+                _logger.warning("two-CR: submission %s has no matching Farmer identity; verify both source identifiers", submission_id)
                 continue
             fields = to_farmer_fields(personal)
             farmer_name = compose_farmer_name(fields.get("first_name"), fields.get("middle_name"), fields.get("last_name"))

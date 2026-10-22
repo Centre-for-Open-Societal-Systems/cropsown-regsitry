@@ -39,16 +39,18 @@ Config (env, reused from the existing cropsown ingestion enricher):
 
 import logging
 import os
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import jwt
 import orjson
+from openg2p_fastapi_common.config import Settings as CommonSettings
 
 from .domain_validation_utils import is_blank, parse_date
 
-_logger = logging.getLogger("g2p-cropsown-farmer-enrichment")
+_logger = logging.getLogger(CommonSettings.get_config(strict=False).logging_default_logger_name)
 
 # DCI demographic ``sex`` -> this register's GENDER values. Anything else is left unset.
 _SEX_TO_GENDER = {"male": "MALE", "female": "FEMALE", "other": "OTHER"}
@@ -154,6 +156,11 @@ def build_search_request(farmer_id: str | None, fayda: str | None, cfg: dict) ->
     # stores its foundational ID without display spaces; consent uses that
     # same canonical identifier.
     fayda = "".join(str(fayda).split()) if not is_blank(fayda) else None
+    farmer_id = str(farmer_id).strip() if not is_blank(farmer_id) else None
+    if not farmer_id or not fayda:
+        raise ValueError("Farmer lookup requires both Farmer ID and FAN")
+    if not re.fullmatch(r"FR-[0-9]{12}", farmer_id) or not re.fullmatch(r"[0-9]{16}", fayda):
+        raise ValueError("Farmer lookup identifiers have an invalid format")
     now = datetime.now(timezone.utc)
     timestamp = now.isoformat()
     query: dict = {}
@@ -199,7 +206,8 @@ async def fetch_farmer_record(farmer_id: str | None, fayda: str | None = None) -
     """The Farmer Registry's ``farmer_personal_details`` for this farmer, matched
     on BOTH Farmer ID and Fayda FAN ID (both-required). None when enrichment is
     off/misconfigured, the call fails/rejected, or not exactly one match."""
-    if is_blank(farmer_id) and is_blank(fayda):
+    if is_blank(farmer_id) or is_blank(fayda):
+        _logger.warning("CropSown farmer lookup skipped: both identifiers are required")
         return None
 
     # Config parse, the HTTP call, AND response-shape parsing are all inside the
@@ -216,7 +224,7 @@ async def fetch_farmer_record(farmer_id: str | None, fayda: str | None = None) -
         envelope = response.json()
 
         if not isinstance(envelope, dict):
-            _logger.warning("CropSown farmer lookup (id=%s fayda=%s): unexpected response shape %s", farmer_id, fayda, type(envelope).__name__)
+            _logger.warning("CropSown farmer lookup skipped: unexpected response shape %s", type(envelope).__name__)
             return None
         header = envelope.get("header")
         header = header if isinstance(header, dict) else {}
@@ -229,21 +237,30 @@ async def fetch_farmer_record(farmer_id: str | None, fayda: str | None = None) -
         data = data if isinstance(data, dict) else {}
         records = data.get("reg_records")
         records = records if isinstance(records, list) else []
-        if header.get("status") == "rjct" or item.get("status") != "succ" or len(records) != 1:
+        if header.get("status") == "rjct" or len(items) != 1 or item.get("status") != "succ" or len(records) != 1:
             _logger.warning(
-                "CropSown farmer lookup (id=%s fayda=%s) returned %s record(s) (status=%s) — not enriching",
-                farmer_id, fayda, len(records), item.get("status") or header.get("status"),
+                "CropSown farmer lookup skipped: expected one matching record; received %s (status=%s)",
+                len(records), item.get("status") or header.get("status"),
             )
             return None
 
         record0 = records[0] if isinstance(records[0], dict) else {}
         personal = record0.get("farmer_personal_details")
         if not isinstance(personal, dict) or not personal:
-            _logger.warning("CropSown farmer lookup (id=%s fayda=%s): no farmer_personal_details — check consent scopes", farmer_id, fayda)
+            _logger.warning("CropSown farmer lookup skipped: no personal details; check consent scope")
             return None
+        identifiers = personal.get("member_identifier")
+        expected_fan = "".join(str(fayda).split())
+        if not isinstance(identifiers, list) or {
+            str(i.get("identifier_value", "")).strip()
+            for i in identifiers if isinstance(i, dict) and i.get("identifier_type") == "UIN"
+        } != {expected_fan}:
+            _logger.warning("CropSown farmer lookup skipped: returned identity does not match the requested FAN")
+            return None
+        _logger.info("CropSown farmer lookup resolved one record")
         return personal
     except Exception as exc:
-        _logger.warning("CropSown farmer lookup (id=%s fayda=%s) failed: %r", farmer_id, fayda, exc)
+        _logger.warning("CropSown farmer lookup skipped: %s", type(exc).__name__)
         return None
 
 
