@@ -1,5 +1,6 @@
 """Render real dashboard templates, hooks and the files sent to the deploy node."""
 import fnmatch
+import os
 import re
 import shutil
 import subprocess
@@ -95,3 +96,15 @@ def test_clean_unstashed_workspace_contains_and_renders_dashboard(tmp_path):
         assert (tmp_path/name).is_file(), name
     assert "sh 'bash ci/dashboard/validate-deploy-files.sh cropsown'" in pipeline
     valid_labels(render(tmp_path/'helm/cropsown-registry-dashboard',tmp_path/'helm/environments/dev/dashboard-ui.yaml','--set-string','image.repository='+REPOSITORY,'--set-string','image.tag=regression@sha256:'+'c'*64))
+
+@pytest.mark.skipif(REGISTRY != 'cropsown' or os.name == 'nt', reason='Crop deployment shell requires Linux Bash')
+def test_deploy_node_expands_full_ecr_repository_without_build_shell_variables(tmp_path):
+    pipeline = (ROOT/'Jenkinsfile').read_text(encoding='utf-8')
+    shell = re.search(r"sh '(bash ci/dashboard/deploy-ui.sh cropsown[^']+)'", pipeline).group(1)
+    script = tmp_path/'ci/dashboard/deploy-ui.sh'
+    script.parent.mkdir(parents=True)
+    script.write_text('printf "%s\\n" "$@"\n')
+    env = dict(os.environ, HELM_NAMESPACE='crop', AWS_ACCOUNT_ID='123456789012', AWS_REGION='ap-south-1', DASHBOARD_UI_ECR='oan/cropsown-registry/dashboard-ui', DASHBOARD_UI_SHA='fixture-sha')
+    env.pop('ECR_REGISTRY', None)
+    result = subprocess.run(['bash','-c',shell],cwd=tmp_path,env=env,capture_output=True,text=True,check=True)
+    assert result.stdout.splitlines() == ['cropsown','crop',REPOSITORY,'fixture-sha']
