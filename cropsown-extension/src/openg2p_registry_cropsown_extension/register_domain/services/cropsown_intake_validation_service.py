@@ -206,7 +206,7 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
     return matched_master_ids, fayda, crop_year, prod_season
 
 
-_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{10}$")
+_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 
 
 def validate_farmer_identity_required_fields(section_id: str, section_payload: list[dict]):
@@ -239,7 +239,7 @@ def validate_farmer_identity_required_fields(section_id: str, section_payload: l
             if not farmer_id:
                 validation_error("Farmer ID is required in Farmer Identity.")
             if not _FARMER_ID_PATTERN.match(str(farmer_id).strip()):
-                validation_error(f"farmer_id must be FR- followed by 10 digits (got '{farmer_id}')")
+                validation_error(f"farmer_id must be FR- followed by 12 digits (got '{farmer_id}')")
 
         # 2. Fayda ID (FAN)
         if not fayda_fan_id:

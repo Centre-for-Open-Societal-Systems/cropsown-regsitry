@@ -15,8 +15,8 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 _MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
 
-# Farmer ids are issued by the farmer registry as FR- followed by ten digits.
-_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{10}$")
+# Farmer ids are issued by the farmer registry as FR- followed by twelve digits.
+_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 
 _SECTION_LIFECYCLE_STAGE_MAP = {
     "cs_planning_details": "PLANNING_APPROVED",
@@ -291,13 +291,13 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             validation_error("Production Season is required in Farmer Identity.")
 
     def _validate_farmer_id(self, record: dict) -> None:
-        """Farmer ids come from the farmer registry as FR- plus ten digits."""
+        """Farmer ids come from the farmer registry as FR- plus twelve digits."""
         value = get_row_field(record, "farmer_id")
         if value is None or str(value).strip() in ("", "None", "null", "Select"):
             validation_error("Farmer ID is required in Farmer Identity.")
         if not _FARMER_ID_PATTERN.match(str(value).strip()):
             validation_error(
-                f"farmer_id must be FR- followed by 10 digits (got '{value}')"
+                f"farmer_id must be FR- followed by 12 digits (got '{value}')"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
