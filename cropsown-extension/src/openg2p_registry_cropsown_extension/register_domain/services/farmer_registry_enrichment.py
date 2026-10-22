@@ -302,7 +302,7 @@ def to_farmer_fields(personal: dict) -> dict:
 
     ident = pd.get("member_identifier")
     ident = ident if isinstance(ident, list) else []
-    first_ident = ident[0] if ident and isinstance(ident[0], dict) else {}
+    first_ident = next((i for i in ident if isinstance(i, dict) and i.get("identifier_type") == "UIN"), {})
     fayda = first_ident.get("identifier_value")
     if not is_blank(fayda):
         fields["fayda_fan_id"] = _text(fayda)

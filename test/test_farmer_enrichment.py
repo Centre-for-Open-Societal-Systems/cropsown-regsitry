@@ -221,3 +221,11 @@ def test_native_update_retry_guard_locks_then_reuses_processed_request(tmp_path)
     asyncio.run(scope['_process_change_request_ingest_async']('same-event'))
     asyncio.run(scope['_mark_change_request_ingest_failure']('same-event','notification failed',Context))
     create.assert_not_awaited()
+
+
+def test_notification_template_preserves_unspecified_optional_fields():
+    from jinja2 import Environment, StrictUndefined
+    template=Environment(undefined=StrictUndefined).from_string((ROOT/'integrations/farmer-reference/update.json.j2').read_text())
+    row=json.loads(template.render(expanded={'farmer_id':'FR-123456789012','first_name':'Current','fayda_fan_id':'9999102220260001'}))['cs_farmer_identity'][0]
+    assert row=={'farmer_id':'FR-123456789012','first_name':'Current','fayda_fan_id':'9999102220260001'}
+    assert 'date_of_birth' not in row and 'mobile_number' not in row

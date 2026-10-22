@@ -143,3 +143,8 @@ def test_reuse_requires_resolved_identity_and_concurrent_requests_deduplicate(re
             assert p.change_payload[0].edit_action=='UPDATE'
             assert p.internal_record_id=='shell'
     asyncio.run(main())
+
+
+def test_fan_mapping_uses_uin_even_after_another_identifier(helper):
+    result=helper['to_farmer_fields']({'member_identifier':[{'identifier_type':'OTHER','identifier_value':'another-id'},{'identifier_type':'UIN','identifier_value':FAN}]})
+    assert result['fayda_fan_id']==FAN
