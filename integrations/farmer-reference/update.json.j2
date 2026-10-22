@@ -1,10 +1,6 @@
 {"cs_farmer_identity": [{
-  "farmer_id": {{ expanded.farmer_id | default(none) | tojson }},
-  "fayda_fan_id": {{ expanded.fayda_fan_id | default(none) | tojson }},
-  "first_name": {{ expanded.first_name | default(none) | tojson }},
-  "middle_name": {{ expanded.middle_name | default(none) | tojson }},
-  "last_name": {{ expanded.last_name | default(none) | tojson }},
-  "gender": {{ expanded.gender | default(none) | tojson }},
-  "date_of_birth": {{ expanded.date_of_birth | default(none) | tojson }},
-  "mobile_number": {{ expanded.mobile_number | default(none) | tojson }}
+  "farmer_id": {{ expanded.farmer_id | tojson }}
+  {% for field in ['fayda_fan_id','first_name','middle_name','last_name','gender','date_of_birth','mobile_number'] if expanded[field] is defined %}
+  , {{ field | tojson }}: {{ expanded[field] | tojson }}
+  {% endfor %}
 }]}
