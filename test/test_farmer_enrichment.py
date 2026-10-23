@@ -92,7 +92,7 @@ def hook_scope():
     tree=ast.parse(path.read_text(encoding='utf-8'))
     nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'_enabled','_setting','install'}]
     scope={'os':os,'_logger':logging.getLogger('test-hooks'),'_install_approve_register':Mock(),
-           '_config':lambda:{'register_id':'farmer-register'},'raise_farmer_change_request':AsyncMock()}
+           '_config':lambda:{'register_id':'farmer-register'},'raise_farmer_change_request':AsyncMock(),'enrich_intake_names':AsyncMock()}
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),scope)
     return scope
 
@@ -112,6 +112,7 @@ def test_hook_feature_flag_idempotency_arguments_and_failure_boundaries():
             assert Intake.finalize_submission_with_session is wrapped
             scope['_install_approve_register'].assert_called_once_with('farmer-register')
             assert await Intake().finalize_submission_with_session('submission','session',bearer_token='token',requester_sub='actor')=='original-result'
+            scope['enrich_intake_names'].assert_awaited_once_with('submission','session')
             scope['raise_farmer_change_request'].assert_awaited_once_with('submission','token','actor')
             scope['raise_farmer_change_request'].side_effect=RuntimeError('lookup unavailable')
             assert await Intake().finalize_submission_with_session('submission','session')=='original-result'

@@ -187,6 +187,36 @@ def _cr_fields(farmer_id: str, fields: dict, farmer_name: str) -> dict:
     }
 
 
+async def enrich_intake_names(submission_id: str, session) -> int:
+    """Fill the displayed intake name before native finalize takes its snapshot."""
+    if not _enabled():
+        return 0
+    from sqlalchemy import select
+    from openg2p_registry_extensions.register_domain.models import G2PIntakeFormCropSown
+    if _config()["intake_table"] != G2PIntakeFormCropSown.__tablename__:
+        return 0
+    count = 0
+    # Isolate optional enrichment failures from the native intake transaction.
+    async with session.begin_nested():
+        rows = (await session.execute(select(G2PIntakeFormCropSown).where(
+            G2PIntakeFormCropSown.submission_id == submission_id))).scalars().all()
+        matches = {}
+        for row in rows:
+            pair = (str(row.farmer_id or "").strip(), "".join(str(row.fayda_fan_id or "").split()))
+            if pair not in matches:
+                matches[pair] = await fetch_farmer_record(*pair)
+            personal = matches[pair]
+            if not personal:
+                continue
+            fields = to_farmer_fields(personal)
+            name = compose_farmer_name(fields.get("first_name"), fields.get("middle_name"), fields.get("last_name"))
+            if name:
+                row.farmer_name = name
+                count += 1
+        await session.flush()
+    return count
+
+
 async def raise_farmer_change_request(submission_id: str, bearer_token: str | None, requester_sub: str | None) -> None:
     """For each farmer in the submission, raise a Farmer-register change-request
     (unless the farmer already exists), enriched from the Farmer Registry."""
@@ -289,6 +319,10 @@ def install(intake_service_cls) -> None:
     original_finalize = intake_service_cls.finalize_submission_with_session
 
     async def finalize_with_two_cr(self, submission_id, session, finalized_by=None, bearer_token=None, requester_sub=None):
+        try:
+            await enrich_intake_names(submission_id, session)
+        except Exception as exc:
+            _logger.warning("Crop intake name enrichment skipped: %s", type(exc).__name__)
         result = await original_finalize(
             self, submission_id, session, finalized_by=finalized_by,
             bearer_token=bearer_token, requester_sub=requester_sub,
