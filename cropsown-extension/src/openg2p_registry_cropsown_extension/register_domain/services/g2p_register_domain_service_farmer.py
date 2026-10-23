@@ -20,6 +20,14 @@ _SEARCH_FIELDS = [
 
 class G2PRegisterDomainServiceFarmer(G2PRegisterDomainService):
 
+    async def post_approve(self, change_request, session):
+        from .farmer_name_projection import refresh_crop_names_from_farmer
+        await refresh_crop_names_from_farmer(session, change_request.internal_record_id)
+
+    async def post_ingest(self, register_id, register_row, session):
+        from .farmer_name_projection import refresh_crop_names_from_farmer
+        await refresh_crop_names_from_farmer(session, register_row.internal_record_id)
+
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         for rec in records or []:
             self._fill_farmer_name(rec)
