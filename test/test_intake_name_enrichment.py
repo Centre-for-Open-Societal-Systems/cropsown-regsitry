@@ -21,7 +21,7 @@ class Row(Base):
 
 @pytest.mark.parametrize('mode',['matched','unresolved','disabled','lookup-exception'])
 def test_verified_name_is_saved_in_native_transaction_and_failures_are_isolated(mode):
-    fn=next(n for n in ast.parse(SOURCE.read_text()).body if isinstance(n,ast.AsyncFunctionDef) and n.name=='enrich_intake_names')
+    fn=next(n for n in ast.parse(SOURCE.read_text(encoding="utf-8")).body if isinstance(n,ast.AsyncFunctionDef) and n.name=='enrich_intake_names')
     fn.body=[n for n in fn.body if not isinstance(n,ast.ImportFrom)]
     fetch=AsyncMock(side_effect=(RuntimeError('offline') if mode=='lookup-exception' else lambda fid,fan:{'name':'Source Farmer'} if fid=='FR-123456789012' and fan=='9988102320260001' and mode=='matched' else None))
     scope={'select':select,'G2PIntakeFormCropSown':Row,'_enabled':lambda:mode!='disabled','_config':lambda:{'intake_table':Row.__tablename__},'fetch_farmer_record':fetch,'to_farmer_fields':lambda _:dict(first_name='Source',middle_name=None,last_name='Farmer'),'compose_farmer_name':lambda *p:' '.join(v for v in p if v)}

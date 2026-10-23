@@ -192,7 +192,7 @@ async def enrich_intake_names(submission_id: str, session) -> int:
     if not _enabled():
         return 0
     from sqlalchemy import select
-    from ..models import G2PIntakeFormCropSown
+    from openg2p_registry_extensions.register_domain.models import G2PIntakeFormCropSown
     if _config()["intake_table"] != G2PIntakeFormCropSown.__tablename__:
         return 0
     count = 0
