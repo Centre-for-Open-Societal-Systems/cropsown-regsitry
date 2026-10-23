@@ -130,7 +130,13 @@ def _sign(payload: bytes, cfg: dict, *, detached: bool) -> str:
 
 
 def _consent_jws(subject_value: str, now: datetime, cfg: dict) -> str:
-    issued_at = now.isoformat()
+    # Backdate by a small leeway so a caller clock slightly ahead of the
+    # Consent Manager's does not make the consent "not yet valid".
+    try:
+        skew_seconds = int(_setting("CROPSOWN_CM_CLOCK_SKEW_SECONDS", "120"))
+    except ValueError:
+        skew_seconds = 120
+    issued_at = (now - timedelta(seconds=skew_seconds)).isoformat()
     consent = {
         "@context": "https://openg2p.org/contexts/consent_object.jsonld",
         "@type": "ConsentObject",

@@ -327,6 +327,12 @@ def install(intake_service_cls) -> None:
             self, submission_id, session, finalized_by=finalized_by,
             bearer_token=bearer_token, requester_sub=requester_sub,
         )
+        # Commit the finalized intake first so the Farmer-CR step (which reads the
+        # intake rows in a fresh session) can see the just-saved farmer_id.
+        try:
+            await session.commit()
+        except Exception as exc:
+            _logger.warning("two-CR: pre-raise commit skipped: %s", type(exc).__name__)
         try:
             await raise_farmer_change_request(submission_id, bearer_token, requester_sub)
         except Exception as exc:  # never break the intake on the cross-reference
