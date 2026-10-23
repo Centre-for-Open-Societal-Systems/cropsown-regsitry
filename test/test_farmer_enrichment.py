@@ -229,3 +229,23 @@ def test_notification_template_preserves_unspecified_optional_fields():
     row=json.loads(template.render(expanded={'farmer_id':'FR-123456789012','first_name':'Current','fayda_fan_id':'9999102220260001'}))['cs_farmer_identity'][0]
     assert row=={'farmer_id':'FR-123456789012','first_name':'Current','fayda_fan_id':'9999102220260001'}
     assert 'date_of_birth' not in row and 'mobile_number' not in row
+
+
+@pytest.mark.parametrize('existing',[None,'null-columns','empty','custom'])
+def test_farmer_list_seed_repairs_empty_schema_and_preserves_custom_fields(existing):
+    source=(EXT/'meta_data/register-metadata/zz_farmer_register.sql').read_text(encoding='utf-8')
+    sql=source[source.index('-- 5) Farmer list cards'):].replace('"public".','')
+    c=sqlite3.connect(':memory:')
+    c.execute('CREATE TABLE g2p_register_schemas (register_id TEXT PRIMARY KEY,deduplicate_schema TEXT,search_result_schema TEXT,filter_schema TEXT)')
+    fid='fa120001-0000-4000-8000-000000000001'
+    custom='[{"field_name":"registration_date","order":3}]'
+    if existing:
+        search={'null-columns':None,'empty':'[]','custom':custom}[existing]
+        c.execute('INSERT INTO g2p_register_schemas VALUES (?,?,?,?)',(fid,None,search,'[{"custom_filter":true}]'))
+    c.execute('INSERT INTO g2p_register_schemas VALUES (?,?,?,?)',('other-register','[]','[]','[]'))
+    c.executescript(sql);c.executescript(sql)
+    dedup,search,filters=c.execute('SELECT deduplicate_schema,search_result_schema,filter_schema FROM g2p_register_schemas WHERE register_id=?',(fid,)).fetchone()
+    assert dedup=='[]'
+    assert json.loads(search)==(json.loads(custom) if existing=='custom' else [{'field_name':'farmer_id','display_label':'Farmer ID','order':1},{'field_name':'gender','display_label':'Gender','order':2}])
+    assert filters==('[{"custom_filter":true}]' if existing else '[]')
+    assert c.execute('SELECT search_result_schema FROM g2p_register_schemas WHERE register_id="other-register"').fetchone()==('[]',)

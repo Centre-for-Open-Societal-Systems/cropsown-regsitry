@@ -30,3 +30,21 @@ ON CONFLICT ("tab_id") DO NOTHING;
 INSERT INTO "public"."g2p_register_ui_tab_sections" ("tab_section_id","register_id","tab_id","section_id","section_order")
 VALUES ('fa120003-0000-4000-8000-000000000003','fa120001-0000-4000-8000-000000000001','cropsown_farmer_tab','cropsown_farmer_identity_section_01',10)
 ON CONFLICT ("tab_section_id") DO NOTHING;
+
+-- 5) Farmer list cards require configured display fields. Without this schema,
+-- the native search response has display_fields=null and the pinned UI crashes.
+-- Repair missing/empty defaults while retaining administrator customization.
+INSERT INTO "public"."g2p_register_schemas"
+("register_id", "deduplicate_schema", "search_result_schema", "filter_schema")
+VALUES
+('fa120001-0000-4000-8000-000000000001', '[]',
+ '[{"field_name":"farmer_id","display_label":"Farmer ID","order":1},{"field_name":"gender","display_label":"Gender","order":2}]', '[]')
+ON CONFLICT ("register_id") DO UPDATE SET
+"search_result_schema" = CASE
+    WHEN "g2p_register_schemas"."search_result_schema" IS NULL
+      OR json_array_length("g2p_register_schemas"."search_result_schema") = 0
+    THEN EXCLUDED."search_result_schema"
+    ELSE "g2p_register_schemas"."search_result_schema"
+END,
+"deduplicate_schema" = COALESCE("g2p_register_schemas"."deduplicate_schema", EXCLUDED."deduplicate_schema"),
+"filter_schema" = COALESCE("g2p_register_schemas"."filter_schema", EXCLUDED."filter_schema");
