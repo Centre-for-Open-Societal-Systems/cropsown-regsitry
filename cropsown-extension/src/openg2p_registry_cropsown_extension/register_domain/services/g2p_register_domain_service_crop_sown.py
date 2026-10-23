@@ -30,6 +30,10 @@ _SECTION_LIFECYCLE_STAGE_MAP = {
 }
 
 class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
+    async def post_ingest(self, register_id, register_row, session):
+        from .farmer_name_projection import refresh_crop_name_on_ingest
+        await refresh_crop_name_on_ingest(session, register_row)
+
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         section_id = kwargs.get("section_id")
         for record in records:
