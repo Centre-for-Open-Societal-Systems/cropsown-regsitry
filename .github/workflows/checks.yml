@@ -36,7 +36,7 @@ jobs:
       - name: Render isolated dev and staging routing profiles
         run: python -m pytest test/test_chart_environments.py -q
       - name: Farmer enrichment configuration and startup wiring
-        run: python -m pytest test/test_farmer_enrichment.py -q
+        run: python -m pytest test/test_farmer_enrichment.py test/test_intake_name_enrichment.py -q
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
