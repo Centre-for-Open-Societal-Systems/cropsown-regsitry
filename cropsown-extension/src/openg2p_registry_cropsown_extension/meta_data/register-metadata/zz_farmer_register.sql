@@ -24,8 +24,8 @@ ON CONFLICT ("tab_section_id") DO NOTHING;
 
 -- 4) Register-view: a Farmer tab on the Farmer register + its section
 INSERT INTO "public"."g2p_register_ui_tabs" ("tab_id","register_id","tab_label","tab_order","is_active")
-VALUES ('cropsown_farmer_tab','fa120001-0000-4000-8000-000000000001','Farmer',10,'TRUE')
-ON CONFLICT ("tab_id") DO NOTHING;
+VALUES ('cropsown_farmer_tab','fa120001-0000-4000-8000-000000000001','farmer',10,'TRUE')
+ON CONFLICT ("tab_id") DO UPDATE SET "tab_label" = EXCLUDED."tab_label";
 
 INSERT INTO "public"."g2p_register_ui_tab_sections" ("tab_section_id","register_id","tab_id","section_id","section_order")
 VALUES ('fa120003-0000-4000-8000-000000000003','fa120001-0000-4000-8000-000000000001','cropsown_farmer_tab','cropsown_farmer_identity_section_01',10)
