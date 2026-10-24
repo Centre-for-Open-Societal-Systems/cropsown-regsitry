@@ -1080,6 +1080,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             return
 
         section_mnemonic = await self._resolve_section_mnemonic(change_request, session)
+        from .farmer_name_projection import refresh_crop_name_on_ingest
+        await refresh_crop_name_on_ingest(session, record)
         new_stage = _SECTION_LIFECYCLE_STAGE_MAP.get(section_mnemonic)
         if new_stage:
             record.lifecycle_stage = new_stage

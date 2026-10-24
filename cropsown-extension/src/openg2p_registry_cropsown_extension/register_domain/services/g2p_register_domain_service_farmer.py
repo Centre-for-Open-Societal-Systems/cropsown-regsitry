@@ -8,6 +8,8 @@ import logging
 from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
+from ...farmer_reference.profile import FarmerReferenceError, validate_identity_fields
+from .domain_validation_utils import validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service-farmer")
 
@@ -30,6 +32,10 @@ class G2PRegisterDomainServiceFarmer(G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         for rec in records or []:
+            try:
+                validate_identity_fields(rec)
+            except FarmerReferenceError as error:
+                validation_error(str(error))
             self._fill_farmer_name(rec)
             if not rec.get("registration_date"):
                 rec["registration_date"] = date.today().isoformat()

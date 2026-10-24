@@ -29,9 +29,16 @@ class G2PFarmer:
     first_name: Mapped[str] = mapped_column(String, nullable=True)
     middle_name: Mapped[str] = mapped_column(String, nullable=True)
     last_name: Mapped[str] = mapped_column(String, nullable=True)
+    first_name_amh: Mapped[str] = mapped_column(String, nullable=True)
+    middle_name_amh: Mapped[str] = mapped_column(String, nullable=True)
+    last_name_amh: Mapped[str] = mapped_column(String, nullable=True)
+    first_name_other: Mapped[str] = mapped_column(String, nullable=True)
+    middle_name_other: Mapped[str] = mapped_column(String, nullable=True)
+    last_name_other: Mapped[str] = mapped_column(String, nullable=True)
     gender: Mapped[str] = mapped_column(String, nullable=True)
     date_of_birth: Mapped[str] = mapped_column(Date, nullable=True)
     mobile_number: Mapped[str] = mapped_column(String, nullable=True)
+    email: Mapped[str] = mapped_column(String, nullable=True)
     registration_date: Mapped[str] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (APPROVAL_STATUS)
     # ── Address: the admin hierarchy (plain strings, offline-tolerant) ─────────
@@ -39,6 +46,15 @@ class G2PFarmer:
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
     kebele: Mapped[str] = mapped_column(String, nullable=True)
+    # Canonical Master Data IDs are distinct from legacy name/code columns.
+    region_id: Mapped[str] = mapped_column(String, nullable=True)
+    zone_id: Mapped[str] = mapped_column(String, nullable=True)
+    woreda_id: Mapped[str] = mapped_column(String, nullable=True)
+    kebele_id: Mapped[str] = mapped_column(String, nullable=True)
+    region_name: Mapped[str] = mapped_column(String, nullable=True)
+    zone_name: Mapped[str] = mapped_column(String, nullable=True)
+    woreda_name: Mapped[str] = mapped_column(String, nullable=True)
+    kebele_name: Mapped[str] = mapped_column(String, nullable=True)
 
 
 # All Register classes have the prefix G2PRegister; the class-name suffix MUST

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from openg2p_registry_core.schemas import (
@@ -16,15 +17,33 @@ class G2PSchemaFarmer:
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
+    first_name_amh: Optional[str] = None
+    middle_name_amh: Optional[str] = None
+    last_name_amh: Optional[str] = None
+    first_name_other: Optional[str] = None
+    middle_name_other: Optional[str] = None
+    last_name_other: Optional[str] = None
     gender: Optional[str] = None
-    date_of_birth: Optional[str] = None
+    date_of_birth: Optional[date] = None
     mobile_number: Optional[str] = None
+    email: Optional[str] = None
+    # G2PGeo has these columns, but G2PGeoSchema in the pinned base omits them.
+    address_line_1: Optional[str] = None
+    address_line_2: Optional[str] = None
     registration_date: Optional[str] = None
     status: Optional[str] = None
     region: Optional[str] = None
     zone: Optional[str] = None
     woreda: Optional[str] = None
     kebele: Optional[str] = None
+    region_id: Optional[str] = None
+    zone_id: Optional[str] = None
+    woreda_id: Optional[str] = None
+    kebele_id: Optional[str] = None
+    region_name: Optional[str] = None
+    zone_name: Optional[str] = None
+    woreda_name: Optional[str] = None
+    kebele_name: Optional[str] = None
 
 
 class G2PRegisterSchemaFarmer(G2PRegisterBaseSchema, G2PGeoSchema, G2PSchemaFarmer):
