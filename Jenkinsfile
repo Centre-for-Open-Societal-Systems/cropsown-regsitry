@@ -274,7 +274,9 @@ pipeline {
             // not the build context, and not a checkout of its own: it deploys
             // exactly this commit without needing GitHub access.
             steps {
-                stash name: 'deploy', includes: "ci/**,.ecr-token,.ecr-registry"
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch registry'
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch dashboard'
+                stash name: 'deploy', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
             }
