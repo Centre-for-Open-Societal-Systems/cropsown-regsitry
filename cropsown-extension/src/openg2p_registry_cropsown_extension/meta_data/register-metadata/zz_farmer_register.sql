@@ -17,10 +17,9 @@ VALUES
 'FALSE','FALSE','FALSE','FALSE')
 ON CONFLICT ("section_id") DO NOTHING;
 
--- 3) Attach the Farmer section to the Crop Sown Intake form's tab (so intake captures farmer -> Farmer register)
-INSERT INTO "public"."g2p_intake_form_ui_tab_sections" ("tab_section_id","tab_id","section_id","section_order")
-VALUES ('fa120002-0000-4000-8000-000000000002','f3f3a330-98f4-5941-9cec-303e77462b14','cropsown_farmer_identity_section_01',5)
-ON CONFLICT ("tab_section_id") DO NOTHING;
+-- 3) Intake captures the pair on its domain root; Farmer ADD is a separate CR.
+-- Retired intake mapping fa120002-0000-4000-8000-000000000002 is inventoried,
+-- never automatically deleted from an existing database.
 
 -- 4) Register-view: a Farmer tab on the Farmer register + its section
 INSERT INTO "public"."g2p_register_ui_tabs" ("tab_id","register_id","tab_label","tab_order","is_active")

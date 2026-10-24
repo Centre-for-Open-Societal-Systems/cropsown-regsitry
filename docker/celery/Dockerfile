@@ -16,3 +16,6 @@ ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension
 
 COPY cropsown-extension/ /app/cropsown-extension/
 RUN pip install --no-cache-dir /app/cropsown-extension
+
+# Native dynamic import hook; platform worker and launcher remain unchanged.
+ENV CELERY_IMPORTS=openg2p_registry_extensions.farmer_reference.worker
