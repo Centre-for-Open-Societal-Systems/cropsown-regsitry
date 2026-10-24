@@ -1,0 +1,359 @@
+{
+  "registry": "cropsown",
+  "native_psql_semantics": true,
+  "steps": [
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/data-models/data_models.sql",
+      "sha256": "2a800268f92720051bd08b6f7a7c16b98d49b00d78d67f58590d062cdab3f931",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql",
+      "sha256": "5551d8bec947aaa47cd8106c78a32805905b13ce24085cff86285e50400979fb",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql",
+      "sha256": "05716b5cc72b663877ca3aadb3569ff72de83c676e814ca6a213d6f615519732",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql",
+      "sha256": "68e18513c8f198542b74a6f1bb66667a7c1f174a98af29629d6774e07920a797",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_definitions.sql",
+      "sha256": "3a5a3c29323ad9410363bc42fc6caa524aee4797b4ca440e626664e66e2fba30",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_schemas.sql",
+      "sha256": "5afd543b2ad27a75ef6abeb6cf7576a62d014668a518ede975207886852f3a2b",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_sections.sql",
+      "sha256": "1eb72f72d23b528ae4287e6faa35bf608f2e96f5db46ee181a1b1cf55ce08e34",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql",
+      "sha256": "104516e9488e06f2e3cf2f6f35a1420d189de9315b27fcd3ddd3da01259fe587",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql",
+      "sha256": "335b24cde13d9f3e5d5c3306bf10798e81de761010e3d18e40b6433b6eab9d39",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_registry_documents.sql",
+      "sha256": "e2658cfcdb906197c668a11f5dd4330c9dcf1504a941d7345827f6af6cc7861d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zz_farmer_register.sql",
+      "sha256": "e698db2e45c9e6d45cd2892e04f43bb2744fd8070faff76f97d28149d4e05dca",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql",
+      "sha256": "7c9ceee72895cbf7af542465204678ce944a8edcec626ca836dcc9234be6cfdc",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzzz_location_widgets.sql",
+      "sha256": "9b173b0518d568b35b83da66000fe5f7564da1aefb51f5550342662b329ca774",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql",
+      "sha256": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_configuration.sql",
+      "sha256": "ec8fd768f2c99f47acaf84a3f9b0e1d98549764b3b0f62f1b9477d96baa85e5c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_import_file_configurations.sql",
+      "sha256": "d95c50d7aa964c0d9fbab3ed6270c08d5acbdb95b909eb7591147b3008d8b8f4",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql",
+      "sha256": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages.sql",
+      "sha256": "b704d89b203d5c1222e057e4bf9335d14d7f9b1f9bf779c54ba30b4fa59f01b8",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages_am_om_ti.sql",
+      "sha256": "05871f1923422ebbd1dcf3fb2c6a6092de8abb7ac97c0d291ba88f3ec8a7f5f1",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes.sql",
+      "sha256": "4f2a41df542056a77aacf962027ec09d5a47385979fbdc07a09e1d100166943c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes_values.sql",
+      "sha256": "ca3d41bf2943906f77548dc36ffe934eff8f8864685764e09d666ac8da507a59",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql",
+      "sha256": "fe6bb32c0e8b44b0f59aaaa4164fae6977740bd9d5747cd9d5f986cd62f92164",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql",
+      "sha256": "33a0051f94386114895c7ae36f0cc6948668edbbab2b3b0186769b1e96e12783",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql",
+      "sha256": "dd887e8115483d26bd5759a9644ace9dfa4d14a8743b760eec82e094574eb9ca",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
+      "sha256": "5f2ba9cbd2a8b6d5f3214a68190ea0ff63104e1a2ff5cb767db8c1d899822c5f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/data-models/data_models.sql",
+      "sha256": "2a800268f92720051bd08b6f7a7c16b98d49b00d78d67f58590d062cdab3f931",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql",
+      "sha256": "5551d8bec947aaa47cd8106c78a32805905b13ce24085cff86285e50400979fb",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql",
+      "sha256": "05716b5cc72b663877ca3aadb3569ff72de83c676e814ca6a213d6f615519732",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql",
+      "sha256": "68e18513c8f198542b74a6f1bb66667a7c1f174a98af29629d6774e07920a797",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_definitions.sql",
+      "sha256": "3a5a3c29323ad9410363bc42fc6caa524aee4797b4ca440e626664e66e2fba30",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_schemas.sql",
+      "sha256": "5afd543b2ad27a75ef6abeb6cf7576a62d014668a518ede975207886852f3a2b",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_sections.sql",
+      "sha256": "1eb72f72d23b528ae4287e6faa35bf608f2e96f5db46ee181a1b1cf55ce08e34",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql",
+      "sha256": "104516e9488e06f2e3cf2f6f35a1420d189de9315b27fcd3ddd3da01259fe587",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql",
+      "sha256": "335b24cde13d9f3e5d5c3306bf10798e81de761010e3d18e40b6433b6eab9d39",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_registry_documents.sql",
+      "sha256": "e2658cfcdb906197c668a11f5dd4330c9dcf1504a941d7345827f6af6cc7861d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zz_farmer_register.sql",
+      "sha256": "e698db2e45c9e6d45cd2892e04f43bb2744fd8070faff76f97d28149d4e05dca",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql",
+      "sha256": "7c9ceee72895cbf7af542465204678ce944a8edcec626ca836dcc9234be6cfdc",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzzz_location_widgets.sql",
+      "sha256": "9b173b0518d568b35b83da66000fe5f7564da1aefb51f5550342662b329ca774",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql",
+      "sha256": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_configuration.sql",
+      "sha256": "ec8fd768f2c99f47acaf84a3f9b0e1d98549764b3b0f62f1b9477d96baa85e5c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_import_file_configurations.sql",
+      "sha256": "d95c50d7aa964c0d9fbab3ed6270c08d5acbdb95b909eb7591147b3008d8b8f4",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql",
+      "sha256": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages.sql",
+      "sha256": "b704d89b203d5c1222e057e4bf9335d14d7f9b1f9bf779c54ba30b4fa59f01b8",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages_am_om_ti.sql",
+      "sha256": "05871f1923422ebbd1dcf3fb2c6a6092de8abb7ac97c0d291ba88f3ec8a7f5f1",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes.sql",
+      "sha256": "4f2a41df542056a77aacf962027ec09d5a47385979fbdc07a09e1d100166943c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes_values.sql",
+      "sha256": "ca3d41bf2943906f77548dc36ffe934eff8f8864685764e09d666ac8da507a59",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql",
+      "sha256": "fe6bb32c0e8b44b0f59aaaa4164fae6977740bd9d5747cd9d5f986cd62f92164",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql",
+      "sha256": "33a0051f94386114895c7ae36f0cc6948668edbbab2b3b0186769b1e96e12783",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql",
+      "sha256": "dd887e8115483d26bd5759a9644ace9dfa4d14a8743b760eec82e094574eb9ca",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
+      "sha256": "5f2ba9cbd2a8b6d5f3214a68190ea0ff63104e1a2ff5cb767db8c1d899822c5f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    }
+  ],
+  "repeat_metadata_identical": true,
+  "existing_environment_modified": false,
+  "disposable_database_removed": true
+}

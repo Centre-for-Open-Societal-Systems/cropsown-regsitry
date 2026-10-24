@@ -36,16 +36,12 @@ pipeline {
         DASHBOARD_UI_ECR = 'oan/cropsown-registry/dashboard-ui'
 
         HELM_NAMESPACE = 'crop'
-        HELM_CHART_DIR = 'helm/openg2p-cropsown-registry'
 
         // Built from docker/<name>/Dockerfile. dashboard-ui is left out: the
         // chart deploys no dashboard, so its image would be published for nothing.
         SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
 
-        // The ODK ingestion connector, as <image>:<build context>. Each builds
-        // from the Dockerfile in its own directory, not docker/<name>/.
-        // connector-service is one image for the chart's api, worker and beat.
-        CONNECTOR_IMAGES = 'connector-service:openg2p-connector-service connector-ui:openg2p-connector-ui'
+        // Connectors remain independently operated; this registry builds only its extension.
 
         // cropsown-registry-dashboard-api lives in its own (public) repository and
         // is built here beside the registry images, as dashboard-api. Each branch
@@ -91,6 +87,8 @@ pipeline {
             steps {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/refactor/check_port.py . cropsown'
                 sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/cropsown-reference-tests:rc557 .'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_deployment_guard.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src oan/cropsown-reference-tests:rc557 -m unittest discover -s cropsown-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -232,28 +230,6 @@ pipeline {
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
 
-                        # The connector service and its UI, each with its own
-                        # directory as build context.
-                        for PAIR in ${CONNECTOR_IMAGES}; do
-                            NAME="${PAIR%%:*}"
-                            CONTEXT="${PAIR#*:}"
-                            IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${NAME}"
-                            echo "--- ${NAME} (${CONTEXT}) -> ${IMAGE}:${IMAGE_TAG} ---"
-
-                            docker build --pull \
-                                -f "${CONTEXT}/Dockerfile" \
-                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" "${CONTEXT}"
-
-                            aws ecr describe-repositories --region "${AWS_REGION}" \
-                                --repository-names "${ECR_BASE}/${NAME}" >/dev/null 2>&1 \
-                              || aws ecr create-repository --region "${AWS_REGION}" \
-                                    --repository-name "${ECR_BASE}/${NAME}" >/dev/null
-
-                            docker push "${IMAGE}:${IMAGE_TAG}"
-                            docker push "${IMAGE}:${BRANCH_NAME}"
-                            docker rmi "${IMAGE}:${IMAGE_TAG}" || true
-                        done
-
                         if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
                             UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${DASHBOARD_UI_SHA}"
                             docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
@@ -298,7 +274,7 @@ pipeline {
             // not the build context, and not a checkout of its own: it deploys
             // exactly this commit without needing GitHub access.
             steps {
-                stash name: 'deploy', includes: "ci/**,${HELM_CHART_DIR}/**,helm/cropsown-registry-dashboard/**,helm/environments/dev/**,.ecr-token,.ecr-registry"
+                stash name: 'deploy', includes: "ci/**,.ecr-token,.ecr-registry"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
             }

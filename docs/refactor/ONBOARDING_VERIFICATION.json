@@ -1,10 +1,15 @@
 {
   "registry": "cropsown",
-  "verified_at": "2026-10-24T17:48:54.827930+00:00",
+  "verified_at": "2026-10-24T19:55:04.891217+00:00",
   "source_sha256": {
-    "ci/refactor/check_port.py": "4228be2498c14598bb69eafde402f0eba455390ff5f043551efd5fdf67f33b0d",
+    "ci/refactor/check_port.py": "cf39b9d2ab8ba926583be5d7077e5a7f0302cf31449e4f4e9daa4aa0382056c4",
+    "ci/refactor/compare_new_dev.py": "927b0441fcbf35d1beb0e6bdf0013d4fd00f167e7d8be9e451ccca1f3d923c80",
+    "ci/refactor/deployment_guard.py": "219d0d61b7b7cd034f1ad2301b2824abb90214a628ec500959875f669ab51f34",
+    "ci/refactor/metadata_probe.py": "8dea6f637ad7aa6061c33d8195d6fed0c3b44c94131f4dbf88f373ea449d2111",
+    "ci/refactor/new_dev_metadata.py": "99ba819346c81c212fa1ec06c3345bfa7784f3c5ee225bbe779be5a9f911db73",
     "ci/refactor/onboarding_probe.py": "6a01f3629f28b4d4d52a30e2a45cc746ade34590066a82b2709c98dc28c21202",
     "ci/refactor/platform_contract_probe.py": "4b1975e065c4810b2a63623c3847b811e4a3ac656a0833582b7577ceed852760",
+    "ci/refactor/rehearse_metadata.py": "529c0e476b526e3f411f75d25d79fcf6b22e638fa5d8fa86724494cdd2b803ab",
     "ci/refactor/runtime_probe.py": "a7884f1cb2d25b942752304278f9e357e351845904ba18a2bb2d7e1a82c9b342",
     "ci/refactor/verify_onboarding.py": "fa561e44911cce25a18f3f66e9db965e7a43d7124bde6872acd670d52e8e4332",
     "cropsown-extension/pyproject.toml": "cf3a5e462d9e4da0a94695106f5cc332c7d5b0c040e5c8f523c48ba2537e9eec",
@@ -30,31 +35,30 @@
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/g2p_cropsown_enricher_services.py": "37a9c46c92cc2d1148154a7e3425728e8e8ca7cffdd5e6b5494fe11581aeab70",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/g2p_sowing_enricher_services.py": "b0a1e9f455e3e41aedfdb47638bd0f485c718599bf13cc69dd2dddb69d0cc442",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/data-models/data_models.sql": "2a800268f92720051bd08b6f7a7c16b98d49b00d78d67f58590d062cdab3f931",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/lookup-data/g2p_attribute_values.sql": "666445a359bcc6142048104126a56fbbd4c95430d33368bf21b77b5e93ff423f",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/lookup-data/g2p_attributes.sql": "4030908666f1461770822231cbd170b4409eded562088c062213f873e04a8139",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql": "a43948de4f370ab3753cac83bcbff25dee209dddc958d369d7c80317b83b97a0",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql": "3e5d30c37ffb5c6f637668b838dd5cac7665495803df2203f6233389289ad648",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql": "c7e992761b5f0ef328314e3827861b379f875b042102b35bdbadc16785da90c3",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_definitions.sql": "4e0b3b7ef76520038ae95ed1e5533a231ff74636e6014b7be2866e89e83bbf13",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_schemas.sql": "4a433a69d800eaba7a49b817a2bcfe1bc99153b2e0ddaae0bea83479ef35efc8",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql": "5551d8bec947aaa47cd8106c78a32805905b13ce24085cff86285e50400979fb",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql": "05716b5cc72b663877ca3aadb3569ff72de83c676e814ca6a213d6f615519732",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql": "68e18513c8f198542b74a6f1bb66667a7c1f174a98af29629d6774e07920a797",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_definitions.sql": "3a5a3c29323ad9410363bc42fc6caa524aee4797b4ca440e626664e66e2fba30",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_schemas.sql": "5afd543b2ad27a75ef6abeb6cf7576a62d014668a518ede975207886852f3a2b",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_sections.sql": "1eb72f72d23b528ae4287e6faa35bf608f2e96f5db46ee181a1b1cf55ce08e34",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql": "b5e2b4a8c7180f66b0d6e0fe316ddc7fc4077f7fcf8e220af14b8d5fbf5a7499",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql": "bd704b58abbe120c317e3c79dafd9ba73e840a3d65a1be777a57b27a2d6a0026",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql": "104516e9488e06f2e3cf2f6f35a1420d189de9315b27fcd3ddd3da01259fe587",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql": "335b24cde13d9f3e5d5c3306bf10798e81de761010e3d18e40b6433b6eab9d39",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/g2p_registry_documents.sql": "e2658cfcdb906197c668a11f5dd4330c9dcf1504a941d7345827f6af6cc7861d",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zz_farmer_register.sql": "e698db2e45c9e6d45cd2892e04f43bb2744fd8070faff76f97d28149d4e05dca",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql": "7c9ceee72895cbf7af542465204678ce944a8edcec626ca836dcc9234be6cfdc",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/zzzz_location_widgets.sql": "9b173b0518d568b35b83da66000fe5f7564da1aefb51f5550342662b329ca774",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_configuration.sql": "ec722a8d743fadd4705c4c1019f916ab8ff2a7901ea06c1492277f3c80b147c2",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_configuration.sql": "ec8fd768f2c99f47acaf84a3f9b0e1d98549764b3b0f62f1b9477d96baa85e5c",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_import_file_configurations.sql": "d95c50d7aa964c0d9fbab3ed6270c08d5acbdb95b909eb7591147b3008d8b8f4",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages.sql": "a4880d3d1cc7e0a6fe0d5e591a55386aa00517d5f2733357a9dc6d856d618194",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages.sql": "b704d89b203d5c1222e057e4bf9335d14d7f9b1f9bf779c54ba30b4fa59f01b8",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_languages_am_om_ti.sql": "05871f1923422ebbd1dcf3fb2c6a6092de8abb7ac97c0d291ba88f3ec8a7f5f1",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes.sql": "c44f02a47be92838ef90348d672c8e199f1de5ce4dc429a6ed3d8a045528fb73",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes_values.sql": "cebfd588d2fa1e764f1d9ce171ceefc012346a0095d66271055a5a095f9de0c3",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes.sql": "4f2a41df542056a77aacf962027ec09d5a47385979fbdc07a09e1d100166943c",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-configurations/registry_themes_values.sql": "ca3d41bf2943906f77548dc36ffe934eff8f8864685764e09d666ac8da507a59",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql": "fe6bb32c0e8b44b0f59aaaa4164fae6977740bd9d5747cd9d5f986cd62f92164",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "9f0e870afcc1e849306d8f396e7639eefd02d3580e35e44e883b8b200e618f7c",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "33a0051f94386114895c7ae36f0cc6948668edbbab2b3b0186769b1e96e12783",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql": "dd887e8115483d26bd5759a9644ace9dfa4d14a8743b760eec82e094574eb9ca",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "1cea72db1cb238d1c951fb686ab84389f9a2a6f939ed8c3309f835d7a7528717",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "5f2ba9cbd2a8b6d5f3214a68190ea0ff63104e1a2ff5cb767db8c1d899822c5f",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/controllers/__init__.py": "740283abfd4534faa966ee1ceb383b0ecc0c08fe5c6428550a8b891b475f30e3",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/controllers/g2p_awe_tasks_stats_controller.py": "7ca814ca4815403e1267e0187f464f27a6c9459398119a6e32ac2bdda404a08b",
@@ -113,7 +117,7 @@
     "docker/db-seed/Dockerfile": "7c544c960e6865ae05394cf5ee2b7eb701ebd95ed06001667ae17aefca2f5517",
     "docker/partner-api/Dockerfile": "b45f5617feea26199a0ffc659b90316bddb3d87658fb062c6a2d54a104eaf0c4",
     "docker/sanity-tests/Dockerfile": "0d19b21cb11cd4d1f539c5ff7a6041d7ef6de1c4b6e2307d9900dd16df4aa234",
-    "docker/staff-api/Dockerfile": "d0520f1529131c35cc0c137894e9ba9df3796208614817eae82e698f40c14d65",
+    "docker/staff-api/Dockerfile": "3af35a3e178f5877df231f725c4f62fe90746192f21b3765846d5df3c8204c0e",
     "docker/staff-ui/Dockerfile": "d040e20118c7821d326d86bcf6c5aa8d2aa56ed24740a1a2f2dae8df378c9bdc",
     "postman/mocks/farmer-reference/config.yaml": "abf6e1c1186889614f5abfa03138276ebbd956b939bea36f0561ef252b0157c6",
     "postman/mocks/farmer-reference/default.js": "18025e6719da85d7516e76d44f2897361827d2cffc5bafbcf52a213d67f62c45",
@@ -226,82 +230,6 @@
         "GET": 29
       },
       "raw_traffic_saved": false
-    },
-    {
-      "check": "build-staff-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-staff-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:d56f394ba28ee719fd96a2ff236ca32b21403a990061f69e79e2786b40e38ebe"
-    },
-    {
-      "check": "installed-staff-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-partner-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-partner-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:2b3f3bdca69f61fca8137a6e4a9b54a32023c8d601b73334cebd584a3d834c65"
-    },
-    {
-      "check": "installed-partner-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-celery",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-celery",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:3666c9d22d6035df829bc8d1e0aeb1e6940ae24d4ed606cc3c13c59ff0d63664"
-    },
-    {
-      "check": "installed-worker-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-db-seed",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-db-seed",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:00b8b71be0d21b534573814bb2ff8c692827a6dbda54fc176b665511f5eaf16d"
-    },
-    {
-      "check": "preservation-seed-gate",
-      "exit_code": 1,
-      "expected_exit_code": 1,
-      "result": "PASS"
     },
     {
       "check": "source-unchanged-during-verification",

@@ -11,7 +11,7 @@
 # What it does, in order:
 #   1. Preflight: print the API server and identity; stop at once if the server
 #      cannot be reached or the account cannot deploy the namespace.
-#   2. helm dependency build.
+#   2. Verify the exact central chart archive and public values.
 #   3. Write the values this build owns: image tags, and every public host on
 #      <namespace>.openg2p.test (the subchart defaults them to .openg2p.org
 #      placeholders, which broke Keycloak, MinIO and IAM).
@@ -33,7 +33,7 @@
 #   HELM_NAMESPACE   default crop
 #   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
 #                    (empty disables the check)
-#   HELM_CHART_DIR   default helm/openg2p-cropsown-registry
+#   Chart/profile: ci/deploy/oan-chart.json (immutable COSS oan-helm archive)
 #   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) â€” the
 #                    other hosts (idgenerator, awe, dashboard-api); not the
 #                    portal/API public hosts, Keycloak or MinIO below
@@ -57,9 +57,13 @@
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
 #   OUTSIDE_CHART    true|false, default true   also move the Deployments helm does
-#                                               not manage (connector, public staff UI)
+#                                               not manage (public staff UI)
 #                                               to this build's images
 set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry dev
 
 TAG="${1:-${TAG:-}}"
 [ -n "$TAG" ] || { echo "usage: $0 <image-tag>" >&2; exit 2; }
@@ -71,7 +75,6 @@ DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
-HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
 # Unset means the dev default; set but EMPTY means "do not touch the release's
 # hosts" (staging, whose hosts are not <namespace>.openg2p.test).
 BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
@@ -115,6 +118,11 @@ cleanup() {
 trap cleanup EXIT
 
 say() { echo "=== $* ==="; }
+
+say "Verified central chart"
+HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
+CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
+
 
 # â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "Deploy target"
@@ -193,15 +201,6 @@ else
 fi
 
 # â”€â”€ 2. Chart dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-say "helm dependency build"
-helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
-helm repo update openg2p >/dev/null
-# Chart.lock and charts/ are gitignored, so neither checkout nor unstash clears
-# them: a lock left in the agent's workspace by an older build still pins the
-# previous openg2p-registry version, and `helm dependency build` then fails with
-# "the lock file (Chart.lock) is out of sync". Resolve fresh from Chart.yaml.
-rm -f "$HELM_CHART_DIR/Chart.lock" "$HELM_CHART_DIR"/charts/*.tgz
-helm dependency build "$HELM_CHART_DIR"
 
 # â”€â”€ 3. Values this build owns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 VALUE_FILES=()
@@ -377,7 +376,7 @@ BG_PIDS+=("$!")
 # â”€â”€ 4. Upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "helm upgrade started $(date -u +%H:%M:%S) UTC (timeout ${HELM_TIMEOUT})"
 VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} \
-  "-f" "helm/environments/dev/farmer-enrichment.yaml" "-f" "$WORK/ci-values.yaml")
+  "-f" "$CENTRAL_VALUES" "-f" "$WORK/ci-values.yaml")
 
 # Render exactly what the upgrade applies, as farmer-registry's pipeline does: a
 # chart or values mistake then fails here, before anything is changed.
@@ -387,7 +386,7 @@ echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
 kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
   python3 ci/check-new-dev-routes.py crop --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"
 kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
-  python3 ci/check-farmer-enrichment.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" --check-live-secret
+  python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" --check-live-secret
 
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
@@ -432,21 +431,15 @@ for D in $DEPLOYMENTS; do
 done
 
 # â”€â”€ 6b. Deployments outside the chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-kubectl get deployment "$HELM_RELEASE-staff-portal-api" "$HELM_RELEASE-celery-worker" "${NS[@]}" -o json | \
-  python3 ci/check-farmer-enrichment.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" \
-    --check-live-secret --check-runtime-hooks
+kubectl get deployment "$HELM_RELEASE-staff-portal-api" "$HELM_RELEASE-celery-worker" "$HELM_RELEASE-celery-beat-producer" "${NS[@]}" -o json | \
+  python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" \
+    --check-live-secret
 
-# The connector (api, worker, beat, ui) and the public staff portal
-# (<release>-staff-portal-ui-pub) are not in this chart, so helm never moves
-# them: they stayed on develop-69 while the release went to develop-74. This
-# build pushes their images (connector-service, connector-ui, staff-ui), so point
-# them at the same tag. Only the image changes; a Deployment that does not exist
-# in this namespace is skipped.
+# The public staff portal remains registry-owned. External connector workloads,
+# images, releases and checkpoints are deliberately outside this delivery path.
 if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
   say "Deployments outside the chart"
-  for PAIR in "cropsown-connector-api:connector-service" "cropsown-connector-worker:connector-service" \
-              "cropsown-connector-beat:connector-service" "cropsown-connector-ui:connector-ui" \
-              "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
+  for PAIR in "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
     D="${PAIR%%:*}"
     IMG="${ECR}/${PAIR#*:}:${TAG}"
     if ! kubectl get deploy "$D" "${NS[@]}" >/dev/null 2>&1; then

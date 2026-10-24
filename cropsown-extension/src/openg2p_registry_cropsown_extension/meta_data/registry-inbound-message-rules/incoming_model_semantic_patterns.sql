@@ -16,7 +16,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     '$.body.message.search_response[0].data.reg_record_type=>^crop_sown_planning_intake$',
     '$.body.message.search_response[0].data.reg_records[0]',
     'G2PDciCropSownCreateEnricherService'
-);
+)
+ON CONFLICT DO NOTHING;
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -36,7 +37,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     '$.body.message.search_response[0].data.reg_record_type=>^crop_sown_cultivation_intake$',
     '$.body.message.search_response[0].data.reg_records[0]',
     'G2PDciCropSownCreateEnricherService'
-);
+)
+ON CONFLICT DO NOTHING;
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -56,7 +58,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     '$.body.message.search_response[0].data.reg_record_type=>^crop_sown_sowing_intake$',
     '$.body.message.search_response[0].data.reg_records[0]',
     'G2PDciCropSownCreateEnricherService'
-);
+)
+ON CONFLICT DO NOTHING;
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -76,7 +79,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     '$.body.message.search_response[0].data.reg_record_type=>^crop_sown_harvesting_intake$',
     '$.body.message.search_response[0].data.reg_records[0]',
     'G2PDciCropSownCreateEnricherService'
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- CSR_DATA_MODEL patterns for ODK Central submissions
 INSERT INTO "public"."incoming_model_semantic_patterns" (

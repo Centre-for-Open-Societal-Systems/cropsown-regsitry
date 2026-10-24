@@ -8,4 +8,5 @@ INSERT INTO "public"."g2p_register_ui_tab_sections" ("tab_section_id","register_
 ('ca069622-4355-5fe7-8505-719275b6252a','6b06a95a-9a6c-5a33-a33d-c1625716c59c','cropsown_sowing_tab','cropsown_sowing_details_section_01',10),
 ('83b9828d-f311-5c48-942e-7f12f389c70f','6b06a95a-9a6c-5a33-a33d-c1625716c59c','cropsown_sowing_tab','cropsown_infestation_details_section_01',20),
 ('ff943e7b-1977-545e-97f7-62414d634409','6b06a95a-9a6c-5a33-a33d-c1625716c59c','cropsown_production_tab','cropsown_production_details_section_01',10),
-('1fc08d1a-7ea1-5865-b2aa-0a121aff3b33','6b06a95a-9a6c-5a33-a33d-c1625716c59c','cropsown_harvest_tab','cropsown_harvest_details_section_01',10);
+('1fc08d1a-7ea1-5865-b2aa-0a121aff3b33','6b06a95a-9a6c-5a33-a33d-c1625716c59c','cropsown_harvest_tab','cropsown_harvest_details_section_01',10)
+ON CONFLICT DO NOTHING;

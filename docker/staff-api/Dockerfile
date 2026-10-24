@@ -8,7 +8,7 @@
 # the migrate+gunicorn CMD are inherited from the base.
 #
 # RP_VERSION pins the openg2p-registry base image tag. Keep it in lockstep with
-# the openg2p-registry chart dependency pinned in helm/openg2p-cropsown-registry/Chart.yaml.
+# the openg2p-registry chart dependency pinned in ci/deploy/oan-chart.json (COSS oan-helm).
 #
 # Build context = repo root (so cropsown-extension/ is reachable).
 ARG RP_VERSION=1.2.2-rc.557

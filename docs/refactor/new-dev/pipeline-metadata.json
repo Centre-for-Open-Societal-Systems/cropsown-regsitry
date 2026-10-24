@@ -1,0 +1,129 @@
+{
+  "registry": "cropsown",
+  "captured_at": "2026-10-24T18:40:15.820661+00:00",
+  "metadata": {
+    "/ingestion-config/get_all_incoming_key_paths": [
+      {
+        "key_path_id": "4a5d9a8e-ffef-466a-9d00-d8bd39b0337c",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "data_model_mnemonic": "DCI",
+        "is_list": false
+      },
+      {
+        "key_path_id": "5a5d9a8e-ffef-466a-9d00-d8bd39b0337d",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "data_model_mnemonic": "CSR_DATA_MODEL",
+        "is_list": false
+      },
+      {
+        "key_path_id": "e7b437ad-391e-5a08-a386-7a4dc73a50cf",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+        "is_list": false
+      }
+    ],
+    "/ingestion-config/get_all_register_semantic_patterns": [
+      {
+        "register_semantic_pattern_id": "026bba51-6d58-5164-aaca-2d2581f8a2f3",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+        "register_id": "fa120001-0000-4000-8000-000000000001",
+        "register_mnemonic": "Farmer",
+        "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+      }
+    ],
+    "/ingestion-config/get_all_templates": [
+      {
+        "template_id": "bce3ff5c-c0b0-5961-82c9-04dc13a7c094",
+        "register_id": "fa120001-0000-4000-8000-000000000001",
+        "register_mnemonic": "Farmer",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+        "template_document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+        "jsonld_expansion_required": false
+      },
+      {
+        "template_id": "IN-TMPL-1",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "register_mnemonic": "CropSown",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "data_model_mnemonic": "DCI",
+        "template_document_id": "3b7c1d20-5c0e-4c1b-9f2e-8a1c6d5e4f30",
+        "jsonld_expansion_required": false
+      },
+      {
+        "template_id": "IN-TMPL-CSR",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "register_mnemonic": "CropSown",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "data_model_mnemonic": "CSR_DATA_MODEL",
+        "template_document_id": "7a8b9c0d-1e2f-4a5b-8c9d-0e1f2a3b4c5d",
+        "jsonld_expansion_required": false
+      }
+    ],
+    "/outgestion-config/get_all_templates": [
+      {
+        "template_id": "OUT-TMPL-1",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "register_mnemonic": "CropSown",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "data_model_mnemonic": "DCI",
+        "template_document_id": "4c8d2e31-6d1f-4d2c-a03f-9b2d7e6f5041"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "/ingestion-config/get_all_semantic_patterns",
+      "error": "Metadata error envelope: /ingestion-config/get_all_semantic_patterns"
+    }
+  ],
+  "calls": [
+    {
+      "method": "POST",
+      "path": "/auth/start_authentication_transaction",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/realms/staff/protocol/openid-connect/auth",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/realms/staff/login-actions/authenticate",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/get_logged_in_user",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_all_incoming_key_paths",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_all_semantic_patterns",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_all_register_semantic_patterns",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_all_templates",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/outgestion-config/get_all_templates",
+      "status": 200
+    }
+  ]
+}
