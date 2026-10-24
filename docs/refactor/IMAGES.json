@@ -1,0 +1,40 @@
+{
+  "platform_version": "1.2.2-rc.557",
+  "base_repo_digests": [
+    "openg2p/openg2p-registry-staff-api@sha256:1df50c69aa440a39a2fa06d62e0889d5c64e550d8f5cd04c31bba0d6a3c7c39b"
+  ],
+  "platform_source_revision": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "ui_source_revision": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "local_images": {
+    "staff-api": {
+      "tag": "oan/crop-staff-api:refactor-ed1e70c",
+      "local_content_id": "sha256:801a65d2685711808d296202ee3a318647cba01f98050c5159a6a7c0c74f0a8a",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "partner-api": {
+      "tag": "oan/crop-partner-api:refactor-ed1e70c",
+      "local_content_id": "sha256:1806413fba3610426f8dbc69b817db4c74ca346054520928018021f3c5ee89a1",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "celery": {
+      "tag": "oan/crop-celery:refactor-ed1e70c",
+      "local_content_id": "sha256:bb771ffe68b69ff2cda7475055b2ab092139a6e7092abfdd25f6a36cd01e574d",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "db-seed": {
+      "tag": "oan/crop-db-seed:refactor-ed1e70c",
+      "local_content_id": "sha256:c6f1123f969472f5f936ee2b2b4e966b3f44befe8b8815a6527ec4717c8d19eb",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "staff-ui": {
+      "tag": "oan/crop-staff-ui:refactor-ed1e70c",
+      "local_content_id": "sha256:f6482e7de900a98658e4fd3b1ea90ee3105b4566953dfe497e14d3c0eea84258",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "sanity-tests": {
+      "tag": "oan/crop-sanity-tests:refactor-ed1e70c",
+      "local_content_id": "sha256:da7dee9d12764fd2de98ca131ec98c3446bcedef8451857d2d865c713ee744cd",
+      "registry_digest": "NOT PUBLISHED"
+    }
+  }
+}

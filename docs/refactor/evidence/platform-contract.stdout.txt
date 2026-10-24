@@ -1,0 +1,42 @@
+{
+  "worker_initializer": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/app.py",
+    "sha256": "6456481a7ffd30ff291b0d047df9cbb26711abf1c18c92f9de06bf41456a442b",
+    "matches": [
+      {
+        "line": 44,
+        "symbol": "Initializer"
+      }
+    ]
+  },
+  "worker_cr_creator": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/g2p_change_request_worker_service.py",
+    "sha256": "4ad2bfbfe5ad319abc20d9e1655180cc640dc220337389ebb4a950ede80a14fe",
+    "matches": [
+      {
+        "line": 16,
+        "symbol": "create_change_request"
+      }
+    ]
+  },
+  "worker_awe_calls": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/g2p_change_request_worker_service.py",
+    "sha256": "4ad2bfbfe5ad319abc20d9e1655180cc640dc220337389ebb4a950ede80a14fe",
+    "matches": []
+  },
+  "beat_extension_initializer_imports": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_beat/app.py",
+    "sha256": "f35a40a155f67ddf70f2818da2c7875ead4a26082f0bdc4720c1ac42b00840b8",
+    "matches": []
+  },
+  "worker_extension_initializer_imports": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/app.py",
+    "sha256": "6456481a7ffd30ff291b0d047df9cbb26711abf1c18c92f9de06bf41456a442b",
+    "matches": []
+  },
+  "session_aware_intake_validation": {
+    "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/intake_form_data_service.py",
+    "sha256": "407410ed6588c73688a0b5c7a568d3f94d18f3f33a8c42d581cc403e28098f8d",
+    "matches": []
+  }
+}

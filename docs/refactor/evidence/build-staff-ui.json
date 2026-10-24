@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "image": {
+    "tag": "oan/crop-staff-ui:refactor-ed1e70c",
+    "local_content_id": "sha256:f6482e7de900a98658e4fd3b1ea90ee3105b4566953dfe497e14d3c0eea84258",
+    "registry_digest": "NOT PUBLISHED"
+  },
+  "runtime_acceptance": "NOT RUN"
+}

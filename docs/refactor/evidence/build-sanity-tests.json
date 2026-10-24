@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "image": {
+    "tag": "oan/crop-sanity-tests:refactor-ed1e70c",
+    "local_content_id": "sha256:da7dee9d12764fd2de98ca131ec98c3446bcedef8451857d2d865c713ee744cd",
+    "registry_digest": "NOT PUBLISHED"
+  },
+  "runtime_acceptance": "NOT RUN"
+}

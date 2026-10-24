@@ -6,7 +6,7 @@ suite deliberately does NOT clean up after itself: the records are left in place
 so a failed run can be inspected. See `TEARDOWN_SQL` for the removal statements.
 
 Nothing here may collide with seeded sample data: the `SANITY` marker never
-appears in openg2p-data demography, and the ids are fixed UUIDs so a re-run
+appears in the crop sown sample set, and the ids are fixed UUIDs so a re-run
 updates rather than duplicates.
 """
 
@@ -19,29 +19,31 @@ CREATED_BY = "sanity-e2e"
 
 # Fixed so a re-run is idempotent (ON CONFLICT DO UPDATE) rather than additive.
 FARMER_INTERNAL_ID = "00000000-5a11-4e2e-8000-000000000001"
-FARMER_FUNCTIONAL_ID = "SANITY-FARMER-0001"
+FARMER_FUNCTIONAL_ID = "SANITY-CROPSOWN-0001"
 FARMER_FOUNDATIONAL_ID = "SANITY-UIN-0001"
 
-# The injected farmer's demographics. The e2e asserts these exact values come
-# back through the DCI template, so they must stay in sync with the assertions.
+# The injected crop sown record. The e2e asserts these exact values come back
+# through the DCI template, so they must stay in sync with the assertions.
+#
+# The harness names its fixture `FARMER` (it is the register's subject record);
+# for this registry that record is the crop sown registration itself.
 FARMER = {
-    "first_name": "Sanity",
-    "middle_name": "E2E",
-    "last_name": "Testfarmer",
-    "gender": "FEMALE",
-    "birth_date": "1990-01-01",
-    "marital_status": "SINGLE",
-    "education_level": "CAN_READ_AND_WRITE",
-    "language_code": "en",
+    "farmer_name": "Sanity E2E Testfarmer",
+    "farmer_id": "SANITY-FN-0001",
+    "fayda_fan_id": "SANITY-FAYDA-0001",
+    "land_uuid": "00000000-5a11-4e2e-8000-00000000001a",
+    "status": "APPROVED",
+    "production_year": "2026",
+    "lifecycle_stage": "SOWING",
 }
 
-# The field the change-request test edits. `middle_name` is a free-text field
-# that lives in a real, editable UI section (farmer personal-identification), so
-# the change-request API accepts it — and the DCI test does not assert it, so
+# The field the change-request test edits. `surveyor_name` is a free-text field
+# that lives in a real, editable UI section (crop sown survey personnel), so the
+# change-request API accepts it — and the DCI test does not assert it, so
 # changing it cannot break the data-sharing assertions.
-CR_FIELD = "middle_name"
-CR_VALUE_INITIAL = "SANITYMID"
-CR_VALUE_UPDATED = "SANITYMOD"
+CR_FIELD = "surveyor_name"
+CR_VALUE_INITIAL = "SANITYDA"
+CR_VALUE_UPDATED = "SANITYDAMOD"
 
 # The DCI search matches on `search_text`. Approving a change request updates the
 # record through the ORM, which REGENERATES search_text from the record's fields
@@ -69,19 +71,19 @@ AWE_RULE_MARKER = "sanity-e2e"
 # Statements that remove everything the suite created. Not run automatically —
 # provided so an operator can clean an environment on demand.
 #
-# Registry rows are keyed on internal_record_id, not created_by: the farmer row
-# carries created_by='sanity-e2e' (set by our SQL), but the change-request and
-# history rows are stamped by the registry with the *user's display name*
+# Registry rows are keyed on internal_record_id, not created_by: the crop sown
+# row carries created_by='sanity-e2e' (set by our SQL), but the change-request
+# and history rows are stamped by the registry with the *user's display name*
 # ("Sanity E2E"), so internal_record_id is the one reliable marker across all
 # three tables.
 TEARDOWN_SQL = {
     "registry": [
-        f"DELETE FROM g2p_register_history_farmers WHERE internal_record_id = '{FARMER_INTERNAL_ID}';",
+        f"DELETE FROM g2p_register_history_crop_sowns WHERE internal_record_id = '{FARMER_INTERNAL_ID}';",
         f"DELETE FROM g2p_register_change_requests WHERE internal_record_id = '{FARMER_INTERNAL_ID}';",
-        f"DELETE FROM g2p_register_farmers WHERE internal_record_id = '{FARMER_INTERNAL_ID}';",
+        f"DELETE FROM g2p_register_crop_sowns WHERE internal_record_id = '{FARMER_INTERNAL_ID}';",
     ],
     "awe": [
-        # Orphaned approval requests/tasks for the sanity farmer's change requests
+        # Orphaned approval requests/tasks for the sanity record's change requests
         # (run BEFORE the registry deletes, while the CR ids are still resolvable),
         # then the approver rule the suite added.
         f"DELETE FROM approver_rule WHERE rule_value::text LIKE '%{AWE_RULE_MARKER}%';",
