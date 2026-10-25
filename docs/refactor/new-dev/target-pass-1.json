@@ -8157,6 +8157,10 @@
       "sha256": "dd887e8115483d26bd5759a9644ace9dfa4d14a8743b760eec82e094574eb9ca"
     },
     {
+      "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql",
+      "sha256": "5742faeabf1425808965188aff93273daa89b1dcfa31d7d5ecb1a807f12371eb"
+    },
+    {
       "path": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
       "sha256": "5f2ba9cbd2a8b6d5f3214a68190ea0ff63104e1a2ff5cb767db8c1d899822c5f"
     }
@@ -8164,6 +8168,13 @@
   "seed_errors": [],
   "metadata": {
     "data_models": [
+      {
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+        "pattern_for_data_model": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "response_template_document_id": null,
+        "is_active": true
+      },
       {
         "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
         "data_model_mnemonic": "DCI",
@@ -14707,6 +14718,228 @@
         "tab_label": "farmer",
         "tab_order": 10,
         "is_active": true
+      }
+    ],
+    "g2p_registry_documents": [
+      {
+        "document_id": "1f0953d4-f0fb-4336-a126-4d0519a74ffc",
+        "document_store_id": "dci_commons_response.json.j2",
+        "bucket": "templates",
+        "source_filename": "dci_commons_response.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "3b7c1d20-5c0e-4c1b-9f2e-8a1c6d5e4f30",
+        "document_store_id": "dci_to_openg2p_cropsown.json.j2",
+        "bucket": "templates",
+        "source_filename": "dci_to_openg2p_cropsown.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "4c8d2e31-6d1f-4d2c-a03f-9b2d7e6f5041",
+        "document_store_id": "openg2p_cropsown_to_dci.json.j2",
+        "bucket": "templates",
+        "source_filename": "openg2p_cropsown_to_dci.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "7a8b9c0d-1e2f-4a5b-8c9d-0e1f2a3b4c5d",
+        "document_store_id": "csr_odk_transform.j2",
+        "bucket": "templates",
+        "source_filename": "csr_odk_transform.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+        "document_store_id": "farmer_reference_update.json.j2",
+        "bucket": "templates",
+        "source_filename": "farmer_reference_update.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-10-25 00:00:00"
+      }
+    ],
+    "incoming_model_key_paths": [
+      {
+        "key_path_id": "e7b437ad-391e-5a08-a386-7a4dc73a50cf",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.header.signature",
+        "key_path_for_signature_payload": "$.body.message.payload",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      },
+      {
+        "key_path_id": "4a5d9a8e-ffef-466a-9d00-d8bd39b0337c",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.signature",
+        "key_path_for_signature_payload": "$.body['header','message']",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      },
+      {
+        "key_path_id": "5a5d9a8e-ffef-466a-9d00-d8bd39b0337d",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.header.signature",
+        "key_path_for_signature_payload": "$.body.message",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      }
+    ],
+    "incoming_model_register_semantic_patterns": [
+      {
+        "register_semantic_pattern_id": "026bba51-6d58-5164-aaca-2d2581f8a2f3",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "register_id": "fa120001-0000-4000-8000-000000000001",
+        "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+      }
+    ],
+    "incoming_model_semantic_patterns": [
+      {
+        "semantic_pattern_id": "a01d73cb-ca18-53b4-9d90-7c1a4841cd37",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "register_id": "fa120001-0000-4000-8000-000000000001",
+        "intake_form_id": null,
+        "section_id": "cropsown_farmer_identity_section_01",
+        "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "pattern_for_intake_form": "$.body.message.payload.event_type=>^NEVER_ADD$",
+        "pattern_for_section": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PFarmerReferenceNotificationEnricher"
+      },
+      {
+        "semantic_pattern_id": "8ca39bd1-238d-4f10-aeaa-4752b04fbb3a",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "4a7c2c98-0ffb-41d8-8fea-f22349823675",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.search_response[0].data.reg_type=>^CropSown$",
+        "pattern_for_intake_form": "$.body.message.search_response[0].data.reg_record_type=>^crop_sown_sowing_intake$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.search_response[0].data.reg_records[0]",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "f9b7c852-c8d1-4e4b-a258-005a8b79f8e4",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "52150a37-153d-496d-9cd9-2a3815d6e13b",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.search_response[0].data.reg_type=>^CropSown$",
+        "pattern_for_intake_form": "$.body.message.search_response[0].data.reg_record_type=>^crop_sown_harvesting_intake$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.search_response[0].data.reg_records[0]",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "9334426e-f2ec-4fc2-8c55-aebfc13ee9b5",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "5bf0068c-ce19-46f8-874c-7147997f793b",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.search_response[0].data.reg_type=>^CropSown$",
+        "pattern_for_intake_form": "$.body.message.search_response[0].data.reg_record_type=>^crop_sown_planning_intake$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.search_response[0].data.reg_records[0]",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "23e3e068-d0f9-43c7-ad71-9252c842fb18",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "6be15ab9-0f1b-4c38-995f-395d52a1b17a",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.search_response[0].data.reg_type=>^CropSown$",
+        "pattern_for_intake_form": "$.body.message.search_response[0].data.reg_record_type=>^crop_sown_cultivation_intake$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.search_response[0].data.reg_records[0]",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "33333333-0ffb-41d8-8fea-f22349823675",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "4a7c2c98-0ffb-41d8-8fea-f22349823675",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.payload.register_mnemonic=>^CropSown$",
+        "pattern_for_intake_form": "$.body.header.message_id=>^crop_sown_registry_sown.*$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "44444444-153d-496d-9cd9-2a3815d6e13b",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "52150a37-153d-496d-9cd9-2a3815d6e13b",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.payload.register_mnemonic=>^CropSown$",
+        "pattern_for_intake_form": "$.body.header.message_id=>^crop_sown_registry_harvest.*$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "11111111-ce19-46f8-874c-7147997f793b",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "5bf0068c-ce19-46f8-874c-7147997f793b",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.payload.register_mnemonic=>^CropSown$",
+        "pattern_for_intake_form": "$.body.header.message_id=>^crop_sown_registry_plan.*$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "22222222-0f1b-4c38-995f-395d52a1b17a",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "intake_form_id": "6be15ab9-0f1b-4c38-995f-395d52a1b17a",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.payload.register_mnemonic=>^CropSown$",
+        "pattern_for_intake_form": "$.body.header.message_id=>^crop_sown_registry_prep.*$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PDciCropSownCreateEnricherService"
+      }
+    ],
+    "incoming_templates": [
+      {
+        "template_id": "IN-TMPL-1",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "template_document_id": "3b7c1d20-5c0e-4c1b-9f2e-8a1c6d5e4f30",
+        "jsonld_expansion_required": false,
+        "created_at": "2026-05-07 04:31:27.828397",
+        "updated_at": null
+      },
+      {
+        "template_id": "IN-TMPL-CSR",
+        "register_id": "6b06a95a-9a6c-5a33-a33d-c1625716c59c",
+        "data_model_id": "e442ca96-ac35-4014-9d13-4ef327f6b79c",
+        "template_document_id": "7a8b9c0d-1e2f-4a5b-8c9d-0e1f2a3b4c5d",
+        "jsonld_expansion_required": false,
+        "created_at": "2026-10-12 00:00:00",
+        "updated_at": null
+      },
+      {
+        "template_id": "bce3ff5c-c0b0-5961-82c9-04dc13a7c094",
+        "register_id": "fa120001-0000-4000-8000-000000000001",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "template_document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+        "jsonld_expansion_required": false,
+        "created_at": "2026-10-25 00:00:00",
+        "updated_at": null
       }
     ],
     "registry_languages": [

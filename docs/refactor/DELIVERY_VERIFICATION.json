@@ -1,19 +1,22 @@
 {
   "registry": "cropsown",
-  "verified_at": "2026-10-24T20:13:45.205014+00:00",
+  "verified_at": "2026-10-25T01:50:43.921939+00:00",
   "lifecycle_tests": {
     "contract-tests": 25,
     "projection-tests": 8,
+    "notification-contract-tests": 5,
     "postgres-concurrency": 14,
-    "native-cr-lifecycle": 12,
+    "native-cr-lifecycle": 9,
+    "native-workflow-http": 3,
+    "native-notification-lifecycle": 8,
     "signed-lookup-http": 7
   },
-  "lifecycle_test_total": 66,
+  "lifecycle_test_total": 79,
   "central_chart_tests": 10,
   "deployment_configuration_tests": 6,
   "platform_pin_test": 1,
   "location_geometry_and_retry_tests": 4,
-  "unit_and_geometry_total": 87,
+  "unit_and_geometry_total": 102,
   "new_dev_declared_fields": 482,
   "new_dev_sections": 14,
   "new_dev_forms": 4,
@@ -37,7 +40,7 @@
   "promotion_ready": false,
   "remaining_acceptance": "STATUS.json",
   "source_sha256": {
-    "Jenkinsfile": "580eae56b9c0c000e742294de55ed50074d21706d7e127261ad949c2646f8a80",
+    "Jenkinsfile": "6e71073cd55f92db24f2871567d9cd8be041f16d10f5a60a6700e45b8ac43f5e",
     "ci/deploy/oan-chart.json": "e723e1fe6234797480a2fad4de0f6769f6a0f348a7ddee067716ed189c9a4672",
     "ci/deploy/oan_chart.py": "89a2b81e90f9702d5dd731f123c0382ff7315c71a851f98b21538410973fdaf0",
     "ui/staff-ui/overrides/src/app/api/master-data/geo-boundary/route.ts": "297fb24795bed115c5b173492bfac080da11dd1e7696ea59f1ee7008b0e238e3",
@@ -66,5 +69,22 @@
       "dashboard public values"
     ],
     "scope": "Identical consumer code in both registries; Crop build agent prefetch/stash retains the isolated VPN deployment-node contract"
+  },
+  "orchestration_failure_tests": 2,
+  "native_notification_configuration": "NOTIFICATION_CONFIG_VERIFICATION.json",
+  "native_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "current_runtime_source_hashes_match": true,
+  "verification_complete": true,
+  "production_image_ids": {
+    "staff-api": "sha256:2ccff60bcf0dd35c8f949e145e7eb42165d7cda139c58cc6b558d9abd081f03d",
+    "partner-api": "sha256:6ef970edb9251ba04bd24879c68043a3bbd61ed5e60c69bc1119e83fa08eab8d",
+    "celery": "sha256:9991aa05d29d1ea36f28f7dd979168cf0f5c181a6d49719cd42ee3435dac5bd6",
+    "db-seed": "sha256:59382cf5f583cca8097fd2299b4e91e4a7d8f9d355b3e5e450162967aaff1603"
+  },
+  "installed_beat_registration": {
+    "result": "PASS",
+    "network_accessed": false,
+    "image_id": "sha256:9991aa05d29d1ea36f28f7dd979168cf0f5c181a6d49719cd42ee3435dac5bd6",
+    "domain": "cropsown"
   }
 }

@@ -1,17 +1,18 @@
 {
   "registry": "cropsown",
-  "verified_at": "2026-10-24T19:55:04.891217+00:00",
+  "verified_at": "2026-10-25T01:41:04.349542+00:00",
   "source_sha256": {
     "ci/refactor/check_port.py": "cf39b9d2ab8ba926583be5d7077e5a7f0302cf31449e4f4e9daa4aa0382056c4",
     "ci/refactor/compare_new_dev.py": "927b0441fcbf35d1beb0e6bdf0013d4fd00f167e7d8be9e451ccca1f3d923c80",
     "ci/refactor/deployment_guard.py": "219d0d61b7b7cd034f1ad2301b2824abb90214a628ec500959875f669ab51f34",
-    "ci/refactor/metadata_probe.py": "8dea6f637ad7aa6061c33d8195d6fed0c3b44c94131f4dbf88f373ea449d2111",
+    "ci/refactor/metadata_probe.py": "eb59514e0f7238667568580de1aeec6311b9fd5eac5a5dc5ce0c592efff2ee20",
     "ci/refactor/new_dev_metadata.py": "99ba819346c81c212fa1ec06c3345bfa7784f3c5ee225bbe779be5a9f911db73",
+    "ci/refactor/notification_pipeline_probe.py": "3dd479e8c9e6ac015d6a951c23ff4e636b18dae9d885541868e27753a09371af",
     "ci/refactor/onboarding_probe.py": "6a01f3629f28b4d4d52a30e2a45cc746ade34590066a82b2709c98dc28c21202",
     "ci/refactor/platform_contract_probe.py": "4b1975e065c4810b2a63623c3847b811e4a3ac656a0833582b7577ceed852760",
-    "ci/refactor/rehearse_metadata.py": "529c0e476b526e3f411f75d25d79fcf6b22e638fa5d8fa86724494cdd2b803ab",
+    "ci/refactor/rehearse_metadata.py": "eba0985109156d85b3b5927c694114cf8e39e9fe58cf7e74c925b42c72b8719c",
     "ci/refactor/runtime_probe.py": "a7884f1cb2d25b942752304278f9e357e351845904ba18a2bb2d7e1a82c9b342",
-    "ci/refactor/verify_onboarding.py": "fa561e44911cce25a18f3f66e9db965e7a43d7124bde6872acd670d52e8e4332",
+    "ci/refactor/verify_onboarding.py": "f71bdfe1d0db252e78ae20b225d144aff8017585eaec275ed9ddf338c45131aa",
     "cropsown-extension/pyproject.toml": "cf3a5e462d9e4da0a94695106f5cc332c7d5b0c040e5c8f523c48ba2537e9eec",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/__init__.py": "159b9cdfa6b98eece4a8f166c789db39e9358b9dc931f0a2cd1341edd66c88ea",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/app.py": "c67b0d55d230efedf0f563c64bb50e33e51323d1d599ced89ab76c1bf3159723",
@@ -22,7 +23,8 @@
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/geography.py": "07bb1e3b4f8913a52dd6733db94412f8aab3489ce7bcd9fb0f42fbd37415283b",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/lookup.py": "637302ba5e6800b7df069737d669c5bede66e442e421129a7d60d979b667fc5f",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/models.py": "e1cb03b03959db169370fe2a835a5a8fec00eee353756317c11a9135269553f6",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/native.py": "fe73c7124430bbecfa9c8378be7cc2357098fcf048bcb0fbf67473355363518c",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/native.py": "64c78017362ce2230133b7587fb0a207f38ce348f97c4d74445c3c6b8f89f955",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/notification.py": "3911798755994cbbfe6f5af213ae630b351d05622f8f22e4f7bb916d36ead8bf",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/onboarding.py": "3858a6c2a0d9b6279a404a4f97a03403510cf2756eb945fdaa0e3ed9d04d4c30",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/profile.py": "8e0ab773c3a6f45102f5469ed7b14ff2fdcfb655a6d31ae8240edb05cc282527",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/projection.py": "9afd447feb56907f52e5f517e555168bb092cf9572abe0c259b2f0634cc8b1c4",
@@ -31,7 +33,7 @@
     "cropsown-extension/src/openg2p_registry_cropsown_extension/farmer_reference/workflow.py": "aa61739523377d6384357e91133d8a110d5b7b9f430af4495df950b8d9041386",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/__init__.py": "002e6d482035e31703b280026997a8494702053a1ac45e83256282c13068455b",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/__init__.py": "317db7e132d3197017774c56e23865ff698b46b37b234110015df30279f623a9",
-    "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/farmer_reference.py": "6a63c4cc3822a4b307099f02e9c02ebf10813a7a61d82a33c245c6cc8a2c8482",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/farmer_reference.py": "4de66dcbfd27cd61e264f5ffcc73e5a844b080ff101b052e408cea423116c080",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/g2p_cropsown_enricher_services.py": "37a9c46c92cc2d1148154a7e3425728e8e8ca7cffdd5e6b5494fe11581aeab70",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/ingestion_pipeline/enricher_services/g2p_sowing_enricher_services.py": "b0a1e9f455e3e41aedfdb47638bd0f485c718599bf13cc69dd2dddb69d0cc442",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/data-models/data_models.sql": "2a800268f92720051bd08b6f7a7c16b98d49b00d78d67f58590d062cdab3f931",
@@ -58,6 +60,7 @@
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql": "fe6bb32c0e8b44b0f59aaaa4164fae6977740bd9d5747cd9d5f986cd62f92164",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "33a0051f94386114895c7ae36f0cc6948668edbbab2b3b0186769b1e96e12783",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql": "dd887e8115483d26bd5759a9644ace9dfa4d14a8743b760eec82e094574eb9ca",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql": "5742faeabf1425808965188aff93273daa89b1dcfa31d7d5ecb1a807f12371eb",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "5f2ba9cbd2a8b6d5f3214a68190ea0ff63104e1a2ff5cb767db8c1d899822c5f",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/controllers/__init__.py": "740283abfd4534faa966ee1ceb383b0ecc0c08fe5c6428550a8b891b475f30e3",
@@ -107,10 +110,13 @@
     "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/csr_odk_transform.j2": "b52a114b6e45ff0c5be1a9c52bc05e4e450c8ab131c2aa3abeed821b743be05d",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/dci_commons_response.json.j2": "59ecfeda066f9266c39d2cc413e72a4b93d8edfacb5746ceefb70c0729eb7bd7",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/dci_to_openg2p_cropsown.json.j2": "02391859d096dd6f3582c7c8381ef359a24f7203e9094dded8e867a999deeca9",
+    "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/farmer_reference_update.json.j2": "88b9137ca75c2f6183973476b64f93629a64e421a2c28990f1f773a68d69f1de",
     "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/openg2p_cropsown_to_dci.json.j2": "29a72cc4799ea7cc555c60899229af9a99fd28d2c33c526814d27de97772b158",
     "cropsown-extension/tests/test_farmer_reference_contract.py": "45b5c77170fae4707564628e4746f6dd294fd02b5be3847a937d2520b4830095",
-    "cropsown-extension/tests/test_farmer_reference_http.py": "6498f5620a34938293f30c0d91f6fdbf872c70b707898efa63531e7df65f86ad",
-    "cropsown-extension/tests/test_farmer_reference_native.py": "d02113abea8f243bccd5c584a7eb6610914fda53df74ebd4a1ab0f7f58c09bac",
+    "cropsown-extension/tests/test_farmer_reference_http.py": "45c9c7f1833015132533dd3ef603d8fa6bd2827ab05515ec25b6d623f1ebc591",
+    "cropsown-extension/tests/test_farmer_reference_native.py": "47ebae996c9c806f256a97d25aeef886334c578fd9d08e85888fa431aa7f00e5",
+    "cropsown-extension/tests/test_farmer_reference_notification.py": "5ebd7f1051c9b6e05465ef4263cffad1d5eb9d95f3ce6f0256013e554a7bc236",
+    "cropsown-extension/tests/test_farmer_reference_notification_native.py": "3da9e3a83fac40ce35bb02c3f7355a9b261023f94aa655aa93ba604eff96b02b",
     "cropsown-extension/tests/test_farmer_reference_onboarding.py": "ff0204c077c329fd4fed14028f70c41e09c1f01f78290a49a8ce6d6aaa0160c3",
     "cropsown-extension/tests/test_farmer_reference_projection.py": "3192c8418d1f48346ef76d5c05d9a1cf362ae6464ac399fb50cfb681c5830eb0",
     "docker/celery/Dockerfile": "390445c8ff84de63067dd114e620307d1b837cd15b9482b1c36d138854625727",
@@ -123,6 +129,7 @@
     "postman/mocks/farmer-reference/default.js": "18025e6719da85d7516e76d44f2897361827d2cffc5bafbcf52a213d67f62c45",
     "postman/simulations/farmer-reference.sim.yaml": "28c57df0dbefc0b066846a0059dd46015267b9bd52fb0a6d8a7a90c609427747"
   },
+  "verification_complete": true,
   "registry_stacks_started": 0,
   "existing_database_modified": false,
   "source_farmer_modified": false,
@@ -148,6 +155,12 @@
     },
     {
       "check": "projection-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "notification-contract-tests",
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS"
@@ -207,6 +220,18 @@
       "result": "PASS"
     },
     {
+      "check": "native-workflow-http",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "native-notification-lifecycle",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
       "check": "signed-lookup-http",
       "exit_code": 0,
       "expected_exit_code": 0,
@@ -216,9 +241,9 @@
       "check": "simulation-traffic",
       "result": "PASS",
       "listening": true,
-      "requests": 74,
+      "requests": 77,
       "statuses": {
-        "200": 64,
+        "200": 67,
         "503": 7,
         "401": 1,
         "429": 1,
@@ -226,10 +251,86 @@
         "307": 1
       },
       "methods": {
-        "POST": 46,
-        "GET": 29
+        "POST": 48,
+        "GET": 30
       },
       "raw_traffic_saved": false
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:2ccff60bcf0dd35c8f949e145e7eb42165d7cda139c58cc6b558d9abd081f03d"
+    },
+    {
+      "check": "installed-staff-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:6ef970edb9251ba04bd24879c68043a3bbd61ed5e60c69bc1119e83fa08eab8d"
+    },
+    {
+      "check": "installed-partner-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:9991aa05d29d1ea36f28f7dd979168cf0f5c181a6d49719cd42ee3435dac5bd6"
+    },
+    {
+      "check": "installed-worker-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:59382cf5f583cca8097fd2299b4e91e4a7d8f9d355b3e5e450162967aaff1603"
+    },
+    {
+      "check": "preservation-seed-gate",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
     },
     {
       "check": "source-unchanged-during-verification",

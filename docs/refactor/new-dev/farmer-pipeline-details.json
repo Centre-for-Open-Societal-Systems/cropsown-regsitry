@@ -1,0 +1,82 @@
+{
+  "captured_at": "2026-10-25T01:07:44.227738+00:00",
+  "registry": "cropsown",
+  "metadata": {
+    "/ingestion-config/get_incoming_key_path": {
+      "key_path_id": "e7b437ad-391e-5a08-a386-7a4dc73a50cf",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "key_path_for_message_id": "$.body.header.message_id",
+      "key_path_for_sender": "$.body.header.sender_id",
+      "key_path_for_signature": "$.body.header.signature",
+      "key_path_for_signature_payload": "$.body.message.payload",
+      "is_list": false,
+      "key_path_for_list_elements": ""
+    },
+    "/ingestion-config/get_register_semantic_pattern": {
+      "register_semantic_pattern_id": "026bba51-6d58-5164-aaca-2d2581f8a2f3",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+      "register_id": "fa120001-0000-4000-8000-000000000001",
+      "register_mnemonic": "Farmer",
+      "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+    },
+    "/ingestion-config/get_template": {
+      "template_id": "bce3ff5c-c0b0-5961-82c9-04dc13a7c094",
+      "register_id": "fa120001-0000-4000-8000-000000000001",
+      "register_mnemonic": "Farmer",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+      "template_document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+      "jsonld_expansion_required": false
+    }
+  },
+  "errors": [
+    {
+      "path": "/ingestion-config/get_semantic_pattern",
+      "error": "Metadata error envelope: /ingestion-config/get_semantic_pattern"
+    }
+  ],
+  "calls": [
+    {
+      "method": "POST",
+      "path": "/auth/start_authentication_transaction",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/realms/staff/protocol/openid-connect/auth",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/realms/staff/login-actions/authenticate",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/get_logged_in_user",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_incoming_key_path",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_semantic_pattern",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_register_semantic_pattern",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/ingestion-config/get_template",
+      "status": 200
+    }
+  ]
+}

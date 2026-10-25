@@ -7,7 +7,7 @@
     {
       "id": "B02",
       "capability": "Kafka-created approval tasks",
-      "evidence": "Native receiving-service override, current signed source lookup, committed AWE outbox, service identity and server-generated Woreda context are implemented. Actual Kafka-created tasks/independent decisions/recovery remain NOT RUN. Live metadata additionally contains FARMER_REFERENCE_CHANGED_V1 key/register/template bindings omitted from the legacy source seed. They are captured in new-dev/pipeline-metadata.json and require verified native port, including document template content, before promotion."
+      "evidence": "Native notification model/key paths/two-pass UPDATE-only semantics/template catalog and identity-only transformation are now ported. Crop existing identifiers are retained; Livestock receives independent new metadata IDs. Matching local pair and source-partner checks precede signed current lookup, versioned CR reuse and the durable AWE outbox. New Dev semantic detail/template content and live Kafka-to-real-AWE tasks/independent decisions/recovery remain unverified; no connector/subscription/checkpoint was mutated. Current source passes 79 receiving/reference tests, native worker mapping and repeated-seed checks; see NOTIFICATION_VERIFICATION.md. This is not real Kafka/AWE-engine delivery acceptance."
     },
     {
       "id": "B03",
@@ -17,7 +17,7 @@
     {
       "id": "B04",
       "capability": "Domain scheduled tasks",
-      "evidence": "Native CELERY_IMPORTS now registers an extension task and beat entry without changing native schedules. Port/accept required Livestock reminders, alerts and retention jobs; the hook alone is not parity."
+      "evidence": "Native extension outbox scheduling and central reporting jobs are retained. Data-based scheduled/reporting behavior remains unaccepted. Livestock domain job ports are assessed in the Livestock repository; they are not a missing Crop source capability."
     },
     {
       "id": "B05",
@@ -32,7 +32,7 @@
     {
       "id": "B07",
       "capability": "Preservation and live acceptance",
-      "evidence": "Real signed Farmer/Consent Manager lookup, Kafka/AWE tasks, native import/ODK/attachments, all domain rules/jobs, authenticated dashboards, fresh application installation and restored-copy upgrades remain NOT RUN."
+      "evidence": "Real signed Farmer/Consent Manager lookup, Kafka/AWE tasks, native import/ODK/attachments, all domain rules/jobs, authenticated dashboards, fresh application installation and restored-copy upgrades remain NOT RUN. Existing Farmer functional identifiers must be reconciled against native classifier requirements on restored copies. New ADD references derive the native identifier from the verified Farmer ID; existing identifiers are not swept or overwritten."
     },
     {
       "id": "B09",
@@ -121,5 +121,7 @@
   "implementation_phase": "Extension reference integration candidate; full domain/live preservation acceptance incomplete",
   "verification_followup": "ONBOARDING_VERIFICATION.json",
   "metadata_verification": "new-dev/comparison.json",
-  "chart_profile": "../../ci/deploy/oan-chart.json"
+  "chart_profile": "../../ci/deploy/oan-chart.json",
+  "notification_verification": "NOTIFICATION_VERIFICATION.md",
+  "native_notification_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json"
 }

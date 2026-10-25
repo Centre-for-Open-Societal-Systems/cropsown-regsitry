@@ -1,0 +1,35 @@
+{
+  "document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+  "document_kind": "configuration template only",
+  "user_documents_queried": false,
+  "credentials_or_presigned_url_saved": false,
+  "result": "UNVERIFIED",
+  "error_type": "RuntimeError",
+  "calls": [
+    {
+      "method": "POST",
+      "path": "/auth/start_authentication_transaction",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/realms/staff/protocol/openid-connect/auth",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/realms/staff/login-actions/authenticate",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/get_logged_in_user",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/documents/get_documents",
+      "status": 200
+    }
+  ]
+}
