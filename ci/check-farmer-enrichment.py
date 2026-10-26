@@ -66,7 +66,7 @@ def check(items, release, namespace, secret_loader=None, hook_loader=None):
             for field, setting in [('kid', 'CROPSOWN_CM_SIGNING_KID'), ('algorithm', 'CROPSOWN_CM_ALG')]:
                 assert base64.b64decode(data.get(field, ''), validate=True).decode().strip() == value(setting), 'Signing Secret metadata mismatch'
         if hook_loader:
-            assert 'CropSown two-CR hooks installed (finalize + approve_register create-or-update)' in hook_loader(namespace, name), 'Crop Farmer hooks were not installed'
+            assert 'CropSown farmer-reference hooks installed (single approval: finalize staging + approve_register create-or-update)' in hook_loader(namespace, name), 'Crop Farmer hooks were not installed'
         seen.append(name)
     return {'cropFarmerEnrichmentGuard': 'passed', 'deployments': seen,
             'liveSecretChecked': secret_loader is not None, 'runtimeHooksChecked': hook_loader is not None}

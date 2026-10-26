@@ -32,6 +32,10 @@ _SECTION_LIFECYCLE_STAGE_MAP = {
 class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def post_ingest(self, register_id, register_row, session):
         from .farmer_name_projection import refresh_crop_name_on_ingest
+        from .farmer_register_crossref import activate_farmer_reference
+        # The approved intake is the only approval item; its Farmer reference
+        # becomes active in the same transaction as the Crop Sown record.
+        await activate_farmer_reference(session, register_row)
         await refresh_crop_name_on_ingest(session, register_row)
 
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):

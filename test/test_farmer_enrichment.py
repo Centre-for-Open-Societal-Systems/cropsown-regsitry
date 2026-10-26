@@ -48,7 +48,7 @@ def test_config_and_secret_metadata():
         k:base64.b64encode(v.encode()).decode() for k,v in {
             'private-key.pem':'test-only-private-key','kid':env['CROPSOWN_CM_SIGNING_KID'],'algorithm':'EdDSA'}.items()}}
     loader = lambda *_: copy.deepcopy(secret)
-    logs = lambda *_: 'CropSown two-CR hooks installed (finalize + approve_register create-or-update)'
+    logs = lambda *_: 'CropSown farmer-reference hooks installed (single approval: finalize staging + approve_register create-or-update)'
     assert check(manifest(),loader,logs)['runtimeHooksChecked']
     for key in ['private-key.pem','kid','algorithm']:
         bad = copy.deepcopy(secret);bad['data'][key] = base64.b64encode(b'wrong' if key!='private-key.pem' else b'').decode()
@@ -92,7 +92,7 @@ def hook_scope():
     tree=ast.parse(path.read_text(encoding='utf-8'))
     nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in {'_enabled','_setting','install'}]
     scope={'os':os,'_logger':logging.getLogger('test-hooks'),'_install_approve_register':Mock(),
-           '_config':lambda:{'register_id':'farmer-register'},'raise_farmer_change_request':AsyncMock(),'enrich_intake_names':AsyncMock()}
+           '_config':lambda:{'register_id':'farmer-register'},'stage_farmer_reference':AsyncMock(),'enrich_intake_names':AsyncMock()}
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),scope)
     return scope
 
@@ -113,14 +113,14 @@ def test_hook_feature_flag_idempotency_arguments_and_failure_boundaries():
             scope['_install_approve_register'].assert_called_once_with('farmer-register')
             assert await Intake().finalize_submission_with_session('submission','session',bearer_token='token',requester_sub='actor')=='original-result'
             scope['enrich_intake_names'].assert_awaited_once_with('submission','session')
-            scope['raise_farmer_change_request'].assert_awaited_once_with('submission','token','actor')
-            scope['raise_farmer_change_request'].side_effect=RuntimeError('lookup unavailable')
+            scope['stage_farmer_reference'].assert_awaited_once_with('submission','session')
+            scope['stage_farmer_reference'].side_effect=RuntimeError('lookup unavailable')
             assert await Intake().finalize_submission_with_session('submission','session')=='original-result'
-            scope['raise_farmer_change_request'].reset_mock()
+            scope['stage_farmer_reference'].reset_mock()
             original.side_effect=RuntimeError('finalize failed')
             with pytest.raises(RuntimeError,match='finalize failed'):
                 await Intake().finalize_submission_with_session('submission','session')
-            scope['raise_farmer_change_request'].assert_not_awaited()
+            scope['stage_farmer_reference'].assert_not_awaited()
     asyncio.run(main())
 
 
@@ -188,12 +188,12 @@ def test_farmer_change_fields_obey_the_section_editable_field_contract():
     assert allowed
     path=EXT/'register_domain/services/farmer_register_crossref.py'
     tree=ast.parse(path.read_text(encoding='utf-8'))
-    function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_cr_fields')
-    scope={'date':date}
+    function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_reference_fields')
+    scope={}
     exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),scope)
-    fields=scope['_cr_fields']('FR-123456789012',{'first_name':'Test','last_name':'Farmer','date_of_birth':date(1990,1,1)},'Test Farmer')
+    fields=scope['_reference_fields']('FR-123456789012',{'first_name':'Test','last_name':'Farmer','date_of_birth':date(1990,1,1)})
     assert set(fields)<=allowed
-    assert fields['first_name']=='Test' and fields['date_of_birth']=='1990-01-01'
+    assert fields['first_name']=='Test' and fields['date_of_birth']==date(1990,1,1)
 
 def test_native_update_retry_guard_locks_then_reuses_processed_request(tmp_path):
     import types

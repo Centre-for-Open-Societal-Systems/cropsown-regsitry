@@ -98,50 +98,41 @@ def test_notification_uses_current_lookup_and_raises_for_pipeline_retry(helper,m
         else:
             with pytest.raises(ValueError,match='LOOKUP_NOT_RESOLVED'):service.enrich(event,None)
 
-@pytest.mark.parametrize('resolved,active,pending,expected',[(False,True,False,0),(True,True,False,0),(True,False,True,0),(True,False,False,1)])
-def test_reuse_requires_resolved_identity_and_concurrent_requests_deduplicate(resolved,active,pending,expected):
-    import sys,types
-    from unittest.mock import AsyncMock,Mock
-    from sqlalchemy import text
+@pytest.mark.parametrize('resolved,active,expected',[(False,False,0),(False,True,0),(True,True,0),(True,False,2)])
+def test_staging_requires_resolved_identity_skips_active_and_serialises_per_farmer(resolved,active,expected):
+    from unittest.mock import AsyncMock
     async def main():
-        lock=asyncio.Lock();created=[]
+        lock=asyncio.Lock();order=[]
         class Session:
-            async def __aenter__(self):return self
-            async def __aexit__(self,*args):pass
-            def begin(self):return Transaction()
-            async def execute(self,*args):await lock.acquire()
+            def begin_nested(self):return Transaction()
         class Transaction:
             async def __aenter__(self):return self
-            async def __aexit__(self,*args):lock.release()
-        async def create(**kwargs):
+            async def __aexit__(self,*args):
+                if lock.locked():lock.release()
+        async def lock_farmer(session,farmer_id):
+            await lock.acquire();order.append(('lock',farmer_id))
+        async def stage(session,farmer_id,fields,name,created_by):
+            assert lock.locked()
             await asyncio.sleep(0.01)
-            created.append(kwargs)
-            return types.SimpleNamespace(change_request_id='test-cr')
-        svc=types.SimpleNamespace(create_change_request=create)
-        modules={'openg2p_registry_core.schemas.change_request':types.SimpleNamespace(
-            ChangePayload=types.SimpleNamespace,ChangeRequestRequestPayload=types.SimpleNamespace),
-            'openg2p_registry_core.services.g2p_register_change_request_service':types.SimpleNamespace(
-                G2PRegisterChangeRequestService=types.SimpleNamespace(get_component=lambda:svc))}
-        scope={'_enabled':lambda:True,'_config':lambda:{'register_id':'r','tab_id':'t','section_id':'s','source_partner_id':'p','created_by':'test'},
+            order.append(('stage',farmer_id,name,created_by))
+            return 'shell'
+        scope={'_enabled':lambda:True,'_config':lambda:{'created_by':'test'},
             '_intake_farmer_ids':AsyncMock(return_value=[{'farmer_id':' '+FID+' ','fayda_fan_id':FAN}]),
             '_farmer_exists_active':AsyncMock(return_value=active),
             'fetch_farmer_record':AsyncMock(return_value={'demographic_info':{}} if resolved else None),
             'to_farmer_fields':lambda _: {'first_name':'Synthetic'},'compose_farmer_name':lambda *a:'Synthetic',
-            '_sessionmaker':lambda:Session,'text':text,'_pending_cr_exists':AsyncMock(side_effect=lambda _:pending or bool(created)),
-            '_draft_shell_for':AsyncMock(return_value='shell'),'_cr_fields':lambda *a:{'first_name':'Synthetic'},
+            '_lock_farmer':lock_farmer,'_stage_reference':stage,
             '_logger':logging.getLogger('test-crossref')}
         path=EXT/'farmer_register_crossref.py'
-        node=next(n for n in ast.parse(path.read_text(encoding='utf-8')).body if isinstance(n,ast.AsyncFunctionDef) and n.name=='raise_farmer_change_request')
+        node=next(n for n in ast.parse(path.read_text(encoding='utf-8')).body if isinstance(n,ast.AsyncFunctionDef) and n.name=='stage_farmer_reference')
         exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),scope)
-        with patch.dict(sys.modules,modules):
-            await asyncio.gather(*(scope['raise_farmer_change_request']('marked-submission',None,None) for _ in range(2)))
-        assert len(created)==expected
+        await asyncio.gather(*(scope['stage_farmer_reference']('marked-submission',Session()) for _ in range(2)))
+        staged=[o for o in order if o[0]=='stage']
+        assert len(staged)==expected
+        assert all(o==('stage',FID,'Synthetic','test') for o in staged)
         assert scope['fetch_farmer_record'].await_count==2
         if not resolved:scope['_farmer_exists_active'].assert_not_awaited()
-        if expected:
-            p=created[0]['change_request_request_payload']
-            assert p.change_payload[0].edit_action=='UPDATE'
-            assert p.internal_record_id=='shell'
+        assert not lock.locked()
     asyncio.run(main())
 
 
