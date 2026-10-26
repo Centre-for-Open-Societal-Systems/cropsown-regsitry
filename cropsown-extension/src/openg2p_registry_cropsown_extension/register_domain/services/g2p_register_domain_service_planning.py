@@ -16,6 +16,8 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         _logger.warning("VALIDATION RECORDS PAYLOAD: %s", records)
         from .domain_validation_utils import is_record_deleted
         active_records = [r for r in records if not is_record_deleted(r)]
@@ -62,7 +64,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
         planned_area = as_float(record.get("planned_area"))
         if planned_area is not None and planned_area <= 0:
             validation_error("planned_area must be greater than zero when provided")
-            
+
         land_area = as_float(record.get("land_area"))
         if planned_area is not None and land_area is not None and land_area > 0:
             if planned_area > land_area:

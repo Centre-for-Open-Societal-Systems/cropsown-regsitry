@@ -5,7 +5,7 @@
 INSERT INTO "public"."g2p_register_definitions"
 ("register_id","register_mnemonic","register_subject","register_description","master_register_id","register_rank","functional_id_generation_required","register_purpose","program_id","program_mnemonic","register_icon","has_image","dedup_is_enabled","dedup_threshold_score","completion_score_required","outgest_applicable","requires_registrant_authentication","registrant_authentication_validity_days","registrant_re_auth_warning_days_before")
 VALUES
-('fa120001-0000-4000-8000-000000000001','Farmer','Farmers','Farmer Register',NULL,1,'FALSE','REGISTER',NULL,NULL,'','FALSE','FALSE',55,'FALSE','FALSE','FALSE',730,30)
+('fa120001-0000-4000-8000-000000000001','Farmer','Farmers','Farmer Register',NULL,2,'FALSE','REGISTER',NULL,NULL,'','FALSE','FALSE',55,'FALSE','FALSE','FALSE',730,30)
 ON CONFLICT ("register_id") DO NOTHING;
 
 -- 2) Farmer identity section (data routed to the Farmer register via section_register_id)
@@ -17,10 +17,9 @@ VALUES
 'FALSE','FALSE','FALSE','FALSE')
 ON CONFLICT ("section_id") DO NOTHING;
 
--- 3) Attach the Farmer section to the Crop Sown Intake form's tab (so intake captures farmer -> Farmer register)
-INSERT INTO "public"."g2p_intake_form_ui_tab_sections" ("tab_section_id","tab_id","section_id","section_order")
-VALUES ('fa120002-0000-4000-8000-000000000002','f3f3a330-98f4-5941-9cec-303e77462b14','cropsown_farmer_identity_section_01',5)
-ON CONFLICT ("tab_section_id") DO NOTHING;
+-- 3) Intake captures the pair on its domain root; Farmer ADD is a separate CR.
+-- Retired intake mapping fa120002-0000-4000-8000-000000000002 is inventoried,
+-- never automatically deleted from an existing database.
 
 -- 4) Register-view: a Farmer tab on the Farmer register + its section
 INSERT INTO "public"."g2p_register_ui_tabs" ("tab_id","register_id","tab_label","tab_order","is_active")
@@ -48,3 +47,9 @@ ON CONFLICT ("register_id") DO UPDATE SET
 END,
 "deduplicate_schema" = COALESCE("g2p_register_schemas"."deduplicate_schema", EXCLUDED."deduplicate_schema"),
 "filter_schema" = COALESCE("g2p_register_schemas"."filter_schema", EXCLUDED."filter_schema");
+
+-- Crop Sown is the registry's working register: the staff portal opens the
+-- lowest-ranked register first, so Farmer (a reference, entered through Crop
+-- Sown intakes) ranks after it.
+UPDATE "public"."g2p_register_definitions" SET "register_rank" = 2
+WHERE "register_id" = 'fa120001-0000-4000-8000-000000000001' AND "register_rank" <> 2;

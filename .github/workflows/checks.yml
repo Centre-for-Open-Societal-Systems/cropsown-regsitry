@@ -1,63 +1,57 @@
 name: Checks
-
-# Fast, Docker-free checks that gate a change before the build. Currently: the
-# openg2p-registry pin must stay in lockstep across the Dockerfiles and the Helm
-# chart dependency (test/test_rp_pin_lockstep.py). Runs in parallel with
-# build-publish.yml; a split pin shows red in seconds instead of surfacing as a
-# broken sanity image three deploys later.
-
 on:
   push:
     branches: ["**", "!dependabot/**"]
   pull_request:
-
+permissions:
+  contents: read
 jobs:
-  guard:
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install --quiet pytest "sqlalchemy[asyncio]>=2" aiosqlite PyYAML Jinja2 httpx PyJWT cryptography orjson
-      - name: openg2p-registry pin lockstep
-        run: python -m pytest test/test_rp_pin_lockstep.py -q
-      - name: schema sync adds new model columns to existing tables
-        run: python -m pytest test/test_schema_sync.py -q
-      - name: Routing guard and staging value preservation
-        run: python -m pytest test/test_new_dev_routes.py test/test_staging_values_preservation.py -q
-      - uses: azure/setup-helm@v4.3.0
-        with:
-          version: v3.19.0
-      - name: Resolve pinned chart dependency
+      - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
+      - name: Source and deployment contracts
+        run: bash ci/validate.sh
+      - name: Native image extension checks
         run: |
-          helm repo add openg2p https://openg2p.github.io/openg2p-helm
-          helm dependency build helm/openg2p-cropsown-registry
-      - name: Render isolated dev and staging routing profiles
-        run: python -m pytest test/test_chart_environments.py -q
-      - name: Farmer enrichment configuration and startup wiring
-        run: python -m pytest test/test_farmer_enrichment.py test/test_intake_name_enrichment.py test/test_farmer_name_projection.py -q
+          docker build -f ci/refactor/profile-tests.Dockerfile -t registry-reference-tests .
+          docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src registry-reference-tests -m pytest -q -p no:cacheprovider cropsown-extension/tests
+      - name: Native metadata and notification mapping
+        run: |
+          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py cropsown --pipeline
+          python ci/refactor/compare_new_dev.py cropsown
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registry-verification
+          path: ci-output/
+
+  popup-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - name: Run real lookup client against DCI failure simulation
-        shell: bash
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Assemble the immutable upstream UI with registered OAN widgets
+        run: npm install --prefix ui/staff-ui --no-audit --no-fund
+      - name: Install isolated browser test tooling
         run: |
-          npm install --global postman-cli@1.73.0
-          postman simulation run postman/simulations/farmer-enrichment.sim.yaml --port 49180 --output ndjson > /tmp/crop-dci-simulation.ndjson 2>/tmp/crop-dci-simulation.err &
-          trap 'pkill -INT -f "postman simulation run postman/simulations/farmer-enrichment.sim.yaml" || true' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --silent --output /dev/null http://127.0.0.1:49180/farmer/success; then break; fi
-            sleep 1
-          done
-          CROP_FARMER_SIMULATION_URL=http://127.0.0.1:49180/farmer python -m pytest test/test_farmer_enrichment_http.py -q
-      - name: Dashboard deployment stash and digest label regressions
-        run: python -m pytest test/test_dashboard_delivery.py -q
-      - name: Connector WebSub security and pipeline regressions
-        env:
-          CONNECTOR_CELERY_BROKER_URL: memory://
-          CONNECTOR_CELERY_RESULT_BACKEND: cache+memory://
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Production popup widget and native data-path regression
         run: |
-          pip install --quiet -e './openg2p-connector-service[dev]'
-          cd openg2p-connector-service
-          python -m pytest tests -q
+          mkdir -p ci-output/popup
+          python ui/staff-ui/test/popup-flow/run_browser.py --node-modules ui/staff-ui/.app/node_modules --chromium --output ci-output/popup/result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popup-browser
+          path: ci-output/popup/

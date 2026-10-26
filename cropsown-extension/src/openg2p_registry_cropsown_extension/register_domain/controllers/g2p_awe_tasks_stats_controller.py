@@ -374,7 +374,7 @@ class G2PAweTasksStatsController(BaseController):
                         async with engine.connect() as conn:
                             await conn.execute(
                                 text("""
-                                    UPDATE g2p_intake_form_submissions 
+                                    UPDATE g2p_intake_form_submissions
                                     SET approval_status = 'APPROVED',
                                         approved_by = 'Admin User',
                                         approved_at = NOW(),

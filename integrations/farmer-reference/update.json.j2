@@ -1,6 +1,4 @@
 {"cs_farmer_identity": [{
-  "farmer_id": {{ expanded.farmer_id | tojson }}
-  {% for field in ['fayda_fan_id','first_name','middle_name','last_name','gender','date_of_birth','mobile_number'] if expanded[field] is defined %}
-  , {{ field | tojson }}: {{ expanded[field] | tojson }}
-  {% endfor %}
+  "farmer_id": {{ expanded.farmer_id | tojson }},
+  "fayda_fan_id": {{ expanded.fayda_fan_id | tojson }}
 }]}

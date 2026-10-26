@@ -1,0 +1,119 @@
+{
+  "registry": "cropsown",
+  "result": "PASS",
+  "native_seed_rows": {
+    "data_models": {
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+      "pattern_for_data_model": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "response_template_document_id": null,
+      "is_active": true
+    },
+    "incoming_model_key_paths": {
+      "key_path_id": "e7b437ad-391e-5a08-a386-7a4dc73a50cf",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "key_path_for_message_id": "$.body.header.message_id",
+      "key_path_for_sender": "$.body.header.sender_id",
+      "key_path_for_signature": "$.body.header.signature",
+      "key_path_for_signature_payload": "$.body.message.payload",
+      "is_list": false,
+      "key_path_for_list_elements": ""
+    },
+    "incoming_model_register_semantic_patterns": {
+      "register_semantic_pattern_id": "026bba51-6d58-5164-aaca-2d2581f8a2f3",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "register_id": "fa120001-0000-4000-8000-000000000001",
+      "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+    },
+    "incoming_model_semantic_patterns": {
+      "semantic_pattern_id": "a01d73cb-ca18-53b4-9d90-7c1a4841cd37",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "register_id": "fa120001-0000-4000-8000-000000000001",
+      "intake_form_id": null,
+      "section_id": "cropsown_farmer_identity_section_01",
+      "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "pattern_for_intake_form": "$.body.message.payload.event_type=>^NEVER_ADD$",
+      "pattern_for_section": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "key_path_for_business_payload": "$.body.message.payload",
+      "raw_payload_enricher_class": "G2PFarmerReferenceNotificationEnricher"
+    },
+    "incoming_templates": {
+      "template_id": "bce3ff5c-c0b0-5961-82c9-04dc13a7c094",
+      "register_id": "fa120001-0000-4000-8000-000000000001",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "template_document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+      "jsonld_expansion_required": false,
+      "created_at": "2026-10-25 00:00:00",
+      "updated_at": null
+    },
+    "g2p_registry_documents": {
+      "document_id": "7b91ad96-e435-59a1-bd4e-434fc1254f0a",
+      "document_store_id": "farmer_reference_update.json.j2",
+      "bucket": "templates",
+      "source_filename": "farmer_reference_update.json.j2",
+      "created_by": "seeder",
+      "created_at": "2026-10-25 00:00:00"
+    }
+  },
+  "live_metadata_comparisons": [
+    {
+      "endpoint": "/data-model/get_all_data_models",
+      "compared_fields": [
+        "data_model_id",
+        "data_model_mnemonic",
+        "is_active",
+        "pattern_for_data_model",
+        "response_template_document_id"
+      ],
+      "result": "PASS"
+    },
+    {
+      "endpoint": "/ingestion-config/get_incoming_key_path",
+      "compared_fields": [
+        "data_model_id",
+        "is_list",
+        "key_path_for_list_elements",
+        "key_path_for_message_id",
+        "key_path_for_sender",
+        "key_path_for_signature",
+        "key_path_for_signature_payload",
+        "key_path_id"
+      ],
+      "result": "PASS"
+    },
+    {
+      "endpoint": "/ingestion-config/get_register_semantic_pattern",
+      "compared_fields": [
+        "data_model_id",
+        "key_path_for_record_identifier",
+        "pattern_for_register",
+        "register_id",
+        "register_semantic_pattern_id"
+      ],
+      "result": "PASS"
+    },
+    {
+      "endpoint": "/ingestion-config/get_template",
+      "compared_fields": [
+        "data_model_id",
+        "jsonld_expansion_required",
+        "register_id",
+        "template_document_id",
+        "template_id"
+      ],
+      "result": "PASS"
+    }
+  ],
+  "topic_contract": {
+    "event_type": "farmer_reference.changed.v1",
+    "websub_topic": "oan.farmer-reference.changed.v1",
+    "kafka_topic": "oan_farmer_reference_changed_v1"
+  },
+  "runtime_subscription_or_connector_created": false,
+  "existing_rows_overwritten": false,
+  "semantic_detail_runtime_verified": false,
+  "stored_template_runtime_content_verified": false,
+  "native_worker_probe": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "seed_repeated_without_errors": true
+}
