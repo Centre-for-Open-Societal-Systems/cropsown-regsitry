@@ -28,12 +28,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_RESET_ACTION', choices: ['check', 'initialize', 'resume'],
-            description: 'New Dev only: check the completed first-install receipt; explicit initialize/resume is blocked until refactor acceptance.')
-        string(name: 'REGISTRY_RESET_MANIFEST', defaultValue: '',
-            description: 'Deployment-node path to immutable reviewed first-install JSON; no credentials.')
-        string(name: 'REGISTRY_RESET_ADMIN_SERVICE', defaultValue: '',
-            description: 'Mounted libpq service alias for explicit first-install reset; empty for ordinary receipt checks.')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'publish-only', 'fresh-install'],
+            description: 'develop only. deploy (the default, also for polled builds) upgrades the existing New Dev release with this build. publish-only builds and pushes the images. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched).')
     }
     agent any
 
@@ -314,6 +310,9 @@ pipeline {
             when {
                 beforeAgent true
                 branch 'develop'
+                // A branch-index build has no parameters yet; it deploys, as every
+                // develop build did before the parameter existed.
+                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') != 'publish-only' }
             }
             agent { label 'vpn-agent2' }
             options {
@@ -354,8 +353,16 @@ pipeline {
                     // a real Stop pressed DURING a deploy now reads FAILED. A Stop
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
-                        sh 'if [ "${NEW_DEV_RESET_ACTION:-check}" != check ]; then bash ci/deploy/new-dev-reset.sh; fi'
-                        sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                        script {
+                            if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
+                                // The database archive goes to the New Dev box over the existing backup key.
+                                withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
+                                    sh 'bash ci/deploy/fresh-install-crop-dev.sh "${IMAGE_TAG}"'
+                                }
+                            } else {
+                                sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                            }
+                        }
                         sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
                     }
                 }

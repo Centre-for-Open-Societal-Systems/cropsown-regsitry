@@ -64,7 +64,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 python3 ci/deploy/oan_chart.py require-deployable registry dev
-NEW_DEV_RESET_ACTION=check bash ci/deploy/new-dev-reset.sh
 
 TAG="${1:-${TAG:-}}"
 [ -n "$TAG" ] || { echo "usage: $0 <image-tag>" >&2; exit 2; }
