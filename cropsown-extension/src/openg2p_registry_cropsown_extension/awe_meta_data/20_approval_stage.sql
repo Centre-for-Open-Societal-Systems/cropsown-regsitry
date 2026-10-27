@@ -1,27 +1,14 @@
-INSERT INTO "public"."approval_stage" (
-    "id",
-    "policy_id",
-    "stage_order",
-    "name",
-    "mode",
-    "mode_value",
-    "sla_hours",
-    "parallel_group",
-    "skip_if",
-    "on_empty",
-    "on_breach",
-    "escalation_rules_json",
-    "created_at",
-    "updated_at"
-) VALUES
-    ('c3e5071a-3d4f-4081-acb2-3e4f5a6b7c83', 'a1c3e5f7-1b2d-4e6f-8a90-1c2d3e4f5a61', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW()),
-    ('e507293c-5f61-42a3-ced4-5a6b7c8d9ea5', 'b2d4f608-2c3e-4f70-9ba1-2d3e4f5a6b72', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW()),
-    ('10c248f8-1dd9-485c-9e20-7246c36ee560', '28466668-7498-48a4-b445-282b31fe13ad', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW()),
-    ('a021b13a-bc3c-47ef-ba59-bf2309031cc2', 'dc30c216-f20f-478b-bc71-c7a37c79edea', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW()),
-    ('a7382ebe-4f1e-48ec-a0de-ac4bc5a6898b', '74482d2a-cb1d-4297-a4d2-0feb4d09fcc8', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW()),
-    ('32e7925f-1d30-4e84-acf3-6a23a1b1809c', '696d5f2e-baca-48a2-8128-875bf1043f25', 1, 'Admin Approval', 'all', NULL, NULL, NULL, 'null', 'block', NULL, 'null', NOW(), NOW())
-ON CONFLICT ("id") DO UPDATE SET
-    name = EXCLUDED.name,
-    updated_at = NOW();
-
-
+-- OpenG2P Farmer 1.2 default approval pattern. Domain-specific keys keep
+-- old policies and in-flight tasks intact; no role/grant/task mutation.
+INSERT INTO public.approval_stage (id,policy_id,stage_order,name,mode,mode_value,sla_hours,parallel_group,skip_if,on_empty,on_breach,escalation_rules_json,created_at,updated_at)
+SELECT v.id,p.id,v.stage_order,v.name,'all',CAST(NULL AS integer),CAST(NULL AS integer),CAST(NULL AS integer),'null','block',CAST(NULL AS integer),'null',NOW(),NOW()
+FROM (VALUES
+('8d585afa-4c07-5d3c-b2c6-250476b64f95','registry.change_request.cropsown.default',1,'Stage 1 Officers'),
+('cbe6cd87-08c3-519a-b857-6c37cb625d52','registry.change_request.cropsown.default',2,'Stage 2 Officers'),
+('7e7b6cd3-21ae-5fcf-9f39-aa8f8dd73264','registry.change_request.cropsown-farmer.default',1,'Stage 1 Officers'),
+('01e246a2-432c-51f0-8d0c-a3884cb02b16','registry.change_request.cropsown-farmer.default',2,'Stage 2 Officers'),
+('d06c1b3f-ee31-5b79-9f82-73333c701806','registry.intake_form.cropsown.default',1,'Stage 1 Officers'),
+('b3cf7122-ecff-5338-a6d9-40ed4fe02614','registry.intake_form.cropsown.default',2,'Stage 2 Officers')) AS v(id,policy_key,stage_order,name)
+JOIN public.approval_policy p ON p.policy_key=v.policy_key AND p.version=1
+WHERE NOT EXISTS (SELECT 1 FROM public.approval_stage s WHERE s.policy_id=p.id AND s.stage_order=v.stage_order)
+ON CONFLICT (id) DO NOTHING;

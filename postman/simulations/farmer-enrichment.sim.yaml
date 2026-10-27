@@ -1,5 +1,0 @@
-simulation: crop-farmer-enrichment
-routing: path
-mocks:
-  - routeKey: farmer
-    path: ../mocks/farmer-dci/config.yaml

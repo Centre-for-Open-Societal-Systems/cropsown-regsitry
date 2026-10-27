@@ -142,10 +142,10 @@ class G2PIntakeFormCluster(G2PIntakeForm, G2PRegister, G2PCluster, G2PGeo):
 #     if not getattr(target, 'cluster_id', None):
 #         current_year = datetime.date.today().year
 #         prefix = f"CL/{current_year}/"
-# 
+#
 #         table = target.__table__
 #         stmt = select(func.max(table.c.cluster_id)).where(table.c.cluster_id.like(f"{prefix}%"))
-# 
+#
 #         result = connection.execute(stmt).scalar()
 #         if result:
 #             try:
@@ -155,9 +155,8 @@ class G2PIntakeFormCluster(G2PIntakeForm, G2PRegister, G2PCluster, G2PGeo):
 #                 new_seq = 1
 #         else:
 #             new_seq = 1
-# 
+#
 #         target.cluster_id = f"{prefix}{new_seq:05d}"
-# 
+#
 # event.listen(G2PRegisterCluster, 'before_insert', generate_cluster_id)
 # event.listen(G2PIntakeFormCluster, 'before_insert', generate_cluster_id)
-

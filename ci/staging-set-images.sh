@@ -22,15 +22,11 @@
 #   3. Waits for every rollout. If any fails, it undoes every Deployment it
 #      changed, so staging goes back to the images it had, and exits 1.
 #
-# The ODK connector (api, worker, beat, ui) is its own helm release in the same
-# namespace, so its Deployments are named after CONNECTOR_RELEASE, not RELEASE.
-# They move to this build's connector-service / connector-ui images the same way.
 #
 # The new API images run their database migrations when they start.
 #
 # Undo by hand: kubectl -n crop rollout undo deploy/<name>
 #           or: helm -n crop rollback cropsown-registry <current revision>
-#           or: helm -n crop rollback cropsown-connector <current revision>
 #
 # Env:
 #   KUBECONFIG         the staging cluster                       required
@@ -38,11 +34,13 @@
 #   AWS_REGION         default ap-south-1
 #   NS                 default crop
 #   RELEASE            default cropsown-registry
-#   CONNECTOR_RELEASE  default cropsown-connector
-#   CONNECTOR          default true; false leaves the connector on its images
 #   PULL_SECRET        default cropsown-ecr
 #   ROLLOUT_TIMEOUT    per Deployment, default 420s
 set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry staging
 
 TAG="${1:?usage: $0 <staging-N tag> [--apply]}"
 APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
@@ -51,8 +49,6 @@ APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 NS="${NS:-crop}"
 RELEASE="${RELEASE:-cropsown-registry}"
-CONNECTOR_RELEASE="${CONNECTOR_RELEASE:-cropsown-connector}"
-CONNECTOR="${CONNECTOR:-true}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-420s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
@@ -64,13 +60,7 @@ ${RELEASE}-partner-api=partner-api
 ${RELEASE}-staff-portal-ui=staff-ui
 ${RELEASE}-celery-worker=celery
 ${RELEASE}-celery-beat-producer=celery"
-if [ "$CONNECTOR" = "true" ]; then
-  MAP="${MAP}
-${CONNECTOR_RELEASE}-api=connector-service
-${CONNECTOR_RELEASE}-worker=connector-service
-${CONNECTOR_RELEASE}-beat=connector-service
-${CONNECTOR_RELEASE}-ui=connector-ui"
-fi
+
 
 say() { echo "=== $* ==="; }
 run() { if $APPLY; then "$@"; else echo "  would run: $*"; fi; }
@@ -185,4 +175,4 @@ fi
 
 say "Staging runs ${TAG}"
 kubectl -n "$NS" get deploy -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image,READY:.status.readyReplicas \
-  | grep -E "^NAME|^${RELEASE}-|^${CONNECTOR_RELEASE}-" || true
+  | grep -E "^NAME|^${RELEASE}-" || true

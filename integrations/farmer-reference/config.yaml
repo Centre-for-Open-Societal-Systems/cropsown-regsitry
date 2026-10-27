@@ -16,3 +16,4 @@ callback_slug: farmer-reference-v1
 callback_url: http://cropsown-connector-api.crop.svc.cluster.local/webhook/by-slug/farmer-reference-v1
 hub_url: http://commons-services-websub.commons.svc.cluster.local
 enricher_class: G2PFarmerReferenceNotificationEnricher
+kafka_topic: oan_farmer_reference_changed_v1

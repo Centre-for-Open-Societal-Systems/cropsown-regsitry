@@ -10,10 +10,19 @@ from openg2p_registry_core.schemas import (
 import re
 from pydantic import field_validator
 
+from ...farmer_reference.profile import FarmerReferenceError, normalize_uid
+
 
 
 
 class G2PSchemaCropSown:
+    fayda_fin: Optional[str] = None
+    farmer_reference_status: Optional[str] = None
+    identity_verification_id: Optional[str] = None
+    last_authentication_status: Optional[str] = None
+    last_authenticated_on: Optional[str] = None
+    authentication_expiry_date: Optional[str] = None
+
 
     rejection_reason: Optional[str] = None
     edit_count: Optional[int] = None
@@ -72,9 +81,10 @@ class G2PSchemaCropSown:
     @classmethod
     def validate_fayda_fan_id(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and str(v).strip() != "":
-            fyda_pattern = r"^\d{4} \d{4} \d{4} \d{4}$"
-            if not re.match(fyda_pattern, str(v).strip()):
-                raise ValueError("Fayda ID must be 16 digits formatted as 4 groups of 4 digits (e.g. 1234 5678 9000 3456) with no letters, special characters, or extra spaces within groups")
+            try:
+                return normalize_uid(v)
+            except FarmerReferenceError as error:
+                raise ValueError("Fayda ID (FAN): enter exactly 16 digits, optionally spaced in four groups. Use the FIN field for a 12-digit FIN") from error
         return v
 
     @field_validator("land_id")
@@ -110,4 +120,3 @@ class G2PIntakeFormSchemaCropSown(G2PIntakeFormSchemaBase, G2PRegisterBaseSchema
     Inherits fields from G2PRegisterBaseSchema, G2PGeoSchema, G2PGeoShapeSchema.
     Attributes inherited from G2PSchemaCropSown are specific to the Crop Sown Record domain and are included in the intake form schema for data collection.
     """
-

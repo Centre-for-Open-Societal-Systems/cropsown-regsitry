@@ -8,6 +8,8 @@ import logging
 from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
+from ...farmer_reference.profile import FarmerReferenceError, validate_identity_fields
+from .domain_validation_utils import validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service-farmer")
 
@@ -20,16 +22,27 @@ _SEARCH_FIELDS = [
 
 class G2PRegisterDomainServiceFarmer(G2PRegisterDomainService):
 
+    async def pre_approve(self, change_request, session):
+        from ...farmer_reference.native import guard_farmer_approval
+        await guard_farmer_approval(change_request, session)
+
     async def post_approve(self, change_request, session):
-        from .farmer_name_projection import refresh_crop_names_from_farmer
-        await refresh_crop_names_from_farmer(session, change_request.internal_record_id)
+        from ...farmer_reference.native import record_native_decision
+        await record_native_decision(session, change_request.change_request_id, True)
+        # Stored Crop mirrors require their own domain approval. Farmer approval
+        # changes only this Farmer and releases already approved waiting intakes.
 
     async def post_ingest(self, register_id, register_row, session):
-        from .farmer_name_projection import refresh_crop_names_from_farmer
-        await refresh_crop_names_from_farmer(session, register_row.internal_record_id)
+        raise FarmerReferenceError("FARMER_REFERENCE_CHANGE_REQUEST_REQUIRED")
 
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records)
         for rec in records or []:
+            try:
+                validate_identity_fields(rec)
+            except FarmerReferenceError as error:
+                validation_error(str(error))
             self._fill_farmer_name(rec)
             if not rec.get("registration_date"):
                 rec["registration_date"] = date.today().isoformat()

@@ -29,6 +29,11 @@
 #                      the namespace, is what keeps the environments apart
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry staging
+export COSS_DEPLOY_ENVIRONMENT=staging
+
 # Checked here rather than left to ci/deploy-dev.sh, whose usage line would name
 # itself — and running that by hand would deploy the dev release name.
 if [ -z "${1:-${TAG:-}}" ]; then

@@ -96,7 +96,3 @@ class G2PIntakeFormSowing(G2PIntakeForm, G2PRegister, G2PSowing):
     def get_record_name_fields(self) -> str:
         """Return sowing record_name from domain service implementation."""
         return G2PRegisterDomainServiceSowing().construct_record_name(self.to_dict())
-
-
-
-
