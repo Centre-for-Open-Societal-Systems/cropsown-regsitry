@@ -45,8 +45,10 @@ def check(items,release,namespace,secret_loader=None):
         for key in ('DCI_URL','AWE_TOKEN_URL'):
             uri=urlsplit(value(key))
             assert uri.scheme in ('https','http') and uri.hostname and not (uri.username or uri.password or uri.query or uri.fragment), 'Invalid extension service URL'
+        # Asymmetric JWS algorithms only (RSA or Ed25519); Partner Management and
+        # the Farmer partner API verify EdDSA like RS256.
         for key in ('SIGNING_ALGORITHM','SOURCE_ALGORITHM'):
-            assert (value(key) or 'RS256') in ('RS256','PS256'), 'Unsafe extension signature algorithm'
+            assert (value(key) or 'RS256') in ('RS256','PS256','EdDSA'), 'Unsafe extension signature algorithm'
         volumes={item['name']:item for item in pod.get('volumes',[])}
         for key in FILES:
             path=PurePosixPath(value(key))

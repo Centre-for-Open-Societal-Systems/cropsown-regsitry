@@ -43,6 +43,15 @@ class DeploymentGuardTests(unittest.TestCase):
         del volume['secret']
         with self.assertRaisesRegex(AssertionError,'Secret/ConfigMap volume missing'): guard.check(self.items,'registry','verification')
 
+    def test_signature_algorithms(self):
+        env=self.items[0]['spec']['template']['spec']['containers'][0]['env']
+        for algorithm in ('RS256','PS256','EdDSA'):
+            env.append({'name':guard.PREFIX+'SIGNING_ALGORITHM','value':algorithm})
+            guard.check(self.items,'registry','verification')
+            env.pop()
+        env.append({'name':guard.PREFIX+'SIGNING_ALGORITHM','value':'HS256'})
+        with self.assertRaisesRegex(AssertionError,'signature algorithm'): guard.check(self.items,'registry','verification')
+
     def test_query_secret_url_is_rejected(self):
         self.items[0]['spec']['template']['spec']['containers'][0]['env'][0]['value']='https://verification.invalid/native?secret=fixture'
         with self.assertRaisesRegex(AssertionError,'service URL'): guard.check(self.items,'registry','verification')
