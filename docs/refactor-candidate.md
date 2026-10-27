@@ -1,5 +1,11 @@
 # Cropsown refactor delivery candidate
 
+> **Approval update, 27 October 2026:** The user deferred geographic/custom approval
+> configuration. Current defaults follow OpenG2P Farmer: two sequential all/block
+> stages, alex.carter then nina.patel. Separate Farmer-reference dependencies
+> remain. Earlier geographic descriptions below are deferred design history.
+> See [default approval configuration](refactor/DEFAULT_APPROVALS.md).
+
 This review branch composes native extension source `2d6aa5422123416e659f8847b118abfb0fd664fd` with the existing
 COSS delivery base `6d54496255452fa11a5e90459aa80b015bd1d48f` and the changes described here. It does not merge
 legacy core/worker implementations into the native refactor source branch.
