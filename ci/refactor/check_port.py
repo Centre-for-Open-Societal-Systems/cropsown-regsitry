@@ -75,9 +75,9 @@ def verify(repo: Path, domain: str) -> dict:
             rule = (awe / "30_approver_rule.sql").read_text(encoding="utf-8")
             if "'block'" not in stage or "'all'" not in stage or "'user'" not in rule or "alex.carter" not in rule or "nina.patel" not in rule or "geo_woreda_approver_ids" in rule:
                 errors.append("OpenG2P default approvals must use sequential all/block user stages")
-    preflight = (repo / "ci/refactor/seed-preflight.sh").read_text(encoding="utf-8")
-    if not preflight.rstrip().endswith("exit 1"):
-        errors.append("incomplete port can seed an environment")
+    seed = (repo / "docker/db-seed/Dockerfile").read_text(encoding="utf-8")
+    if 'ENTRYPOINT ["/seed/entrypoint.sh"]' not in seed or "preflight" in seed:
+        errors.append("seed image must run the native seed entrypoint")
     if not re.fullmatch(r"[0-9a-f]{64}",pin["sha256"]):
         errors.append("missing immutable central chart checksum")
     # No branch-specific auto-deployment may be introduced by curation.
