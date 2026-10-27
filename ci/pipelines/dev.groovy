@@ -464,7 +464,9 @@ Jenkins
         }
     }
 }
+}
 
+// Script-level helpers: Groovy does not allow method definitions inside call().
 // The DevOps list, plus the commit author unless it is a noreply address.
 def notifyList() {
     def email = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
@@ -482,7 +484,5 @@ def mailQuietly(Map args) {
     } catch (err) {
         echo "notification not sent: ${err.message}"
     }
-}
-
 }
 return this
