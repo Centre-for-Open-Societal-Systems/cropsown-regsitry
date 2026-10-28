@@ -8,4 +8,5 @@ RUN rm -rf /seed/meta_data/* /seed/awe_meta_data/* /seed/templates/* /seed/seed-
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/ /seed/meta_data/
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/templates/ /seed/templates/
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/awe_meta_data/ /seed/awe_meta_data/
+COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 ENTRYPOINT ["/seed/entrypoint.sh"]
