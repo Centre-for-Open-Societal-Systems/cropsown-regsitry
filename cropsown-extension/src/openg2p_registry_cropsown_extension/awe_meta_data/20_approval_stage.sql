@@ -1,7 +1,8 @@
 -- OpenG2P Farmer 1.2 default approval pattern. Domain-specific keys keep
 -- old policies and in-flight tasks intact; no role/grant/task mutation.
+-- Each stage is satisfied by one decision (any-n, 1): the named officer or admin.
 INSERT INTO public.approval_stage (id,policy_id,stage_order,name,mode,mode_value,sla_hours,parallel_group,skip_if,on_empty,on_breach,escalation_rules_json,created_at,updated_at)
-SELECT v.id,p.id,v.stage_order,v.name,'all',CAST(NULL AS integer),CAST(NULL AS integer),CAST(NULL AS integer),'null','block',CAST(NULL AS integer),'null',NOW(),NOW()
+SELECT v.id,p.id,v.stage_order,v.name,'any-n',1,CAST(NULL AS integer),CAST(NULL AS integer),'null','block',CAST(NULL AS integer),'null',NOW(),NOW()
 FROM (VALUES
 ('8d585afa-4c07-5d3c-b2c6-250476b64f95','registry.change_request.cropsown.default',1,'Stage 1 Officers'),
 ('cbe6cd87-08c3-519a-b857-6c37cb625d52','registry.change_request.cropsown.default',2,'Stage 2 Officers'),
