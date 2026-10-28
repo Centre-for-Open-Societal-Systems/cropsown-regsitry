@@ -31,7 +31,7 @@ def check(document,registry,release,namespace):
     expected={release+'-staff-portal-ui':registry+'-registry.'+DOMAIN,
         release+'-staff-portal-api':'staff-'+registry+'.'+DOMAIN,
         release+'-partner-api':'partner-'+registry+'.'+DOMAIN}
-    if registry=='livestock':expected[release+'-id-generator']='idgenerator-livestock.'+DOMAIN
+    expected[release+'-id-generator']='idgenerator-'+registry+'.'+DOMAIN
     found={}
     def inspect(value):
         if isinstance(value,dict):
