@@ -63,7 +63,23 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-python3 ci/deploy/oan_chart.py require-deployable registry dev
+# The deploy node's host Python has no PyYAML (build 121: "Install
+# ci/deploy/requirements.txt before chart verification"). Verify the chart in the
+# same image the build agent uses (ci/pipelines/dev.groovy), offline, with the
+# repo and the work directory mounted at their host paths so printed paths stay
+# valid. Helm and kubectl stay on the host, which keeps the cluster access.
+CHART_TOOL_IMAGE="${CHART_TOOL_IMAGE:-openg2p/openg2p-registry-staff-api:1.2.2-rc.557}"
+chart_tool() {
+  if python3 -c 'import yaml' 2>/dev/null; then
+    python3 ci/deploy/oan_chart.py "$@"
+    return
+  fi
+  local mounts=(-v "$PWD:/work")
+  [ -z "${WORK:-}" ] || mounts+=(-v "$WORK:$WORK")
+  docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint python \
+    "${mounts[@]}" -w /work "$CHART_TOOL_IMAGE" ci/deploy/oan_chart.py "$@"
+}
+chart_tool require-deployable registry dev
 
 TAG="${1:-${TAG:-}}"
 [ -n "$TAG" ] || { echo "usage: $0 <image-tag>" >&2; exit 2; }
@@ -120,8 +136,8 @@ trap cleanup EXIT
 say() { echo "=== $* ==="; }
 
 say "Verified central chart"
-HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
-CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
+HELM_CHART_DIR="$(chart_tool fetch registry "$WORK/chart")"
+CENTRAL_VALUES="$(chart_tool values registry "$WORK/public-values.yaml")"
 
 
 # â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
