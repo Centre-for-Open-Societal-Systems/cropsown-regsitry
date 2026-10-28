@@ -27,6 +27,8 @@ class G2PPlanning:
     soil_fertility_type: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SOIL_FERTILITY)
     plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
+    # Master Data geo unit ids (P-codes: ET04, ET0404, ET040404, ET040404888003),
+    # chosen from the Master Data geography in the row dialog.
     region: Mapped[str] = mapped_column(String, nullable=True)
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)

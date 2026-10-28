@@ -44,6 +44,8 @@ class G2PCluster:
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
     cluster_id: Mapped[str] = mapped_column(String, nullable=True)
     cluster_area_timad: Mapped[float] = mapped_column(Numeric, nullable=True)
+    # Master Data geo unit ids (P-codes: ET04, ET0404, ET040404, ET040404888003),
+    # chosen from the Master Data geography in the row dialog.
     region: Mapped[str] = mapped_column(String, nullable=True)
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)

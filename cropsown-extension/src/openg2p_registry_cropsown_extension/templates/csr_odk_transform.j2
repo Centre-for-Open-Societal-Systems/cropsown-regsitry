@@ -165,35 +165,35 @@
 } %}
 
 {% set region_map = {
-  "amhara": "REGION_ET03",
-  "tigray": "REGION_ET01",
-  "afar": "REGION_ET02",
-  "oromia": "REGION_ET04",
-  "somali": "REGION_ET05",
-  "benishangul-gumuz": "REGION_ET06",
-  "benishangul_gumuz": "REGION_ET06",
-  "central_ethiopia": "REGION_ET07",
-  "south_ethiopian": "REGION_ET08",
-  "south_west_ethiopia": "REGION_ET11",
-  "gambela": "REGION_ET12",
-  "harari": "REGION_ET13",
-  "addis_ababa": "REGION_ET14",
-  "dire_dawa": "REGION_ET15",
-  "sidama": "REGION_ET16",
-  "region_et01": "REGION_ET01",
-  "region_et02": "REGION_ET02",
-  "region_et03": "REGION_ET03",
-  "region_et04": "REGION_ET04",
-  "region_et05": "REGION_ET05",
-  "region_et06": "REGION_ET06",
-  "region_et07": "REGION_ET07",
-  "region_et08": "REGION_ET08",
-  "region_et11": "REGION_ET11",
-  "region_et12": "REGION_ET12",
-  "region_et13": "REGION_ET13",
-  "region_et14": "REGION_ET14",
-  "region_et15": "REGION_ET15",
-  "region_et16": "REGION_ET16"
+  "amhara": "ET03",
+  "tigray": "ET01",
+  "afar": "ET02",
+  "oromia": "ET04",
+  "somali": "ET05",
+  "benishangul-gumuz": "ET06",
+  "benishangul_gumuz": "ET06",
+  "central_ethiopia": "ET07",
+  "south_ethiopian": "ET08",
+  "south_west_ethiopia": "ET11",
+  "gambela": "ET12",
+  "harari": "ET13",
+  "addis_ababa": "ET14",
+  "dire_dawa": "ET15",
+  "sidama": "ET16",
+  "et01": "ET01",
+  "et02": "ET02",
+  "et03": "ET03",
+  "et04": "ET04",
+  "et05": "ET05",
+  "et06": "ET06",
+  "et07": "ET07",
+  "et08": "ET08",
+  "et11": "ET11",
+  "et12": "ET12",
+  "et13": "ET13",
+  "et14": "ET14",
+  "et15": "ET15",
+  "et16": "ET16"
 } %}
 
 {% set inf_type_map = {
@@ -240,27 +240,35 @@
 {% set sub_dt = sub_date.split('T')[0] %}
 
 {% set raw_reg = (address_info.get('region_display_id') or farmer_id.get('region_display_id') or '') | lower %}
-{% set reg_val = region_map.get(raw_reg, address_info.get('region_display_id') or farmer_id.get('region_display_id') or '') %}
+{% set reg_val = region_map.get(raw_reg, (address_info.get('region_display_id') or farmer_id.get('region_display_id') or '') | replace('REGION_', '')) %}
 {% set reg_name = (address_info.get('region_display_id') or farmer_id.get('region_display_id') or '') | capitalize %}
 
 {% set raw_zone = address_info.get('zone_display_id') or farmer_id.get('zone_display_id') or '' %}
-{% set zone_val = raw_zone if (raw_zone.startswith('ZONE_') or raw_zone == '') else ('ZONE_' ~ raw_zone) %}
+{% set zone_val = raw_zone | replace('ZONE_', '') %}
 
 {% set raw_woreda = address_info.get('woreda_display_id') or address_info.get('woreda_id') or farmer_id.get('woreda_display_id') or farmer_id.get('woreda_id') or '' %}
-{% set woreda_val = raw_woreda if (raw_woreda.startswith('WOREDA_') or raw_woreda == '') else ('WOREDA_' ~ raw_woreda) %}
+{% set woreda_val = raw_woreda | replace('WOREDA_', '') %}
 
 {% set raw_kebele = address_info.get('kebele_display_id') or address_info.get('kebele_id') or farmer_id.get('kebele_display_id') or farmer_id.get('kebele_id') or '' %}
-{% if raw_kebele.startswith('KEBELE_') or raw_kebele == '' %}
-  {% set kebele_val = raw_kebele %}
-{% elif raw_kebele.startswith('ET') %}
-  {% set kebele_val = 'KEBELE_' ~ raw_kebele %}
-{% elif raw_kebele | length == 12 %}
-  {% set kebele_val = 'KEBELE_ET' ~ raw_kebele %}
-{% elif raw_kebele | length == 11 %}
-  {% set kebele_val = 'KEBELE_ET0' ~ raw_kebele %}
-{% else %}
-  {% set kebele_val = 'KEBELE_' ~ raw_kebele %}
-{% endif %}
+{% set raw_kebele_code = raw_kebele | replace('KEBELE_', '') %}
+  {% if raw_kebele_code == '' or raw_kebele_code.startswith('ET') %}
+  {% set kebele_val = raw_kebele_code %}
+  {% elif raw_kebele_code | length == 12 %}
+  {% set kebele_val = 'ET' ~ raw_kebele_code %}
+  {% elif raw_kebele_code | length == 11 %}
+  {% set kebele_val = 'ET0' ~ raw_kebele_code %}
+  {% else %}
+  {% set kebele_val = raw_kebele_code %}
+  {% endif %}
+
+{#- The administrative units are Master Data geo unit ids (P-codes: ET03, ET0303,
+    ET030303, ET030303001001), as the staff portal's geo-hierarchy widget writes
+    them; geo_code_hierarchy_json carries the chain so the widget can show it. -#}
+{% set ns_geo = namespace(items=[]) %}
+{% for lid, lvl, val in [('l1', 'region', reg_val), ('l2', 'zone', zone_val), ('l3', 'woreda', woreda_val), ('l4', 'kebele', kebele_val)] %}
+  {% if val %}{% set ns_geo.items = ns_geo.items + [{'level_id': lid, 'level': lvl, 'level_mnemonic': lvl, 'level_value_id': val}] %}{% endif %}
+{% endfor %}
+{% set geo_hierarchy = {'hierarchy': ns_geo.items, 'lowest_level_value_id': ns_geo.items[-1]['level_value_id']} if ns_geo.items else none %}
 
 {
 {% if is_plan %}
@@ -305,7 +313,8 @@
       "longitude": "{{ lon_val }}",
       "altitude": "{{ alt_val }}",
       "gps_coordinate": "{{ gps_str }}",
-      "geo_lowest_level_value_id": "{{ kebele_val }}"
+      "geo_lowest_level_value_id": {{ (kebele_val or none) | tojson }},
+      "geo_code_hierarchy_json": {{ geo_hierarchy | tojson }}
     }
   ],
   "cs_intake_season": [{
@@ -326,7 +335,8 @@
       "longitude": "{{ lon_val }}",
       "altitude": "{{ alt_val }}",
       "gps_coordinate": "{{ gps_str }}",
-      "geo_lowest_level_value_id": "{{ kebele_val }}"
+      "geo_lowest_level_value_id": {{ (kebele_val or none) | tojson }},
+      "geo_code_hierarchy_json": {{ geo_hierarchy | tojson }}
     }
   ],
   "cs_planning_details": [
@@ -347,23 +357,22 @@
     {% set raw_fert = (p.get('soil_fertility') or p.get('soil_fertility_type') or '') | lower %}
     {% set soil_val = soil_map.get(raw_fert, '') %}
     {% set raw_preg = (p.get('region_name_id') or p.get('region') or '') | lower %}
-    {% set p_reg = region_map.get(raw_preg, p.get('region_name_id') or p.get('region') or '') %}
+    {% set p_reg = region_map.get(raw_preg, (p.get('region_name_id') or p.get('region') or '') | replace('REGION_', '')) %}
     {% set raw_pzone = p.get('zone_name_id') or p.get('zone') or '' %}
-    {% set p_zone = raw_pzone if (raw_pzone.startswith('ZONE_') or raw_pzone == '') else ('ZONE_' ~ raw_pzone) %}
+    {% set p_zone = raw_pzone | replace('ZONE_', '') %}
     {% set raw_pworeda = p.get('woreda_name_id') or p.get('woreda') or '' %}
-    {% set p_woreda = raw_pworeda if (raw_pworeda.startswith('WOREDA_') or raw_pworeda == '') else ('WOREDA_' ~ raw_pworeda) %}
+    {% set p_woreda = raw_pworeda | replace('WOREDA_', '') %}
     {% set raw_pk = p.get('kebele_id') or p.get('planning_kebele_id') or p.get('kebele') or '' %}
-    {% if raw_pk.startswith('KEBELE_') or raw_pk == '' %}
-      {% set p_kebele = raw_pk %}
-    {% elif raw_pk.startswith('ET') %}
-      {% set p_kebele = 'KEBELE_' ~ raw_pk %}
-    {% elif raw_pk | length == 12 %}
-      {% set p_kebele = 'KEBELE_ET' ~ raw_pk %}
-    {% elif raw_pk | length == 11 %}
-      {% set p_kebele = 'KEBELE_ET0' ~ raw_pk %}
-    {% else %}
-      {% set p_kebele = 'KEBELE_' ~ raw_pk %}
-    {% endif %}
+    {% set raw_pk_code = raw_pk | replace('KEBELE_', '') %}
+      {% if raw_pk_code == '' or raw_pk_code.startswith('ET') %}
+      {% set p_kebele = raw_pk_code %}
+      {% elif raw_pk_code | length == 12 %}
+      {% set p_kebele = 'ET' ~ raw_pk_code %}
+      {% elif raw_pk_code | length == 11 %}
+      {% set p_kebele = 'ET0' ~ raw_pk_code %}
+      {% else %}
+      {% set p_kebele = raw_pk_code %}
+      {% endif %}
     {% set p_gps = p.get('planning_gps') or {} %}
     {% set p_coords = p_gps.get('coordinates', []) if p_gps else [] %}
     {% if p_coords | length > 0 and p_coords[0] is iterable and p_coords[0] is not string and p_coords[0] is not mapping %}
@@ -446,23 +455,22 @@
     {% set raw_cs = (c.get('cluster_season_id') or season_val) | lower %}
     {% set c_season = season_map.get(raw_cs, raw_cs | upper) %}
     {% set raw_creg = (c.get('cluster_region_id') or '') | lower %}
-    {% set c_reg = region_map.get(raw_creg, c.get('cluster_region_id') or '') %}
+    {% set c_reg = region_map.get(raw_creg, (c.get('cluster_region_id') or '') | replace('REGION_', '')) %}
     {% set raw_cz = c.get('cluster_zone_id') or '' %}
-    {% set c_zone = raw_cz if (raw_cz.startswith('ZONE_') or raw_cz == '') else ('ZONE_' ~ raw_cz) %}
+    {% set c_zone = raw_cz | replace('ZONE_', '') %}
     {% set raw_cw = c.get('cluster_woreda_id') or '' %}
-    {% set c_woreda = raw_cw if (raw_cw.startswith('WOREDA_') or raw_cw == '') else ('WOREDA_' ~ raw_cw) %}
+    {% set c_woreda = raw_cw | replace('WOREDA_', '') %}
     {% set raw_ck = c.get('cluster_kebele_id') or '' %}
-    {% if raw_ck.startswith('KEBELE_') or raw_ck == '' %}
-      {% set c_kebele = raw_ck %}
-    {% elif raw_ck.startswith('ET') %}
-      {% set c_kebele = 'KEBELE_' ~ raw_ck %}
-    {% elif raw_ck | length == 12 %}
-      {% set c_kebele = 'KEBELE_ET' ~ raw_ck %}
-    {% elif raw_ck | length == 11 %}
-      {% set c_kebele = 'KEBELE_ET0' ~ raw_ck %}
-    {% else %}
-      {% set c_kebele = 'KEBELE_' ~ raw_ck %}
-    {% endif %}
+    {% set raw_ck_code = raw_ck | replace('KEBELE_', '') %}
+      {% if raw_ck_code == '' or raw_ck_code.startswith('ET') %}
+      {% set c_kebele = raw_ck_code %}
+      {% elif raw_ck_code | length == 12 %}
+      {% set c_kebele = 'ET' ~ raw_ck_code %}
+      {% elif raw_ck_code | length == 11 %}
+      {% set c_kebele = 'ET0' ~ raw_ck_code %}
+      {% else %}
+      {% set c_kebele = raw_ck_code %}
+      {% endif %}
     {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
     {% set raw_cwsrc = raw_cwsrc_value | lower %}
     {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
@@ -631,23 +639,22 @@
     {% set raw_cs = (c.get('cluster_season_id') or season_val) | lower %}
     {% set c_season = season_map.get(raw_cs, raw_cs | upper) %}
     {% set raw_creg = (c.get('cluster_region_id') or c.get('region_id') or '') | lower %}
-    {% set c_reg = region_map.get(raw_creg, c.get('cluster_region_id') or c.get('region_id') or '') %}
+    {% set c_reg = region_map.get(raw_creg, (c.get('cluster_region_id') or c.get('region_id') or '') | replace('REGION_', '')) %}
     {% set raw_cz = c.get('cluster_zone_id') or '' %}
-    {% set c_zone = raw_cz if (raw_cz.startswith('ZONE_') or raw_cz == '') else ('ZONE_' ~ raw_cz) %}
+    {% set c_zone = raw_cz | replace('ZONE_', '') %}
     {% set raw_cw = c.get('cluster_woreda_id') or '' %}
-    {% set c_woreda = raw_cw if (raw_cw.startswith('WOREDA_') or raw_cw == '') else ('WOREDA_' ~ raw_cw) %}
+    {% set c_woreda = raw_cw | replace('WOREDA_', '') %}
     {% set raw_ck = c.get('cluster_kebele_id') or '' %}
-    {% if raw_ck.startswith('KEBELE_') or raw_ck == '' %}
-      {% set c_kebele = raw_ck %}
-    {% elif raw_ck.startswith('ET') %}
-      {% set c_kebele = 'KEBELE_' ~ raw_ck %}
-    {% elif raw_ck | length == 12 %}
-      {% set c_kebele = 'KEBELE_ET' ~ raw_ck %}
-    {% elif raw_ck | length == 11 %}
-      {% set c_kebele = 'KEBELE_ET0' ~ raw_ck %}
-    {% else %}
-      {% set c_kebele = 'KEBELE_' ~ raw_ck %}
-    {% endif %}
+    {% set raw_ck_code = raw_ck | replace('KEBELE_', '') %}
+      {% if raw_ck_code == '' or raw_ck_code.startswith('ET') %}
+      {% set c_kebele = raw_ck_code %}
+      {% elif raw_ck_code | length == 12 %}
+      {% set c_kebele = 'ET' ~ raw_ck_code %}
+      {% elif raw_ck_code | length == 11 %}
+      {% set c_kebele = 'ET0' ~ raw_ck_code %}
+      {% else %}
+      {% set c_kebele = raw_ck_code %}
+      {% endif %}
     {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
     {% set raw_cwsrc = raw_cwsrc_value | lower %}
     {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
