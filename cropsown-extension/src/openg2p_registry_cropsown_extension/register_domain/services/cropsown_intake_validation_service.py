@@ -510,12 +510,14 @@ async def validate_change_request_season_and_year(payload, session):
 
     is_farmer_identity = section_id in (
         "cropsown_cropsown_record_section_01",
+        "crop_farmer_lookup",
         "cropsown_common_intake_record_section_01",
         "cropsown_intake_record_section_01",
     )
 
     section_names = {
         "cropsown_cropsown_record_section_01": "Farmer Identity",
+        "crop_farmer_lookup": "Farmer lookup",
         "cropsown_common_intake_record_section_01": "Farmer Identity",
         "cropsown_intake_record_section_01": "Farmer Identity",
         "cropsown_planning_details_section_01": "Crop Planning Details",

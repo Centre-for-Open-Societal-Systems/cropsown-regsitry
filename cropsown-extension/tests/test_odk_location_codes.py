@@ -42,7 +42,7 @@ def submission(address, planning):
 ])
 def test_record_address_is_master_data_pcodes(address):
     result = render(submission(address, [{}]))
-    for section in ('cs_intake_record', 'cs_cropsown_location'):
+    for section in ('crop_farmer_lookup', 'cs_cropsown_location'):
         row = result[section][0]
         assert (row['region'], row['zone'], row['woreda'], row['kebele']) == (
             'ET03', 'ET0303', 'ET030303', 'ET030303001001')
@@ -58,7 +58,7 @@ def test_record_address_is_master_data_pcodes(address):
 
 
 def test_record_without_address_has_no_hierarchy():
-    row = render(submission({}, [{}]))['cs_intake_record'][0]
+    row = render(submission({}, [{}]))['crop_farmer_lookup'][0]
     assert row['region'] == '' and row['kebele'] == ''
     assert row['geo_lowest_level_value_id'] is None
     assert row['geo_code_hierarchy_json'] is None

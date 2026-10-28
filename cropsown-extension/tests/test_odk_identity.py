@@ -20,7 +20,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
     if IS_CROP:
         data={'farmer_identity':identity,'production_season_info':{'crop_year':'2026','production_season':'meher'},
               stage:[{}] if stage!='harvesting' else {}, 'address_info':{'woreda_id':'holding-woreda'}}
-        template='csr_odk_transform.j2';section='cs_intake_record' if stage=='planning' else 'cs_common_intake_record'
+        template='csr_odk_transform.j2';section='crop_farmer_lookup'
     else:
         data={'farmer':identity,'location':{'location_source':'mds','region_code':'ET01',
               'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET010101101001'},

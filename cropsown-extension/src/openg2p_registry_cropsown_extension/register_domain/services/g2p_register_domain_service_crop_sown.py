@@ -96,6 +96,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             is_farmer_identity = (
                 sec_id in (
                     "cropsown_cropsown_record_section_01",
+                    "crop_farmer_lookup",
                     "cropsown_common_intake_record_section_01",
                     "cropsown_intake_record_section_01",
                 )
@@ -427,7 +428,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         if not change_request or not change_request.internal_record_id:
             return
         if change_request.section_id not in (
-            "cropsown_cropsown_record_section_01", "cropsown_common_intake_record_section_01",
+            "crop_farmer_lookup", "cropsown_cropsown_record_section_01", "cropsown_common_intake_record_section_01",
             "cropsown_intake_record_section_01", "cropsown_intake_season_section_01",
             "cropsown_common_intake_season_section_01",
         ):
