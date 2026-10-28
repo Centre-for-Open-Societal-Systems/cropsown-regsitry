@@ -63,29 +63,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-# The deploy node's host Python has no PyYAML (build 121: "Install
-# ci/deploy/requirements.txt before chart verification"). Verify the chart in a
-# small image built on the node from ci/deploy/chart-tool (python:3.12-slim plus
-# ci/deploy/requirements.txt, as Farmer's ci/validation does) instead of pulling
-# the registry image over the VPN link, offline, with the repo and the work
-# directory mounted at their host paths so printed paths stay valid. Helm and
-# kubectl stay on the host, which keeps the cluster access.
-CHART_TOOL_IMAGE="${CHART_TOOL_IMAGE:-}"
-chart_tool() {
-  if python3 -c 'import yaml' 2>/dev/null; then
-    python3 ci/deploy/oan_chart.py "$@"
-    return
-  fi
-  if [ -z "$CHART_TOOL_IMAGE" ]; then
-    CHART_TOOL_IMAGE="coss-ci/chart-tool:$(sha256sum ci/deploy/requirements.txt ci/deploy/chart-tool/Dockerfile | sha256sum | cut -c1-12)"
-    docker image inspect "$CHART_TOOL_IMAGE" >/dev/null 2>&1 || docker build -q -t "$CHART_TOOL_IMAGE" -f ci/deploy/chart-tool/Dockerfile ci/deploy >/dev/null
-  fi
-  local mounts=(-v "$PWD:/work")
-  [ -z "${WORK:-}" ] || mounts+=(-v "$WORK:$WORK")
-  docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint python \
-    "${mounts[@]}" -w /work "$CHART_TOOL_IMAGE" ci/deploy/oan_chart.py "$@"
-}
-chart_tool require-deployable registry dev
+python3 ci/deploy/oan_chart.py require-deployable registry dev
 
 TAG="${1:-${TAG:-}}"
 [ -n "$TAG" ] || { echo "usage: $0 <image-tag>" >&2; exit 2; }
@@ -142,8 +120,8 @@ trap cleanup EXIT
 say() { echo "=== $* ==="; }
 
 say "Verified central chart"
-HELM_CHART_DIR="$(chart_tool fetch registry "$WORK/chart")"
-CENTRAL_VALUES="$(chart_tool values registry "$WORK/public-values.yaml")"
+HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
+CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
 
 
 # â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
