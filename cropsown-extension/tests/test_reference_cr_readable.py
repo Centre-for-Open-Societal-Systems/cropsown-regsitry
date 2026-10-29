@@ -16,7 +16,7 @@ except ImportError:  # the platform runtime is only in the native test image
 def session_for(managed, change_request, farmer):
     session = MagicMock()
     result = MagicMock()
-    result.scalar_one_or_none.return_value = managed
+    result.scalars.return_value.first.return_value = managed
     session.execute = AsyncMock(return_value=result)
     session.get = AsyncMock(side_effect=lambda model, key: change_request if model is native.G2PRegisterChangeRequest else farmer)
     return session
@@ -46,6 +46,16 @@ class PendingReferenceReadableTests(unittest.IsolatedAsyncioTestCase):
             result = await self.service._ensure_change_request_readable("cr-1", None, session)
         self.assertEqual(result, "native")
         native_check.assert_awaited_once()
+
+    async def test_a_caller_scoped_by_data_policy_keeps_the_native_check(self):
+        session = session_for(SimpleNamespace(action="ADD"), self.change_request, None)
+        policies = [{"register_id": "farmer"}]
+        native_check = AsyncMock(return_value="native")
+        with patch.object(native.G2PRegisterChangeRequestService, "_ensure_change_request_readable", new=native_check):
+            result = await self.service._ensure_change_request_readable("cr-1", policies, session)
+        self.assertEqual(result, "native")
+        native_check.assert_awaited_once_with("cr-1", policies, session)
+        session.execute.assert_not_awaited()
 
     async def test_any_other_request_keeps_the_native_check(self):
         session = session_for(None, None, None)
