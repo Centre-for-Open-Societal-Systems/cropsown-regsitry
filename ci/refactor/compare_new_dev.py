@@ -54,7 +54,8 @@ def reconcile_sections(rows, metadata, transitions):
                 target = sections.get(rule['to_section'])
                 valid = target is not None and target['section_register_id']==row['section_register_id'] and path in paths(target['section_ui_schema'])
                 if valid and rule['mechanism']=='section_move':
-                    tabs = {binding['tab_id'] for binding in intake if binding['section_id']==row['section_id']}
+                    # A retired section is no longer bound; its rule then names the tabs that owned it.
+                    tabs = {binding['tab_id'] for binding in intake if binding['section_id']==row['section_id']} or set(rule.get('owning_tabs', []))
                     valid = bool(tabs) and all(any(binding['tab_id']==tab and binding['section_id']==rule['to_section'] for binding in intake) for tab in tabs)
                     valid = valid and target['section_ui_schema'].get('section-required-for-submit') is True
                 elif valid and rule['mechanism']=='approved_farmer_projection':

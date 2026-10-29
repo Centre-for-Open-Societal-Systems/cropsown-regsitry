@@ -7,28 +7,44 @@
       "path": "6b06a95a-9a6c-5a33-a33d-c1625716c59c.crop_year",
       "to_section": "cropsown_intake_season_section_01",
       "mechanism": "section_move",
-      "reason": "Required production season is separate from Farmer Identity on every owning intake tab"
+      "reason": "Required production season is separate from Farmer Identity on every owning intake tab",
+      "owning_tabs": [
+        "8bd9fe3b-bb8c-4d5d-9f57-f7b5542050b8"
+      ]
     },
     {
       "from_section": "cropsown_intake_record_section_01",
       "path": "6b06a95a-9a6c-5a33-a33d-c1625716c59c.production_season",
       "to_section": "cropsown_intake_season_section_01",
       "mechanism": "section_move",
-      "reason": "Required production season is separate from Farmer Identity on every owning intake tab"
+      "reason": "Required production season is separate from Farmer Identity on every owning intake tab",
+      "owning_tabs": [
+        "8bd9fe3b-bb8c-4d5d-9f57-f7b5542050b8"
+      ]
     },
     {
       "from_section": "cropsown_common_intake_record_section_01",
       "path": "6b06a95a-9a6c-5a33-a33d-c1625716c59c.crop_year",
       "to_section": "cropsown_common_intake_season_section_01",
       "mechanism": "section_move",
-      "reason": "Required production season is separate from Farmer Identity on every owning intake tab"
+      "reason": "Required production season is separate from Farmer Identity on every owning intake tab",
+      "owning_tabs": [
+        "29ec34f5-24f7-4007-b8f0-32acc1bc1952",
+        "56ce9d3d-eb8d-44b5-b175-ff9189ac1c3a",
+        "01d306ec-d50e-4d73-9bc4-7199b6654eb4"
+      ]
     },
     {
       "from_section": "cropsown_common_intake_record_section_01",
       "path": "6b06a95a-9a6c-5a33-a33d-c1625716c59c.production_season",
       "to_section": "cropsown_common_intake_season_section_01",
       "mechanism": "section_move",
-      "reason": "Required production season is separate from Farmer Identity on every owning intake tab"
+      "reason": "Required production season is separate from Farmer Identity on every owning intake tab",
+      "owning_tabs": [
+        "29ec34f5-24f7-4007-b8f0-32acc1bc1952",
+        "56ce9d3d-eb8d-44b5-b175-ff9189ac1c3a",
+        "01d306ec-d50e-4d73-9bc4-7199b6654eb4"
+      ]
     },
     {
       "from_section": "cropsown_intake_record_section_01",

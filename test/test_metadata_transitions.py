@@ -46,3 +46,15 @@ def test_source_projection_must_remain_registered_read_only_display(failure):
     if failure=='original-still-register-section': metadata['g2p_register_ui_tab_sections'].append({'tab_id':'register-tab','section_id':'identity'})
     comparison.reconcile_sections(rows,metadata,rules)
     assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)
+
+
+@pytest.mark.parametrize('failure',[None,'no-owning-tabs','owning-tab-missing-target'])
+def test_retired_source_section_names_the_tabs_that_owned_it(failure):
+    rows,metadata,rules = fixture()
+    metadata['g2p_intake_form_ui_tab_sections'] = [binding for binding in metadata['g2p_intake_form_ui_tab_sections']
+                                                   if binding['section_id'] != 'identity']
+    rules[0]['owning_tabs'] = ['planning','cultivation','sowing','production']
+    if failure=='no-owning-tabs': del rules[0]['owning_tabs']
+    if failure=='owning-tab-missing-target': rules[0]['owning_tabs'].append('another-tab')
+    comparison.reconcile_sections(rows,metadata,rules)
+    assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)

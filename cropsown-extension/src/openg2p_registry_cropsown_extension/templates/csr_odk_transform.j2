@@ -293,7 +293,7 @@
       {% set ns_plan_clusters.items = ns_plan_clusters.items + [c] %}
     {% endfor %}
   {% endfor %}
-  "cs_intake_record": [
+  "crop_farmer_lookup": [
     {
       "record_name": "{{ farmer_id_val }}",
       "farmer_id": "{{ farmer_id_val }}",
@@ -534,7 +534,7 @@
       {% set ns_prep_clusters.items = ns_prep_clusters.items + [c] %}
     {% endfor %}
   {% endfor %}
-  "cs_common_intake_record": [
+  "crop_farmer_lookup": [
     {
       "farmer_id": {{ farmer_id_val | tojson }},
       "fayda_fin": {{ (fayda_id if fayda_id | length == 12 else none) | tojson }},
@@ -723,7 +723,7 @@
   {% set sow_season = season_map.get(raw_s, raw_s | upper) %}
   {% set inf_raw = d.get('infestation_incidents') %}
   {% set inf_list = inf_raw if (inf_raw is iterable and inf_raw is not mapping and inf_raw is not string) else ([inf_raw] if inf_raw else []) %}
-  "cs_common_intake_record": [
+  "crop_farmer_lookup": [
     {
       "farmer_id": {{ farmer_id_val | tojson }},
       "fayda_fin": {{ (fayda_id if fayda_id | length == 12 else none) | tojson }},
@@ -871,7 +871,7 @@
   {% set h_list = h_raw if (h_raw is iterable and h_raw is not mapping and h_raw is not string) else ([h_raw] if h_raw else [{}]) %}
   {% set raw_s = (production_season_info.get('production_season') or farmer_id.get('production_season') or 'belg') | lower %}
   {% set harvest_season = season_map.get(raw_s, raw_s | upper) %}
-  "cs_common_intake_record": [
+  "crop_farmer_lookup": [
     {
       "farmer_id": {{ farmer_id_val | tojson }},
       "fayda_fin": {{ (fayda_id if fayda_id | length == 12 else none) | tojson }},
