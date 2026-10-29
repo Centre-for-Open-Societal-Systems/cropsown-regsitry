@@ -19,6 +19,7 @@ from openg2p_registry_core.services.g2p_change_request_worker_service import G2P
 from openg2p_registry_core.services.g2p_awe_webhook_service import G2PAweWebhookService
 
 from ..direct_approval import DirectApprovalClosed
+from . import messages
 from .configuration import configured_lookup
 from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerPendingLookup
 from .onboarding import OnboardingService
@@ -89,16 +90,29 @@ async def record_native_decision(session, cr_id, approved):
     for submission in submissions:
         if not approved:
             if request.action == "ADD":
-                submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_REJECTED"
+                submission.register_ingest_process_last_error_code = messages.FARMER_APPROVAL_REJECTED
+                await set_intake_farmer_status(session, submission, messages.FARMER_APPROVAL_REJECTED)
             continue
         if (submission.approval_status == "APPROVED" and submission.draft_status == "FINAL" and
                 submission.register_ingest_process_status == "NOT_APPLICABLE" and
-                submission.register_ingest_process_last_error_code == "FARMER_REFERENCE_DEPENDENCY_PENDING"):
+                messages.is_waiting_text(submission.register_ingest_process_last_error_code)):
             # Release the original native ingest queue entry; don't recreate the
             # intake, change its approval, reset attempts, or replay business AWE.
             submission.register_ingest_process_status = "PENDING"
             submission.register_ingest_process_last_error_code = None
+            await set_intake_farmer_status(session, submission, messages.FARMER_REFERENCE_LINKED)
     await session.flush()
+
+
+async def set_intake_farmer_status(session, submission, text):
+    """Keep the intake's own Farmer reference status in step with the waiting text."""
+    definition = await session.get(G2PRegisterDefinition, submission.register_id)
+    root = getattr(domain_models(), "G2PIntakeForm" + definition.register_mnemonic, None) if definition else None
+    if root is None:
+        return
+    row = (await session.execute(select(root).where(root.submission_id == submission.submission_id))).scalars().first()
+    if row is not None and hasattr(row, "farmer_reference_status"):
+        row.farmer_reference_status = text
 
 
 async def release_waiting_domains(session):
@@ -109,15 +123,19 @@ async def release_waiting_domains(session):
             G2PIntakeFormSubmission.approval_status == "APPROVED",
             G2PIntakeFormSubmission.draft_status == "FINAL",
             G2PIntakeFormSubmission.register_ingest_process_status == "NOT_APPLICABLE",
-            G2PIntakeFormSubmission.register_ingest_process_last_error_code == "FARMER_REFERENCE_DEPENDENCY_PENDING",
+            G2PIntakeFormSubmission.register_ingest_process_last_error_code.in_(
+                [messages.WAITING_FOR_FARMER_APPROVAL, messages.FARMER_LOOKUP_PENDING,
+                 messages.LEGACY_WAITING]),
             FarmerReference.state.in_(["APPROVED", "REJECTED"])).with_for_update(
                 of=G2PIntakeFormSubmission, skip_locked=True))).all()
     for submission, state in rows:
         if state == "APPROVED":
             submission.register_ingest_process_status = "PENDING"
             submission.register_ingest_process_last_error_code = None
+            await set_intake_farmer_status(session, submission, messages.FARMER_REFERENCE_LINKED)
         else:
-            submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_REJECTED"
+            submission.register_ingest_process_last_error_code = messages.FARMER_APPROVAL_REJECTED
+            await set_intake_farmer_status(session, submission, messages.FARMER_APPROVAL_REJECTED)
     await session.flush()
     return len(rows)
 
@@ -142,8 +160,9 @@ class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
             if not reference or reference.state != "APPROVED":
                 submission.register_ingest_process_status = "NOT_APPLICABLE"
                 pending_lookup = await session.get(FarmerPendingLookup, submission_id)
-                suffix = "PENDING" if pending_lookup and pending_lookup.state == "PENDING" else "REQUIRED" if not reference else "REJECTED" if reference.state == "REJECTED" else "PENDING"
-                submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_" + suffix
+                held = messages.held_text(reference, pending_lookup)
+                submission.register_ingest_process_last_error_code = held
+                await set_intake_farmer_status(session, submission, held)
                 await session.flush()
         return submission
 
@@ -220,8 +239,8 @@ class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
                 if not matches_declared_identity(declared, expected):
                     raise FarmerReferenceError("FARMER_REFERENCE_SUBMISSION_IDENTITY_CHANGED")
                 row.farmer_uuid, row.farmer_id = reference.local_farmer_id, reference.farmer_id
-                row.farmer_reference_status = ("Farmer reference linked" if reference.state == "APPROVED" else
-                    "Farmer reference awaiting approval; the record will be added after that approval")
+                row.farmer_reference_status = (messages.FARMER_REFERENCE_LINKED if reference.state == "APPROVED" else
+                    messages.FARMER_REFERENCE_AWAITING)
             else:
                 live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
                 if live and live.last_approved_at and live.farmer_uuid:
@@ -236,7 +255,7 @@ class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
                     from .pending import resolve_or_wait
                     reference = await resolve_or_wait(session, submission, row, interactive=interactive)
                 if reference is None:
-                    submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_PENDING"
+                    submission.register_ingest_process_last_error_code = messages.FARMER_LOOKUP_PENDING
             await session.flush()
         if not bearer_token:
             # Native ingestion workers have no human bearer. A narrowly scoped

@@ -17,6 +17,7 @@ pending = importlib.import_module(PACKAGE + ".farmer_reference.pending")
 native = importlib.import_module(PACKAGE + ".farmer_reference.native")
 ledger = importlib.import_module(PACKAGE + ".farmer_reference.models")
 profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+messages_module = importlib.import_module(PACKAGE + ".farmer_reference.messages")
 FIN = "001234567890"
 
 
@@ -171,5 +172,5 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(approved.register_ingest_process_status, "NOT_APPLICABLE")
             self.assertEqual(
                 approved.register_ingest_process_last_error_code,
-                "FARMER_REFERENCE_DEPENDENCY_PENDING",
+                messages_module.WAITING_FOR_FARMER_APPROVAL,
             )
