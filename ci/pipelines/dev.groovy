@@ -90,7 +90,7 @@ pipeline {
 
         stage('Validate refactor contracts') {
             steps {
-                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/refactor/check_port.py . cropsown'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/refactor/check_port.py . cropsown'
                 sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/cropsown-reference-tests:rc557 .'
                 sh 'docker run --rm --memory=768m --network none --entrypoint bash -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src oan/cropsown-reference-tests:rc557 ci/validate.sh --native'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
@@ -291,8 +291,8 @@ pipeline {
             // not the build context, and not a checkout of its own: it deploys
             // exactly this commit without needing GitHub access.
             steps {
-                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch registry'
-                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch dashboard'
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch registry'
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch dashboard'
                 stash name: 'deploy', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
