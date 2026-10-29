@@ -189,8 +189,13 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
         return
 
     def _validate_estimated_damage(self, record: dict) -> None:
+        """Validate Estimated Crop Damage and store it as the number the column holds.
+
+        The column is Numeric(5, 2), so "50%" is stored as 50 (and a blank as no value);
+        writing the text itself failed the save with SYS-ERR-001."""
         raw_val = record.get("estimated_damage_pct")
         if raw_val is None or str(raw_val).strip() == "":
+            record["estimated_damage_pct"] = None
             return
 
         val_str = str(raw_val).strip()
@@ -212,8 +217,11 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
                 num = float(val_str)
                 if num < 0:
                     validation_error("Estimated Crop Damage must be non-negative")
+                if num > 999.99:
+                    validation_error("Estimated Crop Damage must be at most 999.99")
             except ValueError:
                 validation_error("Estimated Crop Damage must be numeric (e.g. 10.5 for ha or 50% for percentage)")
+        record["estimated_damage_pct"] = num
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for infestation")
