@@ -2,6 +2,8 @@
 """Render the commodity and season words of the ETH-OAN pack as db-seed SQL.
 
     build_list_words_sql.py <openg2p-data directory>     # SQL on stdout
+    build_list_words_sql.py <openg2p-data directory> <plain_text.py>
+        # check only: fails when a planning record name word differs from the pack
 
 The register lists show the codes stored in the records (CROP_MAIZE,
 SEASON_MEHER). The staff portal looks every list value up in the English domain
@@ -13,6 +15,7 @@ The merge puts these defaults first and the language row's own values last, so a
 translation edited locally wins, and a second run changes nothing. Standard
 library only: it runs inside the registry db-seed image.
 """
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -44,7 +47,21 @@ def render(found: dict[str, str]) -> str:
     )
 
 
+def mismatched_names(found: dict[str, str], plain_text: Path) -> list[str]:
+    """Commodity codes whose record-name word (plain_text.py) is not the pack label."""
+    spec = importlib.util.spec_from_file_location("plain_text", plain_text)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return sorted(code for code, label in found.items()
+                  if code.startswith("CROP_") and module.commodity_label(code) != label)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) == 3:
+        wrong = mismatched_names(words(Path(sys.argv[1])), Path(sys.argv[2]))
+        if wrong:
+            raise SystemExit("Record-name words differ from the pack labels: " + ", ".join(wrong))
+    elif len(sys.argv) == 2:
+        sys.stdout.write(render(words(Path(sys.argv[1]))))
+    else:
         raise SystemExit(__doc__)
-    sys.stdout.write(render(words(Path(sys.argv[1]))))

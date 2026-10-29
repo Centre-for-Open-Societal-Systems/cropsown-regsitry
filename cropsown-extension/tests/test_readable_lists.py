@@ -177,10 +177,13 @@ def test_record_name_words_match_the_pack_labels():
     assert [key for key, label in words.items() if key.startswith("CROP_") and plain.commodity_label(key) != label] == []
 
 
-@unittest.skipUnless(os.environ.get("OPENG2P_DATA_DIR"), "Needs an openg2p-data checkout")
-def test_record_name_words_match_the_whole_pinned_pack():
-    words = generator().words(Path(os.environ["OPENG2P_DATA_DIR"]))
-    assert [key for key, label in words.items() if key.startswith("CROP_") and plain.commodity_label(key) != label] == []
+def test_the_build_check_compares_record_name_words_with_the_pack():
+    # The image build runs this check against the whole pinned pack.
+    plain_text = Path(plain.__file__)
+    assert generator().mismatched_names(generator().words(PACK), plain_text) == []
+    assert generator().mismatched_names({"CROP_MAIZE": "Corn"}, plain_text) == ["CROP_MAIZE"]
+    dockerfile = (SRC.parents[2] / "docker" / "db-seed" / "Dockerfile").read_text(encoding="utf-8")
+    assert "build_list_words_sql.py /openg2p-data /tmp/plain_text.py" in dockerfile
 
 
 def test_the_fayda_number_has_one_name():
