@@ -52,7 +52,7 @@ SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
 EXPORT = REPO / "odk/mds-export"
-VERSION = "2026.10.31"
+VERSION = "2026.10.31.1"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
