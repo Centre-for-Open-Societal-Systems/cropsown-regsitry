@@ -564,7 +564,7 @@
       "reason": "Existing-database changes require an explicit restored-copy migration rehearsal"
     },
     {
-      "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/csr_odk_transform.j2",
+      "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/templates/odk_to_crop_intake.j2",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },

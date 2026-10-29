@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif('cropsown' not in PACKAGE, reason='crop transfor
 
 
 def render(data):
-    template = (ROOT / 'templates' / 'csr_odk_transform.j2').read_text(encoding='utf-8')
+    template = (ROOT / 'templates' / 'odk_to_crop_intake.j2').read_text(encoding='utf-8')
     return json.loads(Environment().from_string(template).render(expanded=data))
 
 
