@@ -13,7 +13,7 @@ Working primary checkouts and the local runtime worktrees remain separate.
 
 ## Verification boundary
 
-The candidate uses OpenG2P rc.557 extension contracts, registered widgets and
+The candidate uses OpenG2P rc.614 extension contracts, registered widgets and
 metadata. No platform source, worker replacement or compiled-asset patch is
 introduced. Runtime selection must be identical in APIs, ingestion workers and
 beat. Dashboard UI/API are independently owned COSS repositories; connector

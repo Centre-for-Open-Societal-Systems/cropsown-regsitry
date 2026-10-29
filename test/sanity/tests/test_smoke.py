@@ -3,7 +3,7 @@ import pytest
 # Liveness + wiring for the Crop Sown Registry partner-api (the PEP). No auth, no
 # data created — runs on every install/upgrade.
 #
-# Overlays the platform suite's test_smoke.py: the rc.557 partner-api serves the
+# Overlays the platform suite's test_smoke.py: the rc.614 partner-api serves the
 # DCI search as /dci/sync/search and /dci/async/search, while the platform's
 # copy of this test still looks for the retired /dci/registry prefix and fails
 # every install. The assertion below names the routes the API actually has.
