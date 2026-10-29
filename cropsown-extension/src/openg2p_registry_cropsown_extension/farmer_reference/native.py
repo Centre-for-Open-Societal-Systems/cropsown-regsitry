@@ -3,8 +3,10 @@
 No platform method is reassigned. CR construction, approval, history, ingestion,
 outgestion and webhook authentication remain native implementations.
 """
+import asyncio
 from contextvars import ContextVar
 from importlib import import_module
+import logging
 import os
 
 from sqlalchemy import select
@@ -30,6 +32,20 @@ from .profile import FarmerReferenceError, reference_identity, intake_identity, 
 # The platform's own name for change requests raised by its ingestion pipeline
 # (ChangeRequestSourceEnum.INGESTION_PIPELINE); the native ingest worker passes it.
 INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
+
+_logger = logging.getLogger("coss-farmer-reference-validate")
+_IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
+
+
+def _issue_code(reference_code: str) -> str:
+    """The Validate issue code for a Farmer reference refusal."""
+    if (reference_code in messages.UNAVAILABLE
+            or reference_code in {"FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"}):
+        return "LOOKUP_UNAVAILABLE"
+    if reference_code in _IDENTITY_MISMATCH:
+        return "FARMER_IDENTITY_MISMATCH"
+    return "FARMER_NOT_FOUND"
+
 
 _approved_callback = ContextVar("coss_farmer_approved_callback", default=None)
 
@@ -180,6 +196,83 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         except FarmerReferenceError as error:
             raise G2PRegistryException(code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
                                        message=explain(str(error), declared_ids)) from None
+
+    async def validate_submission_for_approval_with_session(self, submission_id, session):
+        """Validate also checks what Submit checks before it creates anything:
+        the production season, and the Farmer, looked up read only. A wrong
+        Farmer ID and Fayda ID pair or an unknown farmer is reported here and
+        not first by Submit."""
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        if not result.issues:
+            problem = await self._submission_problem(submission_id, session)
+            if problem:
+                from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+
+                code, sentence = problem
+                result.issues.append(IntakeSubmissionValidationIssue(
+                    code=code, message=sentence if sentence[-1:] in ".!?" else sentence + "."))
+                result.is_valid = False
+        return result
+
+    async def _submission_problem(self, submission_id, session):
+        """The sentence Submit would refuse the draft with after the form is
+        complete (season, then the Farmer ID and Fayda ID), or None. Nothing is
+        created: the signed lookup is only read. A form already linked to a
+        farmer is left to Submit."""
+        submission = await self._get_submission_or_error(submission_id, session)
+        definition = await self._get_register_definition(submission.register_id, session)
+        if definition.register_mnemonic not in {"CropSown", "Livestock"}:
+            return None
+        models = domain_models()
+        root = getattr(models, "G2PIntakeForm" + definition.register_mnemonic)
+        rows = (await session.execute(select(root).where(root.submission_id == submission_id))).scalars().all()
+        if len(rows) != 1:
+            return None
+        row = rows[0]
+        if definition.register_mnemonic == "CropSown":
+            sections = await self._get_form_sections(submission.form_id, session)
+            if any(section.section_mnemonic in {"cs_intake_season", "cs_common_intake_season"}
+                   for section in sections):
+                from ..register_domain.services.g2p_register_domain_service_crop_sown import (
+                    validate_production_season_fields,
+                )
+                try:
+                    validate_production_season_fields({"crop_year": row.crop_year,
+                                                       "production_season": row.production_season})
+                except G2PRegistryException as error:
+                    return "SUBMISSION_INCOMPLETE", error.message
+        if await session.get(FarmerSubmissionDependency, submission_id):
+            return None
+        live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
+        if live and live.last_approved_at and live.farmer_uuid:
+            return None
+        return await self._farmer_problem(row)
+
+    async def _farmer_problem(self, row):
+        from .messages import explain
+
+        declared_ids = {key: value for key, value in model_identity(row).items()
+                        if key in {"farmer_id", "fayda_fin", "fayda_fan_id"} and value}
+        try:
+            declared = intake_identity(model_identity(row))
+            if not declared.get("farmer_id"):
+                return None  # the missing ID is reported with the other missing fields
+            client = configured_lookup()
+            if declared.get("fayda_fin"):
+                call = client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
+            else:
+                call = client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+            # httpx times each phase, not the whole call: bound the whole lookup.
+            seconds = getattr(getattr(client, "config", None), "timeout_seconds", None) or 8.0
+            source = await asyncio.wait_for(call, seconds)
+            if not matches_declared_identity(declared, source.profile):
+                raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        except FarmerReferenceError as error:
+            return _issue_code(str(error)), explain(str(error), declared_ids)
+        except Exception as error:  # noqa: BLE001 - signing, transport or timeout: Validate must answer
+            _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
+        return None
 
     async def _finalize_with_farmer(self, submission_id, session, finalized_by, bearer_token, requester_sub,
                                     declared_ids):
