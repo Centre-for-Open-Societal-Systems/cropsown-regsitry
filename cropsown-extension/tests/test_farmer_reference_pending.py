@@ -162,13 +162,26 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
             return SimpleNamespace(register_mnemonic="CropSown")
 
         service._get_register_definition = definition
+        statuses = []
+
+        # The intake row's own status is covered by test_intake_waiting_text;
+        # this database holds only the Farmer reference ledger.
+        async def record_status(session, submission, text):
+            statuses.append(text)
+
         async with self.sessions.begin() as session:
-            with patch.object(
-                native.G2PIntakeFormDataService, "approve_submission_with_session", base
+            with (
+                patch.object(
+                    native.G2PIntakeFormDataService,
+                    "approve_submission_with_session",
+                    base,
+                ),
+                patch.object(native, "set_intake_farmer_status", record_status),
             ):
                 approved = await service.approve_submission_with_session(
                     self.submission.submission_id, session, "reviewer"
                 )
+            self.assertEqual(statuses, [messages_module.WAITING_FOR_FARMER_APPROVAL])
             self.assertEqual(approved.register_ingest_process_status, "NOT_APPLICABLE")
             self.assertEqual(
                 approved.register_ingest_process_last_error_code,
