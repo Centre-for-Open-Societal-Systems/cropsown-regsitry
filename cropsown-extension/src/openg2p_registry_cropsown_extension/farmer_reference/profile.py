@@ -131,6 +131,19 @@ def validate_identity_fields(record: dict) -> None:
             record[field] = normalizer(record[field])
 
 
+def normalize_mobile(value: object) -> object:
+    """The Farmer Registry publishes the national number without its trunk 0
+    (912345678); store it as +251912345678, the form Crop Sown's mobile rule
+    accepts and staff recognise."""
+    if isinstance(value, str):
+        digits = re.sub(r"[\s-]", "", value)
+        if re.fullmatch(r"[79][0-9]{8}", digits):
+            return "+251" + digits
+        if re.fullmatch(r"251[79][0-9]{8}", digits):
+            return "+" + digits
+    return value
+
+
 def local_profile(source: Mapping, *, today: date | None = None) -> dict:
     """Copy the explicit allowlist; omissions remain absent, including on UPDATE.
 
@@ -159,6 +172,8 @@ def local_profile(source: Mapping, *, today: date | None = None) -> dict:
                 result[field] = parsed
         elif value is not None and not isinstance(value, str):
             raise FarmerReferenceError("FARMER_REFERENCE_INVALID_PROFILE_VALUE")
+        elif field == "mobile_number":
+            result[field] = normalize_mobile(value)
     return result
 
 
