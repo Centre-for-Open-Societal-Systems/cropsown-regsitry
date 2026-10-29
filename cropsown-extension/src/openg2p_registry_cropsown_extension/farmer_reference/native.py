@@ -201,20 +201,24 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         """Validate also checks what Submit checks before it creates anything:
         the production season, and the Farmer, looked up read only. A wrong
         Farmer ID and Fayda ID pair or an unknown farmer is reported here and
-        not first by Submit."""
-        result = await super().validate_submission_for_approval_with_session(submission_id, session)
-        if not result.issues:
-            problem = await self._submission_problem(submission_id, session)
-            if problem:
-                from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+        not first by Submit. The Farmer is checked even when the form is still
+        incomplete, so one Validate lists every problem."""
+        from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
 
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        problems = []
+        if not result.issues:
+            problems.append(await self._submission_problem(submission_id, session, farmer=False))
+        problems.append(await self._submission_problem(submission_id, session, season=False))
+        for problem in problems:
+            if problem:
                 code, sentence = problem
                 result.issues.append(IntakeSubmissionValidationIssue(
                     code=code, message=sentence if sentence[-1:] in ".!?" else sentence + "."))
-                result.is_valid = False
+        result.is_valid = not result.issues
         return result
 
-    async def _submission_problem(self, submission_id, session):
+    async def _submission_problem(self, submission_id, session, season=True, farmer=True):
         """The sentence Submit would refuse the draft with after the form is
         complete (season, then the Farmer ID and Fayda ID), or None. Nothing is
         created: the signed lookup is only read. A form already linked to a
@@ -229,7 +233,7 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         if len(rows) != 1:
             return None
         row = rows[0]
-        if definition.register_mnemonic == "CropSown":
+        if season and definition.register_mnemonic == "CropSown":
             sections = await self._get_form_sections(submission.form_id, session)
             if any(section.section_mnemonic in {"cs_intake_season", "cs_common_intake_season"}
                    for section in sections):
@@ -241,7 +245,7 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
                                                        "production_season": row.production_season})
                 except G2PRegistryException as error:
                     return "SUBMISSION_INCOMPLETE", error.message
-        if await session.get(FarmerSubmissionDependency, submission_id):
+        if not farmer or await session.get(FarmerSubmissionDependency, submission_id):
             return None
         live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
         if live and live.last_approved_at and live.farmer_uuid:
@@ -255,8 +259,11 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
                         if key in {"farmer_id", "fayda_fin", "fayda_fan_id"} and value}
         try:
             declared = intake_identity(model_identity(row))
-            if not declared.get("farmer_id"):
-                return None  # the missing ID is reported with the other missing fields
+        except FarmerReferenceError:
+            return None  # a missing or malformed ID is reported as a field format issue
+        if not declared.get("farmer_id"):
+            return None  # the missing ID is reported with the other missing fields
+        try:
             client = configured_lookup()
             if declared.get("fayda_fin"):
                 call = client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
