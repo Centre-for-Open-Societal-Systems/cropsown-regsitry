@@ -67,3 +67,24 @@ The connector needs no Keycloak client secret: its admin access only validates i
 tokens (issuer, JWKS, client id, role), and its WebSub hub calls use the connector
 definition's own credentials. The script still reports whether `crop/registry-connector-client`
 exists (PRESENT, MISSING or UNKNOWN), but never blocks on it.
+
+### Renewing the WebSub hub subscription lease
+
+The Farmer change notices reach crop through the connector's WebSub subscription on the
+Commons hub. The subscription has a lease, and nothing renews it automatically: the connector
+has no renewal task (its only periodic task, `connector.poll_all`, polls sources), so the
+lease ends unless someone re-syncs the subscription before then.
+
+- **Route:** `POST /connectors/{connector_id}/websub/sync-subscriptions` on the connector API
+  (`https://connector-cropsown-registry.development.oanstaging.com`), with the Farmer
+  reference connector's id (today `6de1cbac-…`; list ids with `GET /connectors`). The
+  connector UI's "Sync subscriptions" action calls the same route.
+- **Who:** a staff user whose token carries the `REGISTRY_CONNECTOR_ADMIN` client role of
+  the `registry-connector` client (Keycloak user `admin` on New Dev), once the admin-only
+  connector access is live. Until then the route answers without a token.
+- **When:** before the current lease ends, 2026-11-08 17:02 UTC, and again before each
+  following expiry. The sync response and the hub's subscriber list show the new lease end.
+- **Check:** approve a Farmer change and see the crop UPDATE change request.
+
+The sync re-subscribes with the connector definition's own hub credentials and webhook
+secret; it needs no client secret in the connector pod.
