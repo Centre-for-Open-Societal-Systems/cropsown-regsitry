@@ -44,7 +44,7 @@ pipeline {
 
         // Built from docker/<name>/Dockerfile. dashboard-ui is left out: the
         // chart deploys no dashboard, so its image would be published for nothing.
-        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests registry-connector'
+        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests registry-connector registry-connector-ui'
 
         // Connectors remain independently operated; this registry builds only its extension.
 
