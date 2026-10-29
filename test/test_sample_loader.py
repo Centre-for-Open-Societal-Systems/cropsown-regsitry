@@ -170,7 +170,7 @@ class FakeRegistry:
         return {"reference_id": f"ref-{source_record_id}", "farmer_id": farmer["farmer_id"],
                 "local_farmer_id": "local", "seeded": "seeded"}
 
-    def stage_intakes(self, form_id, fin, year):
+    def stage_intakes(self, form_id, fin, year, root):
         return self.previous.get((form_id, fin), [])
 
     def approval_status(self, submission_id):
@@ -230,8 +230,8 @@ def run(loader, registry):
 def test_farmers_are_seeded_and_every_stage_intake_approved_at_stage_1_then_stage_2(loader):
     registry = FakeRegistry()
     done, submitted, calls = run(loader, registry)
-    assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 5,
-                    "resumed": 0, "drafts completed": 0, "skipped": 0, "left for the next run": 0, "failed": 0}
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes submitted": 5,
+                    "intakes approved and in the register": 5}
     assert registry.seeded[0] == ("FR-100000000001", "alex.carter", "nina.patel", "ETH-IND-0001")
     assert [s[:2] for s in submitted] == [("1", "ref-ETH-IND-0001"), ("2", "ref-ETH-IND-0001"),
                                           ("3", "ref-ETH-IND-0001"), ("4", "ref-ETH-IND-0001"),
@@ -250,16 +250,18 @@ def test_a_farmer_already_referenced_keeps_its_farmer_id(loader, how):
 
 
 def test_a_rerun_skips_approved_stages_and_resumes_waiting_ones(loader):
+    cultivation = plan(loader)[0]["stages"][1]["root"]
     registry = FakeRegistry(previous={
         ("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")],
-        ("form-2", "502628318720"): [("sub-draft", "DRAFT", None, "x"), ("sub-wait", "FINAL", "PENDING", "root-wait")],
+        ("form-2", "502628318720"): [("sub-wait", "FINAL", "PENDING", cultivation)],
     })
     registry.pending = ["sub-wait"]
     done, submitted, _ = run(loader, registry)
-    assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 3,
-                    "resumed": 1, "drafts completed": 0, "skipped": 1, "left for the next run": 0, "failed": 0}
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes submitted": 3,
+                    "intakes resumed at approval": 1, "intakes already approved": 1,
+                    "intakes approved and in the register": 4}
     assert [s[0] for s in submitted] == ["3", "4", "1"]
-    assert ("g2p_register_crop_sowns", "root-wait") in registry.waited
+    assert ("g2p_register_crop_sowns", cultivation) in registry.waited
 
 
 class FakeCursor:
@@ -411,7 +413,8 @@ def test_the_task_is_found_on_a_later_page(loader):
 
 
 def test_a_draft_left_by_a_failed_run_is_completed_not_entered_again(loader):
-    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-draft", "DRAFT", None, "x")]})
+    planning = plan(loader)[0]["stages"][0]["root"]
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-draft", "DRAFT", None, planning)]})
     done, submitted, _ = run(loader, registry)
     assert submitted[0] == ("draft", "sub-draft") and done["drafts completed"] == 1
 
@@ -423,7 +426,7 @@ def test_no_intake_starts_once_the_time_budget_is_used(loader):
         done, submitted, _ = run(loader, registry)
     finally:
         loader.Loader.time_budget = saved
-    assert submitted == [] and done["left for the next run"] == sum(len(p["stages"]) for p in plan(loader))
+    assert submitted == [] and done["intakes left for the next run"] == sum(len(p["stages"]) for p in plan(loader))
 
 
 def test_one_failing_farmer_does_not_stop_the_others(loader):
@@ -437,7 +440,7 @@ def test_one_failing_farmer_does_not_stop_the_others(loader):
 
     registry.ensure_farmer = ensure_farmer
     done, submitted, _ = run(loader, registry)
-    assert done["failed"] == 1 and done["farmers seeded"] == 1 and submitted
+    assert done["farmers failed"] == 1 and done["farmers seeded"] == 1 and submitted
 
 
 def test_a_request_sent_once_is_not_retried(loader):
@@ -508,3 +511,83 @@ def test_a_lost_decision_is_read_again_not_resent(loader, monkeypatch):
     runner.approvers = [LostAnswer(1, True, status, calls), LostAnswer(2, True, status, calls)]
     runner.approve("sub-1")
     assert [path for _, path, _ in calls].count("/awe/submit_task_decision") == 1
+
+
+@pytest.mark.parametrize("status", ["DRAFT", "PENDING"])
+def test_an_intake_somebody_else_entered_is_never_completed_or_approved(loader, status):
+    draft, approval = ("DRAFT", None) if status == "DRAFT" else ("FINAL", "PENDING")
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-tester", draft, approval, "a-testers-record")]})
+    registry.pending = ["sub-tester"]
+    done, submitted, _ = run(loader, registry)
+    assert ("draft", "sub-tester") not in submitted and submitted[0][0] == "1"
+    assert done["intakes resumed at approval"] == 0 and done["drafts completed"] == 0
+    assert registry.status.get("sub-tester") is None or registry.status["sub-tester"] != "APPROVED" \
+        or ("g2p_register_crop_sowns", "a-testers-record") not in registry.waited
+    assert not any(c for c in registry.decided if c[0] == "sub-tester")
+
+
+def test_no_request_starts_after_the_hard_limit(loader, monkeypatch):
+    monkeypatch.setattr(loader, "HARD_LIMIT", -1)
+    opener = FlakyOpener(200)
+    with pytest.raises(loader.OutOfTime):
+        loader.fetch(opener, __import__("urllib.request").request.Request("https://staff-iam.example.org/x"))
+    assert opener.calls == 0
+
+
+def test_a_try_never_waits_past_the_hard_limit(loader, monkeypatch):
+    timeouts = []
+
+    class Recording(FlakyOpener):
+        def open(self, request, timeout):
+            timeouts.append(timeout)
+            return super().open(request, timeout)
+
+    monkeypatch.setattr(loader, "HARD_LIMIT", loader.time.time() - loader.STARTED + 5)
+    loader.fetch(Recording(200), __import__("urllib.request").request.Request("https://staff-iam.example.org/x"))
+    assert 0 < timeouts[0] <= 5
+
+
+def test_out_of_time_counts_the_farmer_as_left_not_failed(loader):
+    registry = FakeRegistry()
+
+    def ensure_farmer(farmer, *args):
+        raise loader.OutOfTime("POST /x: not sent")
+
+    registry.ensure_farmer = ensure_farmer
+    done, _, _ = run(loader, registry)
+    assert done["farmers out of time"] == 2 and done["farmers failed"] == 0
+
+
+def test_a_refused_decision_waits_before_the_task_is_read_again(loader, monkeypatch):
+    slept, status, calls = [], {}, []
+    monkeypatch.setattr(loader.time, "sleep", slept.append)
+
+    class RefusedOnce(StageTwoApprover):
+        refused = False
+
+        def post(self, path, payload, once=False):
+            if path == "/awe/submit_task_decision" and not RefusedOnce.refused:
+                RefusedOnce.refused = True
+                raise RuntimeError("/awe/submit_task_decision: 409 conflict")
+            return super().post(path, payload, once)
+
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [RefusedOnce(1, True, status, calls), RefusedOnce(2, True, status, calls)]
+    runner.approve("sub-1")
+    assert slept == [3] and status["sub-1"] == "APPROVED"
+
+def test_the_loaders_own_draft_is_found_before_its_crop_year_is_saved(loader):
+    asked = []
+    registry = loader.Registry.__new__(loader.Registry)
+    registry.rows = lambda sql, params=(): asked.append(params) or [("sub-1", "DRAFT", None, "root-1")]
+    assert registry.stage_intakes("form-1", "502628318720", 2028, "root-1") == [("sub-1", "DRAFT", None, "root-1")]
+    assert "root-1" in asked[0]  # matched by the root record id, which the first (lookup) section already saves
+
+
+def test_root_records_are_the_loaders_own_and_stable_across_runs(loader):
+    first, again = plan(loader), plan(loader)
+    assert [s["root"] for s in first[0]["stages"]] == [s["root"] for s in again[0]["stages"]]
+    other_year = loader.plan(PEOPLE, FARMS, FARMER_IDS, CROPS, PLACES, YEAR + 1)
+    assert first[0]["stages"][0]["root"] != other_year[0]["stages"][0]["root"]
