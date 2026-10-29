@@ -14,7 +14,7 @@ COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 # tree; it runs after the registry configuration and points it at oan_theme.
 # The ref is a commit SHA; move the repository to the COSS copy once merged there.
 ARG OAN_THEME_DATA_REPO=https://github.com/asmitonweb/openg2p-data.git
-ARG OAN_THEME_DATA_REF=3c44950dac7d7752054057d1f3500784af596c10
+ARG OAN_THEME_DATA_REF=bba20c3b7144f76cb99fae3522344bd31783d090
 RUN mkdir -p /tmp/oan-theme-data /seed/meta_data/zz-oan \
  && cd /tmp/oan-theme-data \
  && git init -q \
