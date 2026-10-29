@@ -91,21 +91,21 @@ _FAILURES: tuple[tuple[str, str], ...] = (
      "Enter the farmer's FIN before verifying"),
     ("Token subject is missing",
      ("Fayda did not return the person's FIN. Verify again; if it happens again, ask the "
-      "administrator to check that the eSignet client requests the individual_id claim")),
+      "administrator to check that the Fayda connection asks for the person's individual ID")),
     ("Missing id_token",
      "Fayda did not complete the sign-in. Verify again"),
     ("Provider not found",
      "The Fayda provider for this register was removed. Ask the administrator to set it up again"),
 )
 _GENERIC_FAILURE = ("Fayda could not verify the farmer. Verify again; if it fails again, "
-                    "ask the administrator to check the eSignet connection")
+                    "ask the administrator to check the Fayda connection")
 
 
 def explain_failure(reason: str | None) -> str:
-    timeout = re.search(r"Fayda \(eSignet\) did not answer within ([0-9]+(?:\.[0-9]+)?) seconds\.", reason or "")
+    timeout = re.search(r"Fayda(?: \(eSignet\))? did not answer within ([0-9]+(?:\.[0-9]+)?) seconds\.", reason or "")
     if timeout:
-        return (f"Fayda (eSignet) did not answer within {timeout[1]} seconds. Verify again; "
-                "if it keeps happening, ask the administrator to check eSignet or raise token_timeout_seconds.")
+        return (f"Fayda did not answer within {timeout[1]} seconds. Verify again; "
+                "if it keeps happening, ask the administrator to check the Fayda sign-in service or raise the token time limit.")
     for phrase, message in _FAILURES:
         if reason and phrase in reason:
             return message

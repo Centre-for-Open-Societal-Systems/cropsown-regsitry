@@ -18,10 +18,10 @@ def to_ethiopian(year, month, date) -> tuple:
     """Ethiopian date string representation of provided Gregorian date"""
     inputs = (year, month, date)
     if 0 in inputs or [data.__class__ for data in inputs].count(int) != 3:
-        raise ValueError("Malformed input can't be converted.")
+        raise ValueError("That date could not be converted. Enter a real day, month and year.")
 
     if month == 10 and date >= 5 and date <= 14 and year == 1582:
-        raise ValueError("Invalid Date between 5-14 May 1582.")
+        raise ValueError("That date does not exist: 5 to 14 October 1582 were skipped when the Gregorian calendar began.")
 
     gregorian_months = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     ethiopian_months = [0, 30, 30, 30, 30, 30, 30, 30, 30, 30, 5, 30, 30, 30, 30]
@@ -86,7 +86,7 @@ def to_gregorian(year, month, date) -> datetime.date:
     """Gregorian date object representation of provided Ethiopian date"""
     inputs = (year, month, date)
     if 0 in inputs or [data.__class__ for data in inputs].count(int) != 3:
-        raise ValueError("Malformed input can't be converted.")
+        raise ValueError("That date could not be converted. Enter a real day, month and year.")
 
     new_year_day = start_day_of_ethiopian(year)
     gregorian_year = year + 7

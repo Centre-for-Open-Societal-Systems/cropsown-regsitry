@@ -15,7 +15,7 @@ from openg2p_registry_cropsown_extension.register_domain.services import (
 
 @pytest.mark.parametrize("raw", [0, -1, "no", None, True, float("inf"), float("nan")])
 def test_bad_timeout_config_names_the_setting(raw):
-    with pytest.raises(ValueError, match="token_timeout_seconds"):
+    with pytest.raises(ValueError, match="token time limit"):
         timeout.token_timeout_seconds(
             SimpleNamespace(provider_config={"token_timeout_seconds": raw})
         )

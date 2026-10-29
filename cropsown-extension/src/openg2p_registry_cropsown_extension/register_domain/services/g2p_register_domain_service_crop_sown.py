@@ -10,7 +10,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from ...farmer_reference.profile import FarmerReferenceError, normalize_uid
 
-from .domain_validation_utils import as_float, as_int, validation_error, get_row_field
+from .domain_validation_utils import as_float, as_int, validation_error, get_row_field, field_label
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -115,7 +115,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             from .domain_validation_utils import validate_alphabetical_name
             farmer_name = get_row_field(record, "farmer_name")
             if farmer_name:
-                validate_alphabetical_name(farmer_name, "Farmer Name")
+                validate_alphabetical_name(farmer_name, "Farmer name")
 
             is_common_intake = (sec_id == "cropsown_common_intake_record_section_01")
 
@@ -193,7 +193,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             n_clean = str(new_season).replace("CROP_SEASON_", "").strip().upper()
             if p_clean != n_clean:
                 validation_error(
-                    f"Production Season cannot be changed once established for a Crop Sown record (Existing: '{existing_season}', Attempted: '{new_season}')."
+                    f"Production season cannot be changed once established for a crop sown record (Existing: '{existing_season}', Attempted: '{new_season}')."
                 )
 
         if new_season and found_rec_id:
@@ -216,7 +216,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                         c_clean = str(r_c[0]).replace("CROP_SEASON_", "").strip().upper()
                         if c_clean != n_clean:
                             validation_error(
-                                f"Production Season '{new_season}' does not match the Season '{r_c[0]}' established in {section_label} for this record."
+                                f"Production season '{new_season}' does not match the Season '{r_c[0]}' established in {section_label} for this record."
                             )
 
         new_year = (
@@ -232,7 +232,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         if new_year and existing_year:
             if str(new_year).strip() != str(existing_year).strip():
                 validation_error(
-                    f"Crop Year cannot be changed once established for a Crop Sown record (Existing: '{existing_year}', Attempted: '{new_year}')."
+                    f"Crop year cannot be changed once established for a crop sown record (Existing: '{existing_year}', Attempted: '{new_year}')."
                 )
 
 
@@ -304,30 +304,30 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
                 season_str = f" and Season '{prod_season}'" if prod_season else ""
                 validation_error(
-                    f"No existing Crop Sown record found for Farmer identity '{identity_value}'{year_str}{season_str}. "
-                    f"Sowing / Harvesting cannot create a new Crop Sown record. Please ensure a Cultivation/Crop Sown record already exists for this Farmer Identity."
+                    f"No existing crop sown record found for Farmer identity '{identity_value}'{year_str}{season_str}. "
+                    f"Sowing / Harvesting cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
                 )
 
     @staticmethod
     def _validate_crop_year(record: dict) -> None:
         crop_year = get_row_field(record, "crop_year")
         if crop_year is None or str(crop_year).strip() in ("", "None", "null", "Select"):
-            validation_error("Crop Year: enter the year in the Production Season section.")
+            validation_error("Crop year: enter the year in the Production season section.")
         val_str = str(crop_year).strip()
         if not val_str.isdigit():
-            validation_error("Crop Year must contain only numeric digits (no letters, spaces, or special characters)")
+            validation_error("Crop year must contain digits only, with no letters, spaces or symbols")
         year = as_int(crop_year)
         current_year = date.today().year
         if year is not None and year < current_year:
-            validation_error("Crop Year must not be in the past")
+            validation_error("Crop year must not be in the past")
         if year is not None and year > current_year:
-            validation_error("Crop Year must not be in the future")
+            validation_error("Crop year must not be in the future")
 
     @staticmethod
     def _validate_production_season(record: dict) -> None:
         season = get_row_field(record, "production_season") or get_row_field(record, "season")
         if season is None or str(season).strip() in ("", "None", "null", "Select"):
-            validation_error("Production Season: choose a season in the Production Season section.")
+            validation_error("Production season: choose a season in the Production season section.")
 
     def _validate_farmer_id(self, record: dict) -> None:
         """Farmer ids come from the farmer registry as FR- plus twelve digits."""
@@ -336,7 +336,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             return
         if not _FARMER_ID_PATTERN.match(str(value).strip()):
             validation_error(
-                f"farmer_id must be FR- followed by 12 digits (got '{value}')"
+                f"Farmer ID: enter FR- followed by exactly 12 digits (you entered '{value}')"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
@@ -357,7 +357,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         if value is None or str(value).strip() == "":
             return
         if not _MOBILE_NUMBER_PATTERN.match(str(value).strip()):
-            validation_error(f"{field} is not a valid mobile number")
+            validation_error(f"{field_label(field)} is not a valid mobile number. Enter a number such as +251911234567 or 0911234567")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for crop sown record")
@@ -451,7 +451,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         for item in payload.change_payload or []:
             if item.get("edit_action") == "DELETE" or item.get("internal_record_id", record.internal_record_id) != record.internal_record_id:
                 continue
-            for field, label in (("production_season", "Production Season"), ("crop_year", "Crop Year")):
+            for field, label in (("production_season", "Production season"), ("crop_year", "Crop year")):
                 established = getattr(record, field)
                 if field not in item or not established:
                     continue
@@ -462,7 +462,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                     existing = existing.upper().removeprefix("CROP_SEASON_").removeprefix("SEASON_")
                 if proposed != existing:
                     validation_error(
-                        f"{label} cannot be changed for an existing Crop Sown record. Keep its original value."
+                        f"{label} cannot be changed for an existing crop sown record. Keep its original value."
                     )
 
     async def _check_matching_season_across_sections(
@@ -513,7 +513,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                     r_clean = str(r[0]).replace("CROP_SEASON_", "").strip().upper()
                     if r_clean != header_clean:
                         validation_error(
-                            f"Season '{r[0]}' in {section_name} does not match the Crop Season '{header_season}' specified in Farmer Identity."
+                            f"Season '{r[0]}' in {section_name} does not match the Crop season '{header_season}' specified in Farmer identity."
                         )
 
             if sub_id:
@@ -527,7 +527,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                         r_clean = str(r[0]).replace("CROP_SEASON_", "").strip().upper()
                         if r_clean != header_clean:
                             validation_error(
-                                f"Season '{r[0]}' in {section_name} does not match the Crop Season '{header_season}' specified in Farmer Identity."
+                                f"Season '{r[0]}' in {section_name} does not match the Crop season '{header_season}' specified in Farmer identity."
                             )
 
     async def _check_section_dates_validity(
@@ -814,8 +814,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 )
                 if plot_area and total > plot_area + 1e-6:
                     validation_error(
-                        f"Total {label} area on plot {plot} is {total:g} ha, which exceeds "
-                        f"its registered area of {plot_area:g} ha"
+                        f"Total {label} area on plot {plot} is {total:g} hectares, which exceeds "
+                        f"its registered area of {plot_area:g} hectares"
                     )
 
     async def _check_matching_land_id_across_sections(
@@ -910,7 +910,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 lid = getattr(c, "land_id", None)
                 if lid and str(lid).strip() and str(lid).strip() not in planning_land_ids:
                     validation_error(
-                        f"Land ID '{lid}' in Cluster Information does not match any Land ID specified in Crop Planning."
+                        f"Land ID '{lid}' in Cluster information does not match any Land ID specified in Crop planning."
                     )
 
         if cultivation_land_ids:
@@ -939,7 +939,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 lid = getattr(c, "land_id", None)
                 if lid and str(lid).strip() and str(lid).strip() not in cultivation_land_ids:
                     validation_error(
-                        f"Land ID '{lid}' in Cultivation Cluster does not match any Land ID specified in Cultivation/Land Preparation."
+                        f"Land ID '{lid}' in Cultivation cluster does not match any Land ID specified in Cultivation / land preparation."
                     )
 
         if planning_land_ids:
@@ -971,7 +971,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                     sowing_land_ids.add(str(lid).strip())
                     if str(lid).strip() not in planning_land_ids:
                         validation_error(
-                            f"Land ID '{lid}' in Sowing does not match any Land ID specified in Crop Planning."
+                            f"Land ID '{lid}' in Sowing does not match any Land ID specified in Crop planning."
                         )
 
             infestation_rows = []
@@ -1000,7 +1000,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 lid = getattr(c, "land_id", None)
                 if lid and str(lid).strip() and str(lid).strip() not in sowing_land_ids:
                     validation_error(
-                        f"Land ID '{lid}' in Pest/Disease Infestation does not match any Land ID specified in Sowing."
+                        f"Land ID '{lid}' in Pest or disease infestation does not match any Land ID specified in Sowing."
                     )
 
             harvest_rows = []
@@ -1029,7 +1029,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 lid = getattr(c, "land_id", None)
                 if lid and str(lid).strip() and str(lid).strip() not in valid_harvest_land_ids:
                     validation_error(
-                        f"Land ID '{lid}' in Harvest does not match any Land ID specified in Sowing or Crop Planning."
+                        f"Land ID '{lid}' in Harvest does not match any Land ID specified in Sowing or Crop planning."
                     )
 
     async def _recompute_ec_dates_across_sections(

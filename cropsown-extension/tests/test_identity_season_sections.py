@@ -55,15 +55,15 @@ def test_production_season_next_does_not_require_identity_in_same_payload():
 @pytest.mark.parametrize(
     "values,field",
     [
-        ({"crop_year": "", "production_season": "SEASON_MEHER"}, "Crop Year"),
-        ({"crop_year": YEAR, "production_season": None}, "Production Season"),
+        ({"crop_year": "", "production_season": "SEASON_MEHER"}, "Crop year"),
+        ({"crop_year": YEAR, "production_season": None}, "Production season"),
     ],
 )
 def test_missing_season_values_name_the_owning_section(values, field):
     with pytest.raises(G2PRegistryException) as error:
         validate(values)
     assert field in error.value.message
-    assert "Production Season section" in error.value.message
+    assert "Production season section" in error.value.message
     assert "Farmer Identity" not in error.value.message
 
 
@@ -81,7 +81,7 @@ def test_submit_validation_keeps_season_required_even_when_not_visited():
         validate_production_season_fields(
             {"crop_year": None, "production_season": None}
         )
-    assert "Crop Year" in error.value.message
+    assert "Crop year" in error.value.message
 
 
 def test_unrelated_section_does_not_request_identity_or_season():

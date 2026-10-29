@@ -56,6 +56,106 @@ MESSAGES = {
     "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED":
         "Farmer lookups are not configured in this registry, so the farmer cannot be checked. "
         "Ask the administrator to set the Farmer Registry connection",
+    "FARMER_REFERENCE_ADD_ALREADY_RESOLVED":
+        "This farmer was already added to this registry by an earlier request. Refresh the page and check the farmer's record",
+    "FARMER_REFERENCE_APPROVED_DEPENDENCY_REQUIRED":
+        "The farmer must be approved in this registry before this record can be added. Wait for the approval, then try again",
+    "FARMER_REFERENCE_APPROVED_LOCAL_REQUIRED":
+        "The farmer's registration in this registry is not approved yet. Wait for the approval, then try again",
+    "FARMER_REFERENCE_APPROVED_SCOPE_REQUIRED":
+        "The farmer's location is needed to choose approvers. Select the farmer's region, zone and woreda, then submit again",
+    "FARMER_REFERENCE_AWE_APPROVAL_REQUIRED":
+        "This change needs an approval first. Submit it for approval and wait for the decision",
+    "FARMER_REFERENCE_AWE_CALLBACK_REQUIRED":
+        "The approval service did not report a decision. Tell the administrator that the approval connection is not set up",
+    "FARMER_REFERENCE_AWE_POLICY_CONTEXT_REQUIRED":
+        "The approval could not be started because the farmer's location is missing. Select the farmer's location and submit again",
+    "FARMER_REFERENCE_AWE_REQUEST_NOT_CREATED":
+        "The approval request could not be created. Nothing was submitted. Try again in a few minutes; if it keeps failing, tell the administrator",
+    "FARMER_REFERENCE_AWE_REQUIRED":
+        "Approval is not set up for farmer registrations in this registry. Ask the administrator to set it up",
+    "FARMER_REFERENCE_CHANGE_REQUEST_REQUIRED":
+        "Farmer details can only be changed through an approved change request. Submit a change request instead of editing the record",
+    "FARMER_REFERENCE_DEPENDENCY_PENDING":
+        "The farmer is waiting for approval in this registry. This record will be added once the farmer is approved",
+    "FARMER_REFERENCE_DEPENDENCY_REQUIRED":
+        "This record needs a linked farmer first. Check the Farmer ID and Fayda ID, then submit again",
+    "FARMER_REFERENCE_EXTERNAL_IDENTIFIER_CONFIGURATION_REQUIRED":
+        "The Farmer ID type is not set up in this registry. Ask the administrator to set it up",
+    "FARMER_REFERENCE_FIELD_OUTSIDE_ALLOWLIST":
+        "The Farmer Registry sent a detail that this registry does not accept, so the farmer could not be added. Tell the administrator",
+    "FARMER_REFERENCE_IAM_DIRECTORY_INVALID":
+        "Approvers could not be looked up because the sign-in service gave an unexpected answer. Tell the administrator",
+    "FARMER_REFERENCE_IAM_DIRECTORY_LIMIT":
+        "Approvers could not be looked up because too many people matched. Tell the administrator",
+    "FARMER_REFERENCE_IAM_DIRECTORY_REQUIRED":
+        "Approvers cannot be looked up because the sign-in service connection is not set up for this registry. Ask the administrator to set it up",
+    "FARMER_REFERENCE_INTAKE_METADATA_REQUIRES_ROOT_IDENTITY":
+        "The intake form must start with the Farmer ID and Fayda ID. Fill in the Farmer lookup section first",
+    "FARMER_REFERENCE_INVALID_BIRTH_DATE":
+        "The farmer's date of birth in the Farmer Registry is not a valid date. Ask the Farmer Registry team to correct it, then submit again",
+    "FARMER_REFERENCE_INVALID_GEOGRAPHY":
+        "The farmer's location in the Farmer Registry is not recognised. Ask the Farmer Registry team to correct it, then submit again",
+    "FARMER_REFERENCE_INVALID_LOOKUP_LIMITS":
+        "The Farmer lookup limits are set incorrectly. Ask the administrator to correct the Farmer Registry connection",
+    "FARMER_REFERENCE_INVALID_NOTIFICATION":
+        "A farmer update from the Farmer Registry could not be read, so it was ignored. Tell the administrator",
+    "FARMER_REFERENCE_INVALID_NOTIFICATION_SECTION":
+        "A farmer update from the Farmer Registry named a section this registry does not have, so it was ignored. Tell the administrator",
+    "FARMER_REFERENCE_INVALID_PROFILE_VALUE":
+        "One of the farmer's details in the Farmer Registry is not valid, so the farmer could not be added. Ask the Farmer Registry team to correct it",
+    "FARMER_REFERENCE_INVALID_SOURCE_URL":
+        "The Farmer Registry address is not valid. Ask the administrator to correct the Farmer Registry connection",
+    "FARMER_REFERENCE_LEGACY_INTAKE_SECTION_BLOCKED":
+        "This intake form section is no longer used. Start a new intake",
+    "FARMER_REFERENCE_LIFECYCLE_NOT_AVAILABLE":
+        "Farmer records cannot be changed here. Make the change in the Farmer Registry",
+    "FARMER_REFERENCE_LINK_IDENTITY_MISMATCH":
+        "The farmer linked to this intake does not match the Farmer ID and Fayda ID entered. Check the IDs and submit again",
+    "FARMER_REFERENCE_LINK_MISMATCH":
+        "The farmer linked to this intake does not match the Farmer ID and Fayda ID entered. Check the IDs and submit again",
+    "FARMER_REFERENCE_LOCAL_IDENTITY_CONFLICT":
+        "Another farmer in this registry already uses these IDs. Ask the administrator to resolve the duplicate",
+    "FARMER_REFERENCE_MANAGED_PAYLOAD_CHANGED":
+        "The farmer's details changed while the request was waiting for approval. Start a new request",
+    "FARMER_REFERENCE_MANAGED_PAYLOAD_REQUIRED":
+        "The request has no farmer details. Fill in the Farmer lookup section and submit again",
+    "FARMER_REFERENCE_MANAGED_REQUEST_REQUIRED":
+        "The approval request for this farmer could not be found. Start a new request",
+    "FARMER_REFERENCE_NATIVE_REQUEST_NOT_PENDING":
+        "This request has already been decided. Refresh the page to see the result",
+    "FARMER_REFERENCE_NO_ELIGIBLE_APPROVER":
+        "No approver is assigned for the farmer's location. Ask the administrator to give a staff member the approver role for this location",
+    "FARMER_REFERENCE_REQUEST_ALREADY_RESOLVED":
+        "This request has already been decided. Refresh the page to see the result",
+    "FARMER_REFERENCE_SECTION_BINDING_REQUIRED":
+        "This section is not set up for farmer lookups. Ask the administrator to check the intake form",
+    "FARMER_REFERENCE_SINGLE_DOMAIN_ROOT_REQUIRED":
+        "The farmer lookup needs exactly one Crop Sown record on the form. Check the intake form and submit again",
+    "FARMER_REFERENCE_SOURCE_ID_REQUIRED":
+        "The Farmer Registry did not give an ID for this farmer. Try again later; if it keeps failing, tell the administrator",
+    "FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED":
+        "The Farmer Registry is not set up as an approved sender. Ask the administrator to set it up",
+    "FARMER_REFERENCE_SOURCE_VERSION_CONFLICT":
+        "The Farmer Registry sent two different versions of this farmer's details. Nothing was changed. Tell the administrator",
+    "FARMER_REFERENCE_STALE_SOURCE_VERSION":
+        "The Farmer Registry sent an older version of this farmer's details. Nothing was changed. Try again later",
+    "FARMER_REFERENCE_UNREFERENCED_NOTIFICATION":
+        "A farmer update arrived for a farmer this registry does not hold, so it was ignored",
+    "FARMER_REFERENCE_UNSUPPORTED_ACTION":
+        "This kind of farmer request is not supported. Tell the administrator",
+    "FARMER_REFERENCE_UNSUPPORTED_DATABASE":
+        "This registry's database cannot run the farmer lookup. Tell the administrator",
+    "FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY":
+        "The approval rule for the farmer's location is not supported. Ask the administrator to check the approval setup",
+    "FARMER_REFERENCE_VERIFIED_LOOKUP_REQUIRED":
+        "The farmer must be found in the Farmer Registry first. Check the Farmer ID and Fayda ID, then submit again",
+    "FARMER_REFERENCE_VERIFIED_SOURCE_REQUEST_REQUIRED":
+        "The farmer must be found in the Farmer Registry first. Check the Farmer ID and Fayda ID, then submit again",
+    "FARMER_REFERENCE_WORKFLOW_DELIVERY_FAILED":
+        "The approval could not be delivered. Nothing was submitted. Try again in a few minutes; if it keeps failing, tell the administrator",
+    "FARMER_REFERENCE_WORKFLOW_IDENTITY_UNAVAILABLE":
+        "Your sign-in could not be used to start the approval. Sign in again and try again",
 }
 
 # The lookup could not reach or trust the Farmer Registry: nothing is wrong

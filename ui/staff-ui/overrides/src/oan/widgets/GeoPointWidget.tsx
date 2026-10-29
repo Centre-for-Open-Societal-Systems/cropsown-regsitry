@@ -48,7 +48,7 @@ const LABELS: Record<string, string> = {
     oan_map_no_location: 'Your location is not available.',
     oan_map_latitude: 'Latitude',
     oan_map_longitude: 'Longitude',
-    oan_map_altitude: 'Altitude (m)',
+    oan_map_altitude: 'Altitude (metres)',
     oan_map_outside: 'The pin is outside the country. Place it at the record location.',
     oan_map_no_boundaries: 'The location could not be filled from the map. Choose it in the location fields.',
 };

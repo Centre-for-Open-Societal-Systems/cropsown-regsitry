@@ -31,7 +31,7 @@ def test_person_names_refuse_digits_symbols_nontext_and_overlong_values(value):
     problems = rules.clean_records([{"farmer_name": value}])
     assert len(problems) == 1
     assert problems[0].key == "coss_field_name_format"
-    assert "Farmer Name:" in rules.explain(problems[0]) and "Remove" in rules.explain(
+    assert "Farmer name:" in rules.explain(problems[0]) and "Do not use" in rules.explain(
         problems[0]
     )
 
@@ -54,7 +54,7 @@ def test_amharic_name_field_is_ethiopic_and_other_language_names_remain_open():
 def test_supplied_malformed_or_out_of_bounds_dates_are_explained(value):
     problems = rules.clean_records([{"registration_date": value}])
     assert problems
-    assert "Registration Date:" in rules.explain(problems[0])
+    assert "Registration date:" in rules.explain(problems[0])
 
 
 def test_date_blanks_today_date_objects_legacy_display_dates_and_future_rules():
@@ -147,7 +147,7 @@ def test_actual_domain_entry_rejects_bad_fields_before_section_branching(
     ):
         asyncio.run(service.validate_domain_attributes([dict(record)]))
     assert ":" in caught.value.message and (
-        "Remove" in caught.value.message or "correct" in caught.value.message
+        "Do not use" in caught.value.message or "for example" in caught.value.message
     )
 
 
@@ -193,7 +193,7 @@ def test_table_field_errors_identify_the_row_without_repeating_personal_values()
                 [{"farmer_name": "Aster"}, {"farmer_name": "Bad123"}], table=True
             )
         )
-    assert "Farmer Name (row 2):" in caught.value.message
+    assert "Farmer name (row 2):" in caught.value.message
     assert "Bad123" not in caught.value.message
 
 
@@ -246,3 +246,11 @@ def test_farmer_lookup_needs_both_fields_and_says_so_in_plain_words():
     for problem in problems:
         message = rules.explain(problem)
         assert "_" not in message and "Verify" not in message
+
+
+@pytest.mark.parametrize(
+    ("field", "label"),
+    [("land_id", "Land ID"), ("farmer_id", "Farmer ID"), ("soil_type", "Soil type")],
+)
+def test_fallback_label_keeps_id_uppercase(field, label):
+    assert rules.explain(rules.Issue(field, "coss_field_name_format")).startswith(label + ":")

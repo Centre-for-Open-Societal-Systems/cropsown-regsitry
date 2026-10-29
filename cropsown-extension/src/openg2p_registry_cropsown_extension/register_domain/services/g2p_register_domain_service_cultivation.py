@@ -9,7 +9,7 @@ from .domain_compute_utils import (
     compute_ec_date
 )
 
-from .domain_validation_utils import as_float, parse_date, validation_error
+from .domain_validation_utils import as_float, parse_date, validation_error, field_label
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -22,19 +22,19 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
         active_records = [r for r in records if not is_record_deleted(r)]
         for record in active_records:
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            validate_alphabetical_name(record.get("da_name"), "DA Name")
-            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            validate_alphabetical_name(record.get("local_name"), "Local Name")
-            validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
-            validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            validate_alphabetical_name(record.get("local_name"), "Local name")
+            validate_alphabetical_name(record.get("scientific_name"), "Scientific name")
+            validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             if not str(record.get("land_id") or "").strip():
-                validation_error("Land ID is required in Cultivation / Land Preparation.")
+                validation_error("Land ID is required in Cultivation / land preparation.")
             if not str(record.get("season") or "").strip():
-                validation_error("Season is required in Cultivation / Land Preparation.")
+                validation_error("Season is required in Cultivation / land preparation.")
             if not str(record.get("commodity") or "").strip():
-                validation_error("Crop is required in Cultivation / Land Preparation.")
+                validation_error("Crop is required in Cultivation / land preparation.")
 
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
@@ -47,7 +47,7 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Cultivation Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Cultivation details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
 
@@ -87,8 +87,8 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             crop_name = record.get("commodity") or ""
             crop_str = f" for Crop '{crop_name}'" if crop_name else ""
             validation_error(
-                f"Cultivation Date ({cult_date.strftime('%Y-%m-%d')}) cannot be earlier than "
-                f"Planned Date ({planned_date.strftime('%Y-%m-%d')}) from Crop Planning{crop_str}."
+                f"Cultivation date ({cult_date.strftime('%Y-%m-%d')}) cannot be earlier than "
+                f"Planned date ({planned_date.strftime('%Y-%m-%d')}) from Crop planning{crop_str}."
             )
 
     async def _resolve_planning_date(self, record: dict, session) -> date | None:
@@ -214,16 +214,16 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
 
         if start_gc and value < start_gc:
             validation_error(
-                f"Cultivation Date ({value.strftime('%Y-%m-%d')}) is before Season Start Date ({start_gc.strftime('%Y-%m-%d')})."
+                f"Cultivation date ({value.strftime('%Y-%m-%d')}) is before Season start date ({start_gc.strftime('%Y-%m-%d')})."
             )
         if end_gc and value > end_gc:
             validation_error(
-                f"Cultivation Date ({value.strftime('%Y-%m-%d')}) is after Season End Date ({end_gc.strftime('%Y-%m-%d')})."
+                f"Cultivation date ({value.strftime('%Y-%m-%d')}) is after Season end date ({end_gc.strftime('%Y-%m-%d')})."
             )
 
         if not is_date_in_season(value, record.get("start_month"), record.get("start_day"),
                                  record.get("end_month"), record.get("end_day")):
-            validation_error(f"{field} falls outside the season window on this record")
+            validation_error(f"{field_label(field)} is outside the season dates of this record")
 
     async def _resolve_season_bounds(self, record: dict, session) -> tuple[date | None, date | None]:
         start = parse_date(record.get("start_gc"))

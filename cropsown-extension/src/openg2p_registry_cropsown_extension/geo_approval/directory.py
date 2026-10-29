@@ -25,8 +25,8 @@ class GeoPolicyDirectory:
         if not all((cfg.keycloak_admin_url, cfg.keycloak_admin_client_id,
                     cfg.keycloak_admin_client_secret, cfg.keycloak_client_id, cfg.keycloak_realm)):
             raise GeoApprovalError(
-                "Approvers cannot be looked up: the registry's Keycloak admin client is not configured. "
-                "Ask the administrator to set the data policy Keycloak settings")
+                "Approvers cannot be looked up because the sign-in service connection is not set up for this registry. "
+                "Ask the administrator to set it up")
         base = f"/realms/{quote(cfg.keycloak_realm, safe='')}"
         client_id = quote(await helper._resolve_client_uuid(helper._registry_client_id()), safe="")
         users = {}
@@ -41,8 +41,8 @@ class GeoPolicyDirectory:
                     page = None
                 if not isinstance(page, list):
                     raise GeoApprovalError(
-                        f"Approvers cannot be looked up: Keycloak has no client role \"{role}\" on the "
-                        "registry's client. Ask the administrator to create it")
+                        f"Approvers cannot be looked up: the sign-in service has no role named \"{role}\" for this registry. "
+                        "Ask the administrator to create it")
                 for user in page:
                     if user.get("enabled", False) and user.get("id"):
                         users.setdefault(user["id"], user)

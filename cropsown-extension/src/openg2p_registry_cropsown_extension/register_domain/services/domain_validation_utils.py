@@ -78,16 +78,16 @@ def is_blank(value) -> bool:
 def validate_alphabetical_name(value, field_name: str) -> None:
     if is_blank(value):
         return
-    if field_name in {"Farmer Name", "DA Name", "Supervisor Name", "Surveyor Name"}:
+    if field_name in {"Farmer name", "Development agent name", "Supervisor name"}:
         from .field_rules import explain, name_issue
         problem=name_issue(value,"farmer_name")
         if problem:
-            validation_error(explain(problem).replace("Farmer Name",field_name))
+            validation_error(explain(problem).replace("Farmer name",field_name,1))
         return
     import re
     # Non-person botanical/local names retain their separate legacy contract.
     if not re.match(r"^[a-zA-Z0-9\s\.\-_]+$", str(value).strip()):
-        validation_error(f"{field_name} must contain only alphabetical characters, numbers, and spaces")
+        validation_error(f"{field_name} can contain only letters, numbers and spaces")
 
 
 def validate_mobile_number(value, field_name: str) -> None:
@@ -273,3 +273,25 @@ def is_record_deleted(record: dict) -> bool:
     if status in ("DELETED", "REMOVED", "DELETE", "REMOVE"):
         return True
     return False
+
+
+FIELD_LABELS = {
+    "planned_date": "Planned date",
+    "actual_cultivation_date": "Actual cultivation date",
+    "cluster_harvest_date": "Cluster harvest date",
+    "sowing_date": "Sowing date",
+    "number_of_smallholders": "Number of smallholders",
+    "expected_yield": "Expected yield",
+    "actual_yield": "Actual yield",
+    "yield_per_ha": "Yield per hectare",
+    "da_mobile_number": "Development agent mobile number",
+    "supervisor_mobile_number": "Supervisor mobile number",
+}
+
+
+def field_label(key: str) -> str:
+    """The name staff see for a stored field, never its column name."""
+    if key in FIELD_LABELS:
+        return FIELD_LABELS[key]
+    text = " ".join(str(key or "").replace("_", " ").split())
+    return text[:1].upper() + text[1:]

@@ -29,7 +29,7 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
                     record["infestation_type"] = inf_type.replace("[", "").replace("]", "").replace('"', "").replace("'", "").strip()
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
             self._validate_observation_date(record)
             self._validate_estimated_damage(record)
             compute_ec_date(record, "observation_date", "observation_date_ec")
@@ -173,16 +173,16 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
         if not sowing_found:
             crop_str = f" for Crop '{commodity}'" if commodity else ""
             validation_error(
-                f"No Sowing record found{crop_str} on Land ID '{land_id}'. "
-                f"Pest/Disease Infestation incident can only be created for a crop that has a Sowing record."
+                f"No sowing record found{crop_str} on Land ID '{land_id}'. "
+                f"Pest or disease infestation incident can only be created for a crop that has a sowing record."
             )
 
         obs_date = parse_date(record.get("observation_date"))
         sow_dt = parse_date(sowing_date)
         if obs_date and sow_dt and obs_date <= sow_dt:
             validation_error(
-                f"Infestation Observation Date ({obs_date.strftime('%Y-%m-%d')}) must be after "
-                f"Sowing Date ({sow_dt.strftime('%Y-%m-%d')}) for Land ID '{land_id}'."
+                f"Infestation observation date ({obs_date.strftime('%Y-%m-%d')}) must be after "
+                f"Sowing date ({sow_dt.strftime('%Y-%m-%d')}) for Land ID '{land_id}'."
             )
 
     def _validate_observation_date(self, record: dict) -> None:
@@ -202,25 +202,25 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
 
         # Reject any alphabetic characters
         if any(c.isalpha() for c in val_str):
-            validation_error("Estimated Crop Damage cannot contain letters. Enter percentage with '%' (e.g. 50%) or pure number for hectares (e.g. 10.5)")
+            validation_error("Estimated crop damage cannot contain letters. Enter a percentage with the % sign (for example 50%) or a number of hectares (for example 10.5)")
 
         if "%" in val_str:
             num_part = val_str.replace("%", "").strip()
             try:
                 num = float(num_part)
                 if not (0 <= num <= 100):
-                    validation_error("Percentage damage must be between 0% and 100%")
+                    validation_error("Estimated crop damage as a percentage must be between 0% and 100%")
             except ValueError:
-                validation_error("Invalid percentage format for Estimated Crop Damage (e.g., 50%)")
+                validation_error("Estimated crop damage: enter a percentage such as 50%")
         else:
             try:
                 num = float(val_str)
                 if num < 0:
-                    validation_error("Estimated Crop Damage must be non-negative")
+                    validation_error("Estimated crop damage must not be negative")
                 if num > 999.99:
-                    validation_error("Estimated Crop Damage must be at most 999.99")
+                    validation_error("Estimated crop damage must be 999.99 or less")
             except ValueError:
-                validation_error("Estimated Crop Damage must be numeric (e.g. 10.5 for ha or 50% for percentage)")
+                validation_error("Estimated crop damage must be a number, such as 10.5 hectares, or a percentage such as 50%")
         record["estimated_damage_pct"] = num
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

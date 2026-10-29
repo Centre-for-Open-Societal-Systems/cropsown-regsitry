@@ -4,7 +4,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .domain_compute_utils import compute_cluster_area, compute_season_parts
 
-from .domain_validation_utils import as_float, as_int, validation_error
+from .domain_validation_utils import as_float, as_int, validation_error, field_label
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -18,11 +18,11 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
         for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            validate_alphabetical_name(record.get("da_name"), "DA Name")
-            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
             if prod_season and not record.get("production_season"):
@@ -34,7 +34,7 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Cultivation Cluster Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Cultivation cluster details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
 
@@ -78,32 +78,32 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
     def _validate_cluster_area(self, record: dict) -> None:
         area = as_float(record.get("cluster_area_hectare"))
         if area is not None and area < 0:
-            validation_error("cluster_area_hectare must not be negative")
+            validation_error("Total cultivated area must not be negative")
 
     def _validate_smallholders(self, record: dict) -> None:
         for field in ("number_of_smallholders",):
             value = as_int(record.get(field))
             if value is not None and value < 0:
-                validation_error(f"{field} must not be negative")
+                validation_error(f"{field_label(field)} must not be negative")
 
     def _validate_collected_land(self, record: dict) -> None:
         area = as_float(record.get("cluster_area_hectare"))
         collected = as_float(record.get("collected_land"))
         if area is not None and collected is not None and collected > area:
-            validation_error("collected_land must not exceed cluster_area_hectare")
+            validation_error("Collected land must not be more than the total cultivated area")
 
     def _validate_cluster_plan(self, record: dict) -> None:
         timad = as_float(record.get("cluster_area_timad"))
         area = as_float(record.get("cluster_area_hectare"))
         plan = as_float(record.get("cluster_plan"))
         if area is not None and plan is not None and plan > area:
-            validation_error(f"Actual Plan (ha) ({plan}) must not exceed Total Cultivated Area ({area} ha, calculated from {timad} Timad)")
+            validation_error(f"Actual planned area ({plan} hectares) must not be more than the total cultivated area ({area} hectares, calculated from {timad} timad)")
 
     def _validate_collected_by_combiner(self, record: dict) -> None:
         plan = as_float(record.get("cluster_plan"))
         combiner = as_float(record.get("collected_by_combiner"))
         if plan is not None and combiner is not None and combiner > plan:
-            validation_error(f"Actual Collected by Combiner (ha) ({combiner}) must not exceed Actual Plan ({plan} ha)")
+            validation_error(f"Actual area collected by combine harvester ({combiner} hectares) must not be more than the actual planned area ({plan} hectares)")
 
     async def _validate_land_id_matches_planning(self, record: dict, session) -> None:
         cluster_land_id = record.get("land_id")
@@ -157,7 +157,7 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
         # 3. Validate match (if cultivation records exist)
         if cultivation_land_ids and str(cluster_land_id).strip() not in cultivation_land_ids:
             validation_error(
-                f"Land ID '{cluster_land_id}' in Cultivation Cluster does not match any Land ID specified in Cultivation/Land Preparation Details."
+                f"Land ID '{cluster_land_id}' in Cultivation cluster does not match any Land ID specified in Cultivation / land preparation details."
             )
 
         # If max_land_area was not provided in cultivation, fall back to land_area on cluster record
@@ -173,12 +173,12 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
             if cluster_area > remaining_land + 1e-6:
                 if total_cultivated_area > 0:
                     validation_error(
-                        f"Cultivation Cluster Area ({cluster_area:g} ha) for Land ID '{cluster_land_id}' exceeds the remaining available land area ({remaining_land:g} ha). "
-                        f"Total Land Area is {max_land_area:g} ha and {total_cultivated_area:g} ha is already cultivated."
+                        f"Cultivation cluster area ({cluster_area:g} hectares) for Land ID '{cluster_land_id}' exceeds the remaining available land area ({remaining_land:g} hectares). "
+                        f"Total land area is {max_land_area:g} hectares and {total_cultivated_area:g} hectares is already cultivated."
                     )
                 else:
                     validation_error(
-                        f"Cultivation Cluster Area ({cluster_area:g} ha) for Land ID '{cluster_land_id}' exceeds Total Land Area ({max_land_area:g} ha)."
+                        f"Cultivation cluster area ({cluster_area:g} hectares) for Land ID '{cluster_land_id}' exceeds Total land area ({max_land_area:g} hectares)."
                     )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

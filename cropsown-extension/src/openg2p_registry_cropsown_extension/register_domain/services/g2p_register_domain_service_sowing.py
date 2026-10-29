@@ -17,13 +17,13 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
         for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            validate_alphabetical_name(record.get("da_name"), "DA Name")
-            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             if not str(record.get("land_id") or "").strip():
-                validation_error("Land ID is required in Sowing Details.")
+                validation_error("Land ID is required in Sowing details.")
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
             if prod_season and not record.get("production_season"):
@@ -35,7 +35,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Sowing Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Sowing details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
 
@@ -133,8 +133,8 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
             year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
             season_str = f" and Season '{prod_season}'" if prod_season else ""
             validation_error(
-                f"No existing Crop Sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
-                f"Sowing cannot create a new Crop Sown record. Please ensure a Cultivation/Crop Sown record already exists for this Farmer Identity."
+                f"No existing crop sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
+                f"Sowing cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
             )
 
     async def _validate_sowing_area_after_cultivation(self, record: dict, session) -> None:
@@ -216,7 +216,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
         # 4. Compare area_sown against max_allowed_area
         if max_allowed_area is not None and area_sown > max_allowed_area:
             validation_error(
-                f"Area Sown ({area_sown} ha) cannot exceed {stage_name} ({max_allowed_area} ha)."
+                f"Area sown ({area_sown} hectares) cannot exceed {stage_name} ({max_allowed_area} hectares)."
             )
 
     async def _validate_sowing_after_cultivation(self, record: dict, session) -> None:
@@ -357,8 +357,8 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                 cluster_name = record.get("cluster_name") or ""
                 c_str = f" for Cluster '{cluster_name}'" if cluster_name else ""
                 validation_error(
-                    f"No Cultivation Cluster record found{c_str} on Land ID '{land_id}'. "
-                    f"You cannot create a Sowing record for this cluster."
+                    f"No cultivation cluster record found{c_str} on Land ID '{land_id}'. "
+                    f"You cannot create a sowing record for this cluster."
                 )
         else:
             if submission_id:
@@ -402,14 +402,14 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                 crop_name = record.get("commodity") or ""
                 crop_str = f" for Crop '{crop_name}'" if crop_name else ""
                 validation_error(
-                    f"No Cultivation record found{crop_str} on Land ID '{land_id}'. "
-                    f"A Cultivation record is required before a Sowing record can be created."
+                    f"No cultivation record found{crop_str} on Land ID '{land_id}'. "
+                    f"A cultivation record is required before a sowing record can be created."
                 )
 
         if sowing_date and prior_date and sowing_date < prior_date:
             validation_error(
-                f"Sowing Date ({sowing_date.strftime('%Y-%m-%d')}) cannot be earlier than "
-                f"{prior_stage or 'Cultivation Date'} ({prior_date.strftime('%Y-%m-%d')})."
+                f"Sowing date ({sowing_date.strftime('%Y-%m-%d')}) cannot be earlier than "
+                f"{prior_stage or 'Cultivation date'} ({prior_date.strftime('%Y-%m-%d')})."
             )
 
     async def _validate_date_in_season_enhanced(self, record: dict, field: str, session) -> None:
@@ -425,11 +425,11 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
         if start_gc and value < start_gc:
             validation_error(
-                f"Sowing Date ({value.strftime('%Y-%m-%d')}) is before Season Start Date ({start_gc.strftime('%Y-%m-%d')})."
+                f"Sowing date ({value.strftime('%Y-%m-%d')}) is before Season start date ({start_gc.strftime('%Y-%m-%d')})."
             )
         if end_gc and value > end_gc:
             validation_error(
-                f"Sowing Date ({value.strftime('%Y-%m-%d')}) is after Season End Date ({end_gc.strftime('%Y-%m-%d')})."
+                f"Sowing date ({value.strftime('%Y-%m-%d')}) is after Season end date ({end_gc.strftime('%Y-%m-%d')})."
             )
 
     async def _resolve_season_bounds(self, record: dict, session) -> tuple[date | None, date | None]:
@@ -595,7 +595,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
         if str(land_id).strip() not in valid_land_ids:
             msg_fayda = f" for Fayda ID '{fayda_fan_id}'" if fayda_fan_id else ""
-            validation_error(f"Land ID '{land_id}' in Sowing does not match any Land ID specified in Cultivation / Cultivation Cluster{msg_fayda}.")
+            validation_error(f"Land ID '{land_id}' in Sowing does not match any Land ID specified in Cultivation / cultivation cluster{msg_fayda}.")
 
     def _validate_sowing_date(self, record: dict) -> None:
         # Future sowing dates are allowed (e.g. planned sowing); no restriction here.
@@ -604,7 +604,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
     def _validate_area_sown(self, record: dict) -> None:
         area_sown = as_float(record.get("area_sown"))
         if area_sown is not None and area_sown <= 0:
-            validation_error("area_sown must be greater than zero when provided")
+            validation_error("Area sown must be greater than zero")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for sowing")

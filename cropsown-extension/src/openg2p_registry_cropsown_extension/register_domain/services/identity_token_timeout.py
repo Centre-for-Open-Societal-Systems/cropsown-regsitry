@@ -35,15 +35,15 @@ def token_timeout_seconds(provider):
         value = 0
     if isinstance(raw, bool) or not math.isfinite(value) or value <= 0:
         raise ValueError(
-            "Fayda provider: token_timeout_seconds must be a positive number of seconds. Ask the administrator to correct it"
+            "Fayda verification is not set up correctly: the token time limit must be a positive number of seconds. Ask the administrator to correct it"
         )
     return value
 
 
 def timeout_message(seconds):
     return (
-        f"Fayda (eSignet) did not answer within {seconds:g} seconds. Verify again; "
-        "if it keeps happening, ask the administrator to check eSignet or raise token_timeout_seconds."
+        f"Fayda did not answer within {seconds:g} seconds. Verify again; "
+        "if it keeps happening, ask the administrator to check the Fayda sign-in service or raise the token time limit."
     )
 
 
