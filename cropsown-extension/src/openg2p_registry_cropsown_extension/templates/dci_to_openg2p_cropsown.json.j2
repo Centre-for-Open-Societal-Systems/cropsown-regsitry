@@ -73,7 +73,6 @@
       "land_id": "{{ land_id }}",
       "season": "{{ (crop.get('season', '') or '') | upper }}",
       "commodity": "{{ crop.get('crop_type', '') }}",
-      "crop_variety": "{{ crop.get('variety', '') }}",
       "planned_area": "{{ crop.get('planned_area', '') }}",
       "expected_yield": "{{ crop.get('expected_yield', '') }}",
       "water_source": "{{ (crop.get('irrigation_water', ['']) | first) if crop.get('irrigation_water') else '' }}"
@@ -87,7 +86,6 @@
       "land_id": "{{ land_id }}",
       "season": "{{ (crop.get('season', '') or '') | upper }}",
       "commodity": "{{ crop.get('crop_type', '') }}",
-      "crop_variety": "{{ crop.get('variety', '') }}",
       "land_prep_method": "{{ (crop.get('land_preparation', '') or '') | upper | replace(' ', '_') }}",
       "actual_crop_area": "{{ crop.get('area_sown', '') }}"
     }{% if not loop.last %},{% endif %}

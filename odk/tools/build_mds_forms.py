@@ -23,13 +23,12 @@ builder rewrites them:
      - production season and season       -> CROP_SEASON          (inline choices)
      - agro ecological zone               -> AGRO_ECOLOGICAL_ZONE (inline choices)
      - crop_name.csv                      -> CROP_COMMODITY, with its CROP_CATEGORY
-     - crop_variety.csv                   -> CROP_VARIETY
-     - seed_variety.csv                   -> SEED_VARIETY
+     - seed_variety.csv                   -> SEED_VARIETY (the one "Variety" question)
      - region/zone/woreda/kebele.csv      -> the geography, named by P-code, each row
                                              carrying its parent's P-code
-   Lists the pack carries are read from --pack; CROP_VARIETY, which the pack does not
-   carry, is read from odk/mds-export/ (an export of Master Data's
-   /attributes/get_attribute_values for that list). The geography is read from --geography
+   Every list is read from --pack. The forms carry one variety question, "Variety",
+   on SEED_VARIETY; the source workbooks' separate "Crop Variety" question (a list
+   the pack does not carry) is dropped. The geography is read from --geography
    (levels.json and values.json in the pack's format; default: the pack's), which must be
    the geography of the environment the form is published to.
 3. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
@@ -51,8 +50,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-EXPORT = REPO / "odk/mds-export"
-VERSION = "2026.10.31.1"
+VERSION = "2026.10.31.2"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -61,8 +59,12 @@ INLINE_LISTS = {"crop_season": "CROP_SEASON", "agro_ecological_zone": "AGRO_ECOL
 # Source choice lists replaced by an inline Master Data list
 REPLACES = {"production_season": "crop_season", "season": "crop_season", "ecological_zone": "agro_ecological_zone"}
 # External CSV (media file name in the form) -> (file written, Master Data attribute)
-FILE_LISTS = {"crop_name.csv": "CROP_COMMODITY", "crop_variety.csv": "CROP_VARIETY", "seed_variety.csv": "SEED_VARIETY"}
+FILE_LISTS = {"crop_name.csv": "CROP_COMMODITY", "seed_variety.csv": "SEED_VARIETY"}
 GEO_FILES = {"region.csv": "region", "zone.csv": "zone", "woreda.csv": "woreda", "kebele1.csv": "kebele"}
+# Source questions dropped from the forms: the registry has one variety field (seed_variety)
+DROPPED_QUESTIONS = {"crop_variety_id"}
+# Label of the variety question (the registry labels the field "Variety")
+VARIETY_LABEL = "Variety"
 YES_NO = {"only_yes", "yes_only"}
 
 # Lists left as published, with the reason they are not Master Data lists. A list that is
@@ -164,7 +166,7 @@ def write_media(lists: dict[str, dict], units: dict[str, list[dict]], media: Pat
         crops.append([value["value_code"], value["value_display"], category, categories.get(category, "")])
     write_csv(media / "crop_name.csv", ["name", "label", "category", "category_label"], crops)
     counts["crop_name.csv"] = len(crops)
-    for file, attribute in (("crop_variety.csv", "CROP_VARIETY"), ("seed_variety.csv", "SEED_VARIETY")):
+    for file, attribute in (("seed_variety.csv", "SEED_VARIETY"),):
         rows = [[v["value_code"], v["value_display"]] for v in ordered(lists[attribute]["values"])]
         write_csv(media / file, ["name", "label"], rows)
         counts[file] = len(rows)
@@ -218,6 +220,7 @@ def rebuild_identity(survey: list[dict], form_id: str) -> list[dict]:
 def use_master_data(survey: list[dict], form_id: str) -> set[str]:
     """Point the questions at the Master Data lists. Returns the external files used."""
     files_used = set()
+    survey[:] = [row for row in survey if row.get("name") not in DROPPED_QUESTIONS]
     for row in survey:
         kind = row.get("type") or ""
         parts = kind.split()
@@ -234,6 +237,9 @@ def use_master_data(survey: list[dict], form_id: str) -> set[str]:
             files_used.add(parts[1])
         if row.get("name") == "crop_category_id":
             row["calculation"] = "instance('crop_name')/root/item[name=${crop_name_id}]/category"
+    for row in survey:
+        if row.get("name") == "seed_variety":
+            row["label"] = VARIETY_LABEL
     out = []
     for row in survey:
         out.append(row)
@@ -294,12 +300,12 @@ def build_form(form_id: str, lists: dict[str, dict], version: str, source: Path,
 
 
 def build(pack: Path, geography: Path | None = None, version: str = VERSION, source: Path = SOURCE,
-          target: Path = FORMS, media: Path = MEDIA, export: Path = EXPORT) -> dict:
-    lists = read_lists(pack / "codelists", pack / "domains", export)
-    needed = {"CROP_SEASON", "AGRO_ECOLOGICAL_ZONE", "CROP_COMMODITY", "CROP_CATEGORY", "CROP_VARIETY", "SEED_VARIETY"}
+          target: Path = FORMS, media: Path = MEDIA) -> dict:
+    lists = read_lists(pack / "codelists", pack / "domains")
+    needed = {"CROP_SEASON", "AGRO_ECOLOGICAL_ZONE", "CROP_COMMODITY", "CROP_CATEGORY", "SEED_VARIETY"}
     missing = sorted(needed - set(lists))
     if missing:
-        raise SystemExit(f"not found in the pack or the export: {', '.join(missing)}")
+        raise SystemExit(f"not found in the pack: {', '.join(missing)}")
     units = read_geography(geography or pack)
     counts = write_media(lists, units, media)
     forms = [build_form(form_id, lists, version, source, target) for form_id in FORM_IDS]

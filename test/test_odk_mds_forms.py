@@ -46,10 +46,7 @@ def pack(tmp_path):
                   {"level_value_id": f"ET{r}0101", "level_id": "l3", "display_name": f"Woreda {r}", "parent_level_value_id": f"ET{r}01"},
                   {"level_value_id": f"ET{r}010101", "level_id": "l4", "display_name": f"Kebele {r}", "parent_level_value_id": f"ET{r}0101"}]
     (root / "values.json").write_text(json.dumps(units), encoding="utf-8")
-    export = tmp_path / "export"
-    export.mkdir()
-    (export / "CROP_VARIETY.json").write_text(json.dumps(mds_list("CROP_VARIETY", ["teff-quncho", "sesame-borkena"])), encoding="utf-8")
-    return root, export
+    return root
 
 
 def sheet(book, title):
@@ -99,10 +96,10 @@ def check_lists(survey, choices, files_dir, form_id):
 
 
 def test_each_form_has_the_two_identity_questions_and_master_data_lists(pack, tmp_path):
-    root, export = pack
+    root = pack
     out, media = tmp_path / "forms", tmp_path / "media"
-    builder.build(root, None, "test-version", builder.SOURCE, out, media, export)
-    lists = builder.read_lists(root / "domains", export)
+    builder.build(root, None, "test-version", builder.SOURCE, out, media)
+    lists = builder.read_lists(root / "domains")
     for form_id in builder.FORM_IDS:
         book = openpyxl.load_workbook(out / f"{form_id}.xlsx")
         survey, choices = sheet(book, "survey"), sheet(book, "choices")
@@ -121,9 +118,9 @@ def test_each_form_has_the_two_identity_questions_and_master_data_lists(pack, tm
 
 
 def test_media_files_are_master_data_codes(pack, tmp_path):
-    root, export = pack
+    root = pack
     media = tmp_path / "media"
-    builder.build(root, None, "test-version", builder.SOURCE, tmp_path / "forms", media, export)
+    builder.build(root, None, "test-version", builder.SOURCE, tmp_path / "forms", media)
 
     def read(name):
         with (media / name).open(encoding="utf-8", newline="") as handle:
@@ -133,7 +130,7 @@ def test_media_files_are_master_data_codes(pack, tmp_path):
     assert [r["name"] for r in crops] == ["CROP_TEFF", "CROP_SESAME", "CROP_ALFALFA"]
     assert [r["category"] for r in crops] == ["CROPCAT_CEREAL", "CROPCAT_OILSEED", ""]
     assert crops[0]["category_label"] == "Cropcat Cereal"
-    assert [r["name"] for r in read("crop_variety.csv")] == ["teff-quncho", "sesame-borkena"]
+    assert not (media / "crop_variety.csv").exists()  # one variety list: SEED_VARIETY
     assert [r["name"] for r in read("seed_variety.csv")] == ["VAR_TEFF_QUNCHO", "VAR_TEFF_BOSET"]
     assert [r["name"] for r in read("region.csv")] == ["ET01", "ET03"]
     assert [(r["name"], r["parent"]) for r in read("zone.csv")] == [("ET0101", "ET01"), ("ET0301", "ET03")]
@@ -141,10 +138,10 @@ def test_media_files_are_master_data_codes(pack, tmp_path):
 
 
 def test_a_list_nobody_accounted_for_stops_the_build(pack, tmp_path, monkeypatch):
-    root, export = pack
+    root = pack
     monkeypatch.delitem(builder.NOT_MASTER_DATA, "plot_cat")
     with pytest.raises(SystemExit, match="plot_cat"):
-        builder.build(root, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media", export)
+        builder.build(root, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
 
 
 @pytest.mark.parametrize("form_id", builder.FORM_IDS)
@@ -153,7 +150,7 @@ def test_committed_workbooks(form_id):
     book = openpyxl.load_workbook(REPO / f"odk/forms/{form_id}.xlsx")
     survey, choices = sheet(book, "survey"), sheet(book, "choices")
     settings = sheet(book, "settings")[0]
-    assert settings["form_id"] == form_id and re.fullmatch(r"\d{4}\.\d{2}\.\d{2}", str(settings["version"]))
+    assert settings["form_id"] == form_id and re.fullmatch(r"\d{4}\.\d{2}\.\d{2}(\.\d+)?", str(settings["version"]))
     check_identity(survey, form_id)
     check_lists(survey, choices, REPO / "odk/media/mds", form_id)
     names = {}
@@ -165,3 +162,11 @@ def test_committed_workbooks(form_id):
         kind = (r["type"] or "").split()
         if kind[0] == "select_one_from_file" and kind[1] in ("zone.csv", "woreda.csv", "kebele.csv"):
             assert (r["choice_filter"] or "").startswith("parent="), (form_id, r["name"])
+
+
+@pytest.mark.parametrize("form_id", ("crop_sown_registry_plan", "crop_sown_registry_prep"))
+def test_the_forms_ask_for_one_variety_called_variety(pack, tmp_path, form_id):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    survey = sheet(openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx"), "survey")
+    varieties = [r for r in survey if "variety" in (r["name"] or "")]
+    assert [(r["name"], r["label"], r["type"]) for r in varieties] == [("seed_variety", "Variety", "select_one_from_file seed_variety.csv")]

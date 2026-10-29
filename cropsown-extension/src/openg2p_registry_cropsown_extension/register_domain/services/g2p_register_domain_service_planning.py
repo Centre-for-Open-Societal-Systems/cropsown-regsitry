@@ -125,7 +125,6 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             "land_id",
             "season",
             "commodity",
-            "crop_variety",
             "crop_category",
             "local_name",
             "scientific_name",
