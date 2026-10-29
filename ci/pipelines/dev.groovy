@@ -29,7 +29,7 @@ def call() {
 pipeline {
     parameters {
         choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
-            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and whether the registry-connector Keycloak client secret is present. connector-upgrade builds no images and leaves the registry release alone: it refuses to run without that client secret, archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
+            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
         string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
             description: 'connector-plan and connector-upgrade only. Tag of gen2/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
     }
@@ -309,11 +309,18 @@ pipeline {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     script {
                         def tag = (params.CONNECTOR_IMAGE_TAG ?: 'develop').trim()
+                        if (!(tag ==~ /[A-Za-z0-9._-]{1,128}/)) {
+                            error "CONNECTOR_IMAGE_TAG must match [A-Za-z0-9._-]{1,128}; got '${tag}'"
+                        }
                         env.CONNECTOR_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector"
-                        env.CONNECTOR_IMAGE_DIGEST = sh(returnStdout: true, script: """
-                            aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/registry-connector" \
-                                --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
-                        """).trim()
+                        try {
+                            env.CONNECTOR_IMAGE_DIGEST = sh(returnStdout: true, script: """
+                                aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/registry-connector" \
+                                    --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
+                            """).trim()
+                        } catch (err) {
+                            error "image ${ECR_BASE}/registry-connector:${tag} was not found in ECR (${err.message})"
+                        }
                         if (!(env.CONNECTOR_IMAGE_DIGEST ==~ /sha256:[0-9a-f]{64}/)) {
                             error "could not resolve ${ECR_BASE}/registry-connector:${tag} to a digest"
                         }

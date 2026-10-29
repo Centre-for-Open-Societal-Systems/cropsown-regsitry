@@ -20,7 +20,6 @@ cat > "$dir/override.json" <<JSON
 {"api": {"image": {"repository": "$repo", "tag": "", "digest": "$digest"}},
  "worker": {"image": {"repository": "$repo", "tag": "", "digest": "$digest"}},
  "beat": {"image": {"repository": "$repo", "tag": "", "digest": "$digest"}},
- "extraEnvFrom": {"CONNECTOR_ADMIN_AUTH_CLIENT_SECRET": {"secretKeyRef": {"name": "registry-connector-client", "key": "client_secret", "optional": false}}},
  "postgres-init": {"enabled": false}}
 JSON
 helm lint ../deploy/connector-chart -f "$dir/current.json" -f "$dir/override.json" > /dev/null
@@ -28,7 +27,6 @@ helm template cropsown-connector connector-chart -n crop -f "$dir/current.json" 
 test "$(grep -c "image: \"$repo@$digest\"" "$dir/out.yaml")" -eq 3
 grep -q 'image: "old/connector-ui:ui-tag"' "$dir/out.yaml"
 test "$(grep -c 'name: CONNECTOR_VALIDATE_MAPPED_PAYLOAD$' "$dir/out.yaml")" -ge 3
-test "$(grep -c 'name: CONNECTOR_ADMIN_AUTH_CLIENT_SECRET$' "$dir/out.yaml")" -ge 3
-grep -q 'name: registry-connector-client' "$dir/out.yaml"
-! grep -q 'kind: Job' "$dir/out.yaml"
+if grep -q 'kind: Job' "$dir/out.yaml"; then echo "FAIL: the chart renders a Job" >&2; exit 1; fi
+if grep -q 'CONNECTOR_ADMIN_AUTH_CLIENT_SECRET' "$dir/out.yaml"; then echo "FAIL: a client secret reference is rendered" >&2; exit 1; fi
 echo "PASS: cropsown-connector chart renders the digest-pinned image on api, worker and beat"

@@ -11,7 +11,7 @@
 # upgrade runs with --reset-values -f <current> -f <override> (never --reuse-values).
 # Both files are printed. The override sets only the api, worker and beat image
 # (repository@digest) and keeps postgres-init off, as the release has run since its
-# first install, and adds the client secret reference below. Everything else is exactly what the release already has.
+# first install. Everything else is exactly what the release already has.
 #
 # Upgrade only. The connector database is archived to the New Dev box first (same host
 # and directory tree as fresh-install), then a server-side dry run and the rendered
@@ -22,11 +22,8 @@
 # PLAN_ONLY=1 (Jenkins connector-plan) stops after printing the image it would set, the
 # values, the manifest diff and the dry run. It changes nothing and needs no backup key.
 #
-# Keycloak client secret: the connector reads the generated secret of the staff-realm client
-# `registry-connector` from the Secret $CLIENT_SECRET_NAME (key client_secret) in the crop
-# namespace, through a secretKeyRef on CONNECTOR_ADMIN_AUTH_CLIENT_SECRET (never a literal).
-# connector-upgrade refuses to run when it is missing or empty; connector-plan reports it.
-# See the README in this directory.
+# The Keycloak client secret Secret crop/registry-connector-client is only reported (PRESENT,
+# MISSING or UNKNOWN); nothing in the connector image reads it and it never blocks a run.
 #
 # Env: KUBECONFIG (crop-dev-kubeconfig); CONNECTOR_IMAGE_REPOSITORY and
 # CONNECTOR_IMAGE_DIGEST (set by the pipeline from ECR); BACKUP_SSH_KEY
@@ -43,6 +40,7 @@ cd "$REPO_ROOT"
 : "${CONNECTOR_IMAGE_DIGEST:?The pipeline must resolve the connector image digest}"
 [[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Not a sha256 digest: $CONNECTOR_IMAGE_DIGEST" >&2; exit 1; }
 : "${PLAN_ONLY:=0}"
+[[ "$CONNECTOR_IMAGE_REPOSITORY" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "Not an image repository: $CONNECTOR_IMAGE_REPOSITORY" >&2; exit 1; }
 [[ "$PLAN_ONLY" == 1 ]] || : "${BACKUP_SSH_KEY:?Bind farmer-new-dev-backup-ssh}"
 NAMESPACE=crop
 RELEASE=cropsown-connector
@@ -73,22 +71,18 @@ test "$status" = "deployed openg2p-connector-0.1.0"
 helm history "$RELEASE" -n "$NAMESPACE" --max 5
 kubectl get secret -n "$NAMESPACE" commons-postgresql -o name > /dev/null
 
-# Keycloak client secret for the registry-connector client (copied into this namespace from
-# the Commons Secret `registry-connector` by the documented sync step).
-secret_present() {
-  local value
-  value=$(kubectl get secret -n "$NAMESPACE" "$CLIENT_SECRET_NAME" -o "jsonpath={.data.${CLIENT_SECRET_KEY}}" 2> /dev/null || true)
-  [[ -n "$value" ]]
-}
-if secret_present; then
-  echo "Keycloak client secret: PRESENT (Secret $NAMESPACE/$CLIENT_SECRET_NAME, key $CLIENT_SECRET_KEY)"
-elif [[ "$PLAN_ONLY" == 1 ]]; then
-  echo "Keycloak client secret: MISSING (Secret $NAMESPACE/$CLIENT_SECRET_NAME, key $CLIENT_SECRET_KEY). connector-upgrade would refuse to run."
+# Informational only: the Keycloak client secret copy. Nothing in the connector image reads
+# it, so it never blocks. NotFound is MISSING; any other kubectl error is UNKNOWN.
+secret_err=$(kubectl get secret -n "$NAMESPACE" "$CLIENT_SECRET_NAME" -o "jsonpath={.data.${CLIENT_SECRET_KEY}}" 2>&1 > /dev/null) && secret_rc=0 || secret_rc=$?
+if [[ "$secret_rc" == 0 ]]; then
+  secret_value=$(kubectl get secret -n "$NAMESPACE" "$CLIENT_SECRET_NAME" -o "jsonpath={.data.${CLIENT_SECRET_KEY}}")
+  if [[ -n "$secret_value" ]]; then state=PRESENT; else state="MISSING (key empty)"; fi
+elif [[ "$secret_err" == *NotFound* || "$secret_err" == *"not found"* ]]; then
+  state=MISSING
 else
-  echo "Refusing to upgrade: Secret $NAMESPACE/$CLIENT_SECRET_NAME with key $CLIENT_SECRET_KEY is missing or empty." >&2
-  echo "The staff-realm client registry-connector is created by the Commons keycloak-init and its secret is written by the Commons client-secrets-sync Job to Secret registry-connector in the commons namespace; copy it into $NAMESPACE first (ci/deploy/README.md). Nothing was changed." >&2
-  exit 1
+  state="UNKNOWN (kubectl failed: ${secret_err})"
 fi
+echo "Keycloak client secret copy (informational, not required by the connector): $state (Secret $NAMESPACE/$CLIENT_SECRET_NAME, key $CLIENT_SECRET_KEY)"
 
 # 2. The values: current user values of the release, plus the image override.
 helm get values "$RELEASE" -n "$NAMESPACE" -o json > "$STATE/current.values.json"
@@ -102,8 +96,6 @@ path, repository, digest = sys.argv[1:4]
 image = {"repository": repository, "tag": "", "digest": digest}
 override = {name: {"image": dict(image)} for name in ("api", "worker", "beat")}
 override["postgres-init"] = {"enabled": False}
-override["extraEnvFrom"] = {"CONNECTOR_ADMIN_AUTH_CLIENT_SECRET": {"secretKeyRef": {
-    "name": "registry-connector-client", "key": "client_secret", "optional": False}}}
 json.dump(override, open(path, "w"), indent=2)
 PY
 echo "=== image this run sets on api, worker and beat ==="
@@ -119,8 +111,14 @@ plan() {
   helm get manifest "$RELEASE" -n "$NAMESPACE" > "$STATE/current.yaml"
   helm template "$RELEASE" "$CHART" -n "$NAMESPACE" -f "$STATE/current.values.json" -f "$STATE/override.values.json" > "$STATE/target.yaml"
   echo "=== manifest diff (running release -> git chart + image $IMAGE) ==="
-  diff -u "$STATE/current.yaml" "$STATE/target.yaml" || true
+  diff -u "$STATE/current.yaml" "$STATE/target.yaml" > "$STATE/manifest.diff" || true
+  cat "$STATE/manifest.diff"
   echo "=== end of diff ==="
+  removed=$(grep -E '^-' "$STATE/manifest.diff" | grep -cvE '^---|^-[[:space:]]+image:' || true)
+  echo "Removed lines other than image lines (expected 0): $removed"
+  echo "Jobs in target manifest: $(grep -c '^kind: Job' "$STATE/target.yaml" || true)"
+  echo "=== live Deployment images ==="
+  kubectl get deploy -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE" -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image
   helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values \
     -f "$STATE/current.values.json" -f "$STATE/override.values.json" --dry-run=server > /dev/null
   echo "Server-side dry run passed."
@@ -211,8 +209,10 @@ plan
 
 # 5. Upgrade.
 helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values \
-  -f "$STATE/current.values.json" -f "$STATE/override.values.json" --wait --timeout 10m
+  -f "$STATE/current.values.json" -f "$STATE/override.values.json" --atomic --timeout 10m   || { echo "Upgrade failed; --atomic rolled the release back. Manual rollback if needed: helm rollback $RELEASE <revision> -n $NAMESPACE (helm history $RELEASE -n $NAMESPACE)" >&2; exit 1; }
+UI_ENABLED=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("ui", {}).get("enabled", True)).lower())' "$STATE/current.values.json")
 for d in api worker beat ui; do
+  if [[ "$d" == ui && "$UI_ENABLED" == false ]]; then echo "ui disabled in the release values; skipping its rollout check"; continue; fi
   kubectl rollout status -n "$NAMESPACE" "deployment/$RELEASE-$d" --timeout=300s
 done
 
@@ -221,7 +221,7 @@ for d in api worker beat; do
   got=$(kubectl get deployment -n "$NAMESPACE" "$RELEASE-$d" -o jsonpath='{.spec.template.spec.containers[0].image}')
   test "$got" = "$IMAGE" || { echo "$RELEASE-$d runs $got, expected $IMAGE" >&2; exit 1; }
 done
-API_POD=$(kubectl get pod -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api" -o name | head -n 1)
+API_POD=$(kubectl get pod -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api" --field-selector=status.phase=Running -o name | head -n 1)
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8050/health", timeout=10).status)'
 helm history "$RELEASE" -n "$NAMESPACE" --max 3
 echo "Upgraded $RELEASE in $NAMESPACE to $IMAGE (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"

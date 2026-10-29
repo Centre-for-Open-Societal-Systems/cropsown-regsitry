@@ -44,8 +44,8 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 
 | Action | What it does |
 | --- | --- |
-| `connector-plan` | Changes nothing. Prints the image digest it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the client secret below is present. |
-| `connector-upgrade` | Builds no image. Refuses to run without the client secret, archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker and beat. Upgrade only, safe to rerun. |
+| `connector-plan` | Changes nothing. Prints the image digest it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). |
+| `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker and beat. Upgrade only, safe to rerun. |
 
 The image is `gen2/cropsown-registry/registry-connector` (built by this pipeline from
 `docker/registry-connector`), taken from the tag `CONNECTOR_IMAGE_TAG` (default `develop`, or
@@ -54,26 +54,16 @@ instead of a hand-run `kubectl set image`.
 
 Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
 release's values with `helm get values`, writes a small override file (the image on api,
-worker and beat, `postgres-init` off, the client secret reference) and upgrades with
+worker and beat, `postgres-init` off) and upgrades with
 `--reset-values -f <current> -f <override>`; both files are printed. Never `--reuse-values`.
 
-### Keycloak client secret
+Plan output, before anyone upgrades: release status and history, the image
+(`...@sha256:<64 hex>`), the current values, the manifest diff, the live Deployment images and
+`Server-side dry run passed.`. The expected diff touches only the api, worker and beat image
+and removes nothing else; no Service, VirtualService, HPA, probe or Job changes. The upgrade
+runs with `--atomic`, so a failed rollout rolls the release back to the previous revision.
 
-The connector's admin calls use the staff-realm Keycloak client `registry-connector`.
-
-- The client is created by the Commons `keycloak-init`. The Commons `client-secrets-sync`
-  Job then writes its generated secret to a Secret named after the client,
-  `registry-connector`, key `client_secret`, in the **commons** namespace (the Job writes to
-  its own release namespace).
-- A `secretKeyRef` cannot cross namespaces, so the connector reads a copy in `crop`: Secret
-  `registry-connector-client`, key `client_secret`, exposed as the environment variable
-  `CONNECTOR_ADMIN_AUTH_CLIENT_SECRET` through `extraEnvFrom` with `optional: false`. No value
-  is in git or in values.
-- The copy is a documented sync step done by whoever owns Commons: after the Commons upgrade
-  that adds the client, copy `commons/registry-connector` to `crop/registry-connector-client`
-  (same key). `connector-plan` reports whether the copy exists; `connector-upgrade` stops
-  before changing anything when it is missing or empty.
-- The #162 admin-auth extension only validates tokens: it reads `CONNECTOR_ADMIN_AUTH_ISSUER`,
-  `_JWKS_URL`, `_CLIENT_ID`, `_ROLE` and `_UI_CLIENT_ID` (or the baked `admin-auth.json`) and no
-  client secret yet. The variable above is where the secret is delivered for the connector's
-  client-credentials calls once they exist.
+The connector needs no Keycloak client secret: its admin access only validates incoming
+tokens (issuer, JWKS, client id, role), and its WebSub hub calls use the connector
+definition's own credentials. The script still reports whether `crop/registry-connector-client`
+exists (PRESENT, MISSING or UNKNOWN), but never blocks on it.
