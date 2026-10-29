@@ -44,7 +44,7 @@ pipeline {
 
         // Built from docker/<name>/Dockerfile. dashboard-ui is left out: the
         // chart deploys no dashboard, so its image would be published for nothing.
-        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests'
+        SERVICES = 'staff-api staff-ui partner-api celery db-seed sanity-tests registry-connector'
 
         // Connectors remain independently operated; this registry builds only its extension.
 
@@ -240,6 +240,14 @@ pipeline {
 
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
+
+                            # The connector image carries the OAN extension:
+                            # its tests run inside the pushed image.
+                            if [ "${SVC}" = registry-connector ]; then
+                                docker run --rm -u 0 -v "$PWD/docker/registry-connector:/ext:ro" -w /ext \
+                                    -e PYTHONDONTWRITEBYTECODE=1 --entrypoint sh "${IMAGE}:${IMAGE_TAG}" \
+                                    -c 'pip install --quiet --no-cache-dir --root-user-action=ignore pytest==8.4.2 && python -m pytest -q -p no:cacheprovider tests'
+                            fi
 
                             # Drop the build tag, keep the branch tag: it is the
                             # next build's cache.
