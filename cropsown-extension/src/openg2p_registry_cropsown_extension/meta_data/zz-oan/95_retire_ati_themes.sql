@@ -1,6 +1,6 @@
 -- The seven ATI brand themes are retired: the staff-portal theme is data in
--- openg2p-data (oan_theme, rendered into 90_oan_theme.sql), and its crop entry
--- carries the ATI-Green palette. Seed upserts never delete, so long-lived
+-- openg2p-data (oan_theme, rendered into 90_oan_theme.sql), which holds the crop
+-- palette (#009147, #91AC34). Seed upserts never delete, so long-lived
 -- databases drop the rows here, by explicit id. A theme the registry
 -- configuration still points at is left in place.
 DELETE FROM "public"."registry_theme_values" v
