@@ -4,7 +4,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .domain_compute_utils import compute_production_results
 
-from .domain_validation_utils import as_float, validation_error
+from .domain_validation_utils import as_float, validation_error, field_label
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -16,11 +16,11 @@ class G2PRegisterDomainServiceProduction(G2PRegisterDomainService):
         for record in records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            # validate_alphabetical_name(record.get("da_name"), "DA Name")
-            # validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            # validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            # validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            # validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            # validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            # validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            # validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
 
@@ -30,7 +30,7 @@ class G2PRegisterDomainServiceProduction(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Production Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Production details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
             compute_production_results(record)
@@ -40,13 +40,13 @@ class G2PRegisterDomainServiceProduction(G2PRegisterDomainService):
     def _validate_area_under_production(self, record: dict) -> None:
         area = as_float(record.get("area_under_production"))
         if area is not None and area <= 0:
-            validation_error("area_under_production must be greater than zero when provided")
+            validation_error("Area under production must be greater than zero")
 
     def _validate_yields(self, record: dict) -> None:
         for field in ("expected_yield", "actual_yield", "yield_per_ha"):
             value = as_float(record.get(field))
             if value is not None and value < 0:
-                validation_error(f"{field} must not be negative")
+                validation_error(f"{field_label(field)} must not be negative")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for production")

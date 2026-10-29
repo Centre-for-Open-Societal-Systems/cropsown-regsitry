@@ -67,14 +67,14 @@ class G2PSchemaCropSown:
         if v is not None and str(v).strip() != "":
             val_str = str(v)
             if not val_str.isdigit():
-                raise ValueError("Crop Year must contain only numeric digits (no letters, spaces, or special characters)")
+                raise ValueError("Crop year must contain digits only, with no letters, spaces or symbols")
             year = int(val_str)
             from datetime import date
             current_year = date.today().year
             if year < current_year:
-                raise ValueError("Crop Year must not be in the past")
+                raise ValueError("Crop year must not be in the past")
             if year > current_year:
-                raise ValueError("Crop Year must not be in the future")
+                raise ValueError("Crop year must not be in the future")
         return v
 
     @field_validator("fayda_fan_id")

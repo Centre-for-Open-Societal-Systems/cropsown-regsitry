@@ -66,7 +66,7 @@ def _response(
         code, message = error.code, error.message
     elif error is not None:
         code = G2PRegistryErrorCodes.INVALID_REQUEST.value[1]
-        message = "Fayda verification could not be reached. Try again; if it keeps failing, ask the administrator to check the eSignet connection"
+        message = "Fayda verification could not be reached. Try again; if it keeps failing, ask the administrator to check the Fayda connection"
     return G2PResponse(
         response_header=G2PResponseHeader(
             request_id=g2p_request.request_header.request_id,

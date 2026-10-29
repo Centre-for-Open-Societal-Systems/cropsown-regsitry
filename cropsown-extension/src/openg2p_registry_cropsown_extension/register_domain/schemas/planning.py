@@ -87,7 +87,7 @@ class G2PRegisterSchemaPlanning(G2PRegisterBaseSchema, G2PSchemaPlanning):
         planned_area = values.get('planned_area')
         if land_area is not None and planned_area is not None:
             if planned_area > land_area:
-                raise ValueError("Planned Crop Area cannot be greater than Total Land Area")
+                raise ValueError("Planned crop area cannot be greater than Total land area")
         return values
 
 
@@ -110,5 +110,5 @@ class G2PIntakeFormSchemaPlanning(G2PIntakeFormSchemaBase, G2PRegisterBaseSchema
         planned_area = values.get('planned_area')
         if land_area is not None and planned_area is not None:
             if planned_area > land_area:
-                raise ValueError("Planned Crop Area cannot be greater than Total Land Area")
+                raise ValueError("Planned crop area cannot be greater than Total land area")
         return values

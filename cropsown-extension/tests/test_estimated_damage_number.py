@@ -25,10 +25,10 @@ def test_damage_is_stored_as_a_number(value, stored):
     ("value", "message"),
     [
         ("101%", "between 0% and 100%"),
-        ("-1", "non-negative"),
-        ("1000", "at most 999.99"),
+        ("-1", "must not be negative"),
+        ("1000", "999.99 or less"),
         ("12 percent", "cannot contain letters"),
-        ("1.2.3", "must be numeric"),
+        ("1.2.3", "must be a number"),
     ],
 )
 def test_bad_damage_names_the_field(value, message):

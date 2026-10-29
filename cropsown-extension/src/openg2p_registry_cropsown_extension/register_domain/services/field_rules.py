@@ -53,20 +53,26 @@ LABELS = {
     "fayda_fin": "FIN (Fayda ID)",
     "fayda_fan_id": "Fayda ID (FAN)",
     "fayda_id": "Fayda ID (FAN or FIN)",
-    "da_name": "DA Name",
-    "surveyor_name": "DA Name",
-    "supervisor_name": "Supervisor Name",
-    "date_of_birth": "Date of Birth",
+    "da_name": "Development agent name",
+    "surveyor_name": "Development agent name",
+    "supervisor_name": "Supervisor name",
+    "date_of_birth": "Date of birth",
+    "first_name_amh": "First name (Amharic)",
+    "middle_name_amh": "Middle name (Amharic)",
+    "last_name_amh": "Last name (Amharic)",
+    "first_name_other": "First name (other language)",
+    "middle_name_other": "Middle name (other language)",
+    "last_name_other": "Last name (other language)",
 }
 MESSAGES = {
-    "coss_field_name_format": "{label}: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
-    "coss_field_amharic_name_format": "{label}: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+    "coss_field_name_format": "{label}: use 1 to 100 letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
+    "coss_field_amharic_name_format": "{label}: use 1 to 100 Ethiopic letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
     "coss_field_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
     "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the FAN field for a 16-digit FAN.",
     "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the FIN field for a 12-digit FIN.",
-    "coss_field_date_format": "{label}: enter a real date. API/import dates use Gregorian YYYY-MM-DD; correct the date before saving.",
-    "coss_field_date_min": "{label}: the date is before 1900. Enter a date on or after 1900-01-01.",
-    "coss_field_date_future": "{label}: the date is in the future. Enter today or an earlier date.",
+    "coss_field_date_format": "{label}: enter a real date. In imported files, write dates as year-month-day in the Gregorian calendar, for example 2018-12-25.",
+    "coss_field_date_min": "{label}: the date is too early. Enter a date in 1900 or later.",
+    "coss_field_date_future": "{label}: the date is in the future. Enter today's date or an earlier date.",
     "coss_field_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
     "coss_field_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
     "coss_field_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
@@ -85,7 +91,7 @@ def explain(issue, messages=None):
     label = (
         messages.get(issue.field)
         or LABELS.get(issue.field)
-        or issue.field.replace("_", " ").title()
+        or issue.field.replace("_", " ").capitalize()
     )
     if issue.row is not None:
         row_label = messages.get("coss_field_row_label", "{label} (row {row})")
