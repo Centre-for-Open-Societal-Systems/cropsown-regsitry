@@ -480,8 +480,8 @@
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/services/cropsown_intake_validation_service.py",
-      "decision": "ported",
-      "reason": "Keep pure validation helpers; remove setup_intake_hooks runtime reassignment"
+      "decision": "retired",
+      "reason": "Never imported; required fields are enforced by required_intake.py from the section metadata"
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/services/domain_compute_utils.py",
