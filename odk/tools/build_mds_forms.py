@@ -11,7 +11,7 @@ builder rewrites them:
 1. Identity. The first group of every form is "farmer_identity" and holds exactly two
    required questions: Farmer ID (FR- and 12 digits) and Fayda ID (a 16 digit FAN or a
    12 digit FIN, spaces allowed). The registry transform
-   (csr_odk_transform.j2) reads the fields farmer_id and fayda_id from that group and
+   (odk_to_crop_intake.j2) reads the fields farmer_id and fayda_id from that group and
    tells a FIN from a FAN by length, so the typed Fayda ID (fayda_id_entered) is copied
    into a hidden calculate named fayda_id with the spaces removed. Crop year and
    production season move to the group production_season_info, which the transform also

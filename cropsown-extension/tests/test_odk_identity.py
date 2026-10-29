@@ -20,7 +20,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
     if IS_CROP:
         data={'farmer_identity':identity,'production_season_info':{'crop_year':'2026','production_season':'meher'},
               stage:[{}] if stage!='harvesting' else {}, 'address_info':{'woreda_id':'holding-woreda'}}
-        template='csr_odk_transform.j2';section='crop_farmer_lookup'
+        template='odk_to_crop_intake.j2';section='crop_farmer_lookup'
     else:
         data={'farmer':identity,'location':{'location_source':'mds','region_code':'ET01',
               'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET010101101001'},
@@ -51,7 +51,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
 @pytest.mark.parametrize('value,expected', [('belg','SEASON_BELG'),('meher','SEASON_MEHER'),
     ('irrigation','SEASON_IRRIGATION'),('SEASON_MEHER','SEASON_MEHER'),('bega','BEGA')])
 def test_odk_season_uses_mds_codes_without_reinterpreting_unsupported_bega(value, expected):
-    template = (ROOT/'templates'/'csr_odk_transform.j2').read_text(encoding='utf-8')
+    template = (ROOT/'templates'/'odk_to_crop_intake.j2').read_text(encoding='utf-8')
     result=json.loads(Environment().from_string(template).render(expanded={
         'planning':[{}], 'farmer_identity':{'farmer_id':'FR-000000000001','fayda_id':'001234567890'},
         'production_season_info':{'crop_year':'2026','production_season':value}}))
