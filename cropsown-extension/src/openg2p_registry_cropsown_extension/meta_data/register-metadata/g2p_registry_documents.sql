@@ -10,3 +10,13 @@ INSERT INTO "public"."g2p_registry_documents" ("document_id","document_store_id"
 ON CONFLICT (document_id) DO UPDATE SET
     document_store_id = EXCLUDED.document_store_id,
     source_filename = EXCLUDED.source_filename;
+
+-- FILE_IMPORT_TO_CROP_*_INTAKE: Jinja templates of the native file import (crop_ prefix: the registries share one templates bucket).
+INSERT INTO "public"."g2p_registry_documents" ("document_id","document_store_id","bucket","source_filename","created_by","created_at") VALUES
+('file_import_to_crop_planning_intake_document','crop_file_import_planning_intake.j2','templates','crop_file_import_planning_intake.j2','seeder','2026-10-29 00:00:00'),
+('file_import_to_crop_cultivation_intake_document','crop_file_import_cultivation_intake.j2','templates','crop_file_import_cultivation_intake.j2','seeder','2026-10-29 00:00:00'),
+('file_import_to_crop_sowing_intake_document','crop_file_import_sowing_intake.j2','templates','crop_file_import_sowing_intake.j2','seeder','2026-10-29 00:00:00'),
+('file_import_to_crop_harvesting_intake_document','crop_file_import_harvesting_intake.j2','templates','crop_file_import_harvesting_intake.j2','seeder','2026-10-29 00:00:00')
+ON CONFLICT ("document_id") DO UPDATE SET
+    document_store_id = EXCLUDED.document_store_id,
+    source_filename = EXCLUDED.source_filename;
