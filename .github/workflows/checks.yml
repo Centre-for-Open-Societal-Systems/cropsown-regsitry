@@ -16,6 +16,8 @@ jobs:
       - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
       - name: Source and deployment contracts
         run: bash ci/validate.sh
+      - name: cropsown-connector chart renders the digest-pinned image
+        run: bash ci/deploy/check-connector-chart.sh
       - name: Native image extension checks
         run: |
           docker build -f ci/refactor/profile-tests.Dockerfile -t registry-reference-tests .

@@ -31,3 +31,39 @@ the VPN deploy node rechecks the exact package and values without GitHub access.
 A corrupt cached archive fails closed and does not trigger a network fallback.
 Manual runs can prefetch on a connected machine and carry that directory with
 the same immutable profile. Cached archives are not editable Helm sources.
+
+## cropsown-connector release (New Dev)
+
+`ci/deploy/connector-chart` is the `openg2p-connector` 0.1.0 chart that the standalone
+`cropsown-connector` release (namespace `crop`) runs. It is the chart this repository once
+carried at `openg2p-connector-service/deploy/charts/openg2p-connector`, with two additions
+(`extraEnv`/`extraEnvFrom`, and an optional `image.digest` per component), identical to the
+copy in livestock-registry `ci/connector/chart`.
+
+Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
+
+| Action | What it does |
+| --- | --- |
+| `connector-plan` | Changes nothing. Prints the image digest it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). |
+| `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker and beat. Upgrade only, safe to rerun. |
+
+The image is `gen2/cropsown-registry/registry-connector` (built by this pipeline from
+`docker/registry-connector`), taken from the tag `CONNECTOR_IMAGE_TAG` (default `develop`, or
+a build tag such as `develop-186`) and pinned by digest, so the Helm release owns the image
+instead of a hand-run `kubectl set image`.
+
+Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
+release's values with `helm get values`, writes a small override file (the image on api,
+worker and beat, `postgres-init` off) and upgrades with
+`--reset-values -f <current> -f <override>`; both files are printed. Never `--reuse-values`.
+
+Plan output, before anyone upgrades: release status and history, the image
+(`...@sha256:<64 hex>`), the current values, the manifest diff, the live Deployment images and
+`Server-side dry run passed.`. The expected diff touches only the api, worker and beat image
+and removes nothing else; no Service, VirtualService, HPA, probe or Job changes. The upgrade
+runs with `--atomic`, so a failed rollout rolls the release back to the previous revision.
+
+The connector needs no Keycloak client secret: its admin access only validates incoming
+tokens (issuer, JWKS, client id, role), and its WebSub hub calls use the connector
+definition's own credentials. The script still reports whether `crop/registry-connector-client`
+exists (PRESENT, MISSING or UNKNOWN), but never blocks on it.

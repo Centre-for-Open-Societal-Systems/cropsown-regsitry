@@ -28,8 +28,10 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install'],
-            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched).')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
+            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
+        string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
+            description: 'connector-plan and connector-upgrade only. Tag of gen2/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
     }
     agent any
 
@@ -209,7 +211,8 @@ pipeline {
         }
 
         stage('Build & Push') {
-            when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
+            when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
+                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade']) } } }
             // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
             environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
@@ -298,6 +301,35 @@ pipeline {
             }
         }
 
+        stage('Resolve connector image') {
+            // The connector actions build nothing: they take the connector image
+            // already in ECR and pin the release to its digest.
+            when { allOf { branch 'develop'; expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade'] } } }
+            steps {
+                withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
+                    script {
+                        def tag = (params.CONNECTOR_IMAGE_TAG ?: 'develop').trim()
+                        if (!(tag ==~ /[A-Za-z0-9._-]{1,128}/)) {
+                            error "CONNECTOR_IMAGE_TAG must match [A-Za-z0-9._-]{1,128}; got '${tag}'"
+                        }
+                        env.CONNECTOR_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector"
+                        try {
+                            env.CONNECTOR_IMAGE_DIGEST = sh(returnStdout: true, script: """
+                                aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/registry-connector" \
+                                    --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
+                            """).trim()
+                        } catch (err) {
+                            error "image ${ECR_BASE}/registry-connector:${tag} was not found in ECR (${err.message})"
+                        }
+                        if (!(env.CONNECTOR_IMAGE_DIGEST ==~ /sha256:[0-9a-f]{64}/)) {
+                            error "could not resolve ${ECR_BASE}/registry-connector:${tag} to a digest"
+                        }
+                        echo "connector image ${ECR_BASE}/registry-connector:${tag} = ${env.CONNECTOR_IMAGE_DIGEST}"
+                    }
+                }
+            }
+        }
+
         stage('Stash deploy') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
             // The deploy node needs the chart, the scripts and the pull token —
@@ -309,6 +341,35 @@ pipeline {
                 stash name: 'deploy', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
+            }
+        }
+
+        stage('Upgrade connector (New Dev)') {
+            // The cropsown-connector release (namespace crop): ci/deploy/connector-chart
+            // with the release's current values and the image from 'Resolve connector
+            // image'. Upgrade only; the connector database is archived to the New Dev
+            // box first.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { params.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
+            }
+            agent { label 'vpn-agent2' }
+            steps {
+                sh 'rm -rf ci helm'
+                unstash 'deploy'
+                script {
+                    if (params.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
+                        withCredentials([file(credentialsId: 'crop-dev-kubeconfig', variable: 'KUBECONFIG')]) {
+                            sh 'PLAN_ONLY=1 bash ci/deploy/upgrade-crop-connector.sh'
+                        }
+                    } else {
+                        withCredentials([file(credentialsId: 'crop-dev-kubeconfig', variable: 'KUBECONFIG'),
+                                         sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
+                            sh 'bash ci/deploy/upgrade-crop-connector.sh'
+                        }
+                    }
+                }
             }
         }
 
@@ -325,7 +386,7 @@ pipeline {
                 branch 'develop'
                 // A branch-index or polled build has no explicit action: it publishes
                 // only; deploy and fresh-install are requested on purpose.
-                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') != 'publish-only' }
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options {
