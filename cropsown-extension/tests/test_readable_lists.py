@@ -35,11 +35,33 @@ INTAKE_FORMS = {
     "52150a37-153d-496d-9cd9-2a3815d6e13b": "Crop harvesting intake",
 }
 
+NL = chr(10)
+BLOCK = re.compile("'(\\{" + NL + ".*?" + NL + "\\})'::jsonb", re.S)
+
+
+def overlay_blocks():
+    return [json.loads(block) for block in BLOCK.findall(OVERLAY.read_text(encoding="utf-8"))]
+
 
 def overlay_translations():
+    merged = {}
+    for block in overlay_blocks():
+        merged.update(block)
+    return merged
+
+
+def test_corrected_keys_win_over_earlier_seeds_and_new_keys_keep_local_values():
     text = OVERLAY.read_text(encoding="utf-8")
-    block = re.search(r"'(\{\n.*?\n\})'::jsonb\)::json", text, re.S).group(1)
-    return json.loads(block)
+    corrected, new_only = overlay_blocks()
+    stored_first = 'COALESCE("domain_translation"::jsonb, \'{}\'::jsonb) ||' + NL + "'{" + NL
+    ours_first = "}'::jsonb ||" + NL + '  COALESCE("domain_translation"::jsonb'
+    assert stored_first in text  # the corrected keys: ours last, so they win
+    assert ours_first in text  # the new keys: ours first, so a local value wins
+    assert set(new_only) == {"ADD", "FEMALE", "FINAL", "MALE", "PARTNER", "STAFF_PORTAL", "UPDATE", "cs_farmer_identity"}
+    assert not set(corrected) & set(new_only)
+    earlier = "".join(path.read_text(encoding="utf-8") for path in sorted(META.rglob("*.sql")) if path != OVERLAY)
+    for key in new_only:  # no other seed file writes these
+        assert '"' + key + '":' not in earlier, key
 
 
 # --- the planning record name -------------------------------------------------

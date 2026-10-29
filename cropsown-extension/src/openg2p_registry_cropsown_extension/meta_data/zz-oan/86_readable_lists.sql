@@ -1,7 +1,7 @@
 -- Readable lists: the words staff read in lists, tasks and field labels.
 --
--- 1. Planning record names read "Maize, Meher 2026" instead of the stored codes,
---    and the commodity and season columns of the lists show Master Data words.
+-- 1. Planning record names read "Maize, Meher 2026" instead of the stored codes
+--    (the register, its history table's display name and the intake table), and the commodity and season columns of the lists show Master Data words.
 -- 2. Gender, change action, and the intake list's source and form status read as
 --    words; the register name is sentence case.
 -- 3. The Fayda number has one name everywhere: "Fayda FAN ID" for the 16-digit
@@ -75,30 +75,40 @@ WHERE "configuration_id" = '9a3f5c21-77d4-4b6e-8f10-2c5b9d4e6a73' AND "registry_
 -- translations and falls back to the value itself. The commodity and season
 -- words come from the ETH-OAN pack: the image build renders them into
 -- 86b_list_words.sql (docker/db-seed/build_list_words_sql.py); none is copied here.
+-- Keys an earlier seed file already writes and this file corrects: the new text
+-- wins over the stored one on every run, so the older file cannot bring the old
+-- wording back.
 UPDATE "public"."registry_languages"
 SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) ||
 '{
- "ADD": "Add",
  "Crop Sown Registry": "Crop sown registry",
- "FEMALE": "Female",
- "FINAL": "Final",
  "Fayda ID (FAN)": "Fayda FAN ID",
  "Is Plot Not Registered?": "Plot is not yet registered",
- "MALE": "Male",
  "OTHER": "Other",
- "PARTNER": "Partner",
- "STAFF_PORTAL": "Staff portal",
- "UPDATE": "Update",
  "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the Fayda FIN field for a 12-digit number.",
  "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the Fayda FAN ID field for a 16-digit number.",
  "coss_input_fayda_fan_id": "Fayda FAN ID: enter exactly 16 digits, optionally separated by spaces. Use the Fayda FIN field for a 12-digit number.",
  "coss_input_fayda_fin": "Fayda FIN: enter exactly 12 digits. Use the Fayda FAN ID field for a 16-digit number.",
  "cropsown_intake": "Crop sown registry intake form",
  "cropsown_intake_tab": "Crop sown registry intake form",
- "cs_farmer_identity": "Farmer identity",
  "fayda_fan_id": "Fayda FAN ID",
  "link_foundational_id": "Fayda FAN ID"
 }'::jsonb)::json
+WHERE "language_code" = 'en';
+
+-- Keys no other seed file writes: defaults first, so a value edited locally survives.
+UPDATE "public"."registry_languages"
+SET "domain_translation" = ('{
+ "ADD": "Add",
+ "FEMALE": "Female",
+ "FINAL": "Final",
+ "MALE": "Male",
+ "PARTNER": "Partner",
+ "STAFF_PORTAL": "Staff portal",
+ "UPDATE": "Update",
+ "cs_farmer_identity": "Farmer identity"
+}'::jsonb ||
+  COALESCE("domain_translation"::jsonb, '{}'::jsonb))::json
 WHERE "language_code" = 'en';
 
 -- Planning record names stored before the change read "CROP_MAIZE SEASON_MEHER 1.5".
@@ -147,31 +157,37 @@ DO $$
 DECLARE
     tbl text;
     required text[] := ARRAY['record_name', 'commodity', 'season', 'planned_date', 'planned_area'];
-    reference_suffix text;
-    base_name text;
+    built text;
+    has_reference boolean;
 BEGIN
     FOREACH tbl IN ARRAY ARRAY['g2p_register_plannings', 'g2p_register_history_plannings', 'g2p_intake_form_plannings'] LOOP
         CONTINUE WHEN to_regclass(format('public.%I', tbl)) IS NULL;
         CONTINUE WHEN (SELECT count(*) FROM information_schema.columns c
                        WHERE c.table_schema = 'public' AND c.table_name = tbl AND c.column_name = ANY (required)) <> 5;
-        reference_suffix := '';
-        base_name := 'record_name';
-        IF EXISTS (SELECT 1 FROM information_schema.columns c
-                   WHERE c.table_schema = 'public' AND c.table_name = tbl AND c.column_name = 'application_reference') THEN
-            reference_suffix := ' || CASE WHEN coalesce(application_reference, '''') = '''' THEN '''' ELSE '' '' || application_reference END';
-            base_name := 'CASE WHEN coalesce(application_reference, '''') <> '''' AND right(record_name, length(application_reference) + 1) = '' '' || application_reference THEN left(record_name, length(record_name) - length(application_reference) - 1) ELSE record_name END';
+        has_reference := EXISTS (SELECT 1 FROM information_schema.columns c
+                                 WHERE c.table_schema = 'public' AND c.table_name = tbl
+                                   AND c.column_name = 'application_reference');
+        -- The exact name the old builder stored: the non-empty commodity, season and
+        -- planned area (0 counted as empty), joined by single spaces; on the intake
+        -- table the application reference follows unless the name already holds it.
+        -- A name that differs in any way is left alone: a person's edit, a name whose
+        -- area changed since, a name with lead words from "extra" ("Plot 4 CROP_TEFF
+        -- ..."), and a name that is already words.
+        built := 'concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''), nullif(planned_area, 0)::text)';
+        IF has_reference THEN
+            built := 'CASE WHEN coalesce(application_reference, '''') <> '''' AND position(application_reference IN ' || built || ') = 0'
+                     || ' THEN concat_ws('' '', nullif(' || built || ', ''''), application_reference) ELSE ' || built || ' END';
         END IF;
-        -- Only a name the old builder produced: the commodity code, the season code
-        -- and an optional area, joined by single spaces (and, on the intake table,
-        -- the application reference). A name a person edited, or one that is
-        -- already words, does not match, so it is never touched.
         EXECUTE format(
             'UPDATE public.%1$I SET record_name = pg_temp.planning_name(commodity, season, planned_date, planned_area)%2$s'
-            ' WHERE concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
-            '       ~ ''^(CROP_[A-Z0-9_]+( (CROP_)?SEASON_[A-Z0-9_]+)?|(CROP_)?SEASON_[A-Z0-9_]+)$'''
-            ' AND %3$s ~ (''^'' || concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
-            '             || ''( [0-9]+(\.[0-9]+)?)?$'')',
-            tbl, reference_suffix, base_name);
+            ' WHERE record_name = %3$s'
+            ' AND concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
+            '     ~ ''^(CROP_[A-Z0-9_]+( (CROP_)?SEASON_[A-Z0-9_]+)?|(CROP_)?SEASON_[A-Z0-9_]+)$''',
+            tbl,
+            CASE WHEN has_reference
+                 THEN ' || CASE WHEN coalesce(application_reference, '''') = '''' THEN '''' ELSE '' '' || application_reference END'
+                 ELSE '' END,
+            built);
     END LOOP;
 END;
 $$;
