@@ -250,3 +250,22 @@ def test_the_list_sections_ask_for_their_required_columns_and_no_row_is_demanded
         assert problems(ui, None, is_list=True, records=[], messages={}) == []
         assert problems(ui, None, is_list=True, records=[{}], messages={})[0].startswith(
             ui.get("section-title", "") + ", row 1: fill in ")
+
+
+def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
+    register_metadata = sorted((META / "register-metadata").glob("*.sql"))
+    overlay = META / "register-metadata/zzzzzzzzzz_required_land_rows.sql"
+    assert register_metadata[-1] == overlay
+    # Files outside register-metadata that sort after it never touch these sections.
+    text = overlay.read_text(encoding="utf8")
+    later = [p for p in sorted(META.rglob("*.sql")) if p > overlay]
+    for path in later:
+        # Translation files name the sections for their labels; no other later file may.
+        if path.parent.name == "registry-configurations":
+            continue
+        body = path.read_text(encoding="utf8")
+        for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
+                           "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):
+            assert section_id not in body, f"{path.name} rewrites {section_id}"
+    for expected in ("sowing_date", "area_sown", "harvest_date", "qty_harvested", "commodity"):
+        assert f"'{expected}'" in text
