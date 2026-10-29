@@ -10,6 +10,7 @@ from .domain_compute_utils import (
 )
 
 from .domain_validation_utils import as_float, parse_date, validation_error, field_label
+from .plain_text import planning_record_name
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -154,14 +155,4 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     def construct_record_name(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing record name for planning")
 
-        keys = ["commodity", "season", "planned_area"]
-        record_name = []
-        if extra:
-            record_name.extend(str(item).strip() for item in extra if str(item).strip())
-        record_name.extend(
-            str(payload.get(key) or "").strip()
-            for key in keys
-            if str(payload.get(key) or "").strip()
-        )
-
-        return " ".join(record_name).strip()
+        return planning_record_name(payload, extra)

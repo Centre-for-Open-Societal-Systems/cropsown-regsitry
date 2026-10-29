@@ -84,7 +84,7 @@ class G2PSchemaCropSown:
             try:
                 return normalize_uid(v)
             except FarmerReferenceError as error:
-                raise ValueError("Fayda ID (FAN): enter exactly 16 digits, optionally spaced in four groups. Use the FIN field for a 12-digit FIN") from error
+                raise ValueError("Fayda FAN ID: enter exactly 16 digits, optionally spaced in four groups. Use the Fayda FIN field for a 12-digit number") from error
         return v
 
     @field_validator("land_id")

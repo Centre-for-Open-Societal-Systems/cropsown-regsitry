@@ -346,7 +346,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         try:
             record["fayda_fan_id"] = normalize_uid(value)
         except FarmerReferenceError:
-            validation_error("Fayda ID (FAN): enter exactly 16 digits, optionally spaced in four groups. Use the FIN field for a 12-digit FIN")
+            validation_error("Fayda FAN ID: enter exactly 16 digits, optionally spaced in four groups. Use the Fayda FIN field for a 12-digit number")
 
     def _validate_land_id(self, record: dict) -> None:
         from .domain_validation_utils import validate_land_id

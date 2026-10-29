@@ -33,7 +33,7 @@ def test_domain_fan_stores_compact_ascii_without_losing_zeroes(value):
 def test_bad_fan_names_the_field_and_repair(value):
     with pytest.raises(Exception) as failure:
         service._validate_fayda_fan_id({"fayda_fan_id": value})
-    assert "Fayda ID (FAN): enter exactly 16 digits" in str(failure.value)
+    assert "Fayda FAN ID: enter exactly 16 digits" in str(failure.value)
 
 
 @pytest.mark.parametrize("value",["0012345678901234","0012 3456 7890 1234"])
