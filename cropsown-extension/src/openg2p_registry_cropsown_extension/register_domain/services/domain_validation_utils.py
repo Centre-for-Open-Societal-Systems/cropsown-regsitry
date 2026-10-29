@@ -78,7 +78,7 @@ def is_blank(value) -> bool:
 def validate_alphabetical_name(value, field_name: str) -> None:
     if is_blank(value):
         return
-    if field_name in {"Farmer name", "Development agent name", "Supervisor name", "Development agent name"}:
+    if field_name in {"Farmer name", "Development agent name", "Supervisor name"}:
         from .field_rules import explain, name_issue
         problem=name_issue(value,"farmer_name")
         if problem:

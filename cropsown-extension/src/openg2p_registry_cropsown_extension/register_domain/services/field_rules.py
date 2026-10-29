@@ -5,6 +5,7 @@ native lifecycle. Names and dates normalize before domain calculations.
 """
 
 import logging
+import re
 import unicodedata
 from dataclasses import dataclass, replace
 from datetime import date
@@ -91,7 +92,7 @@ def explain(issue, messages=None):
     label = (
         messages.get(issue.field)
         or LABELS.get(issue.field)
-        or issue.field.replace("_", " ").capitalize()
+        or re.sub(r"\bid\b", "ID", issue.field.replace("_", " ").capitalize())
     )
     if issue.row is not None:
         row_label = messages.get("coss_field_row_label", "{label} (row {row})")

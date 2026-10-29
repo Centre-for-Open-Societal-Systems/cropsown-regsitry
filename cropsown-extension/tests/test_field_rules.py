@@ -246,3 +246,11 @@ def test_farmer_lookup_needs_both_fields_and_says_so_in_plain_words():
     for problem in problems:
         message = rules.explain(problem)
         assert "_" not in message and "Verify" not in message
+
+
+@pytest.mark.parametrize(
+    ("field", "label"),
+    [("land_id", "Land ID"), ("farmer_id", "Farmer ID"), ("soil_type", "Soil type")],
+)
+def test_fallback_label_keeps_id_uppercase(field, label):
+    assert rules.explain(rules.Issue(field, "coss_field_name_format")).startswith(label + ":")
