@@ -15,6 +15,10 @@ from .domain_validation_utils import as_float, as_int, validation_error, get_row
 _logger = logging.getLogger("g2p-register-domain-service")
 
 
+# Register id of the Crop Sown register definition; its child TABLE registers
+# carry other ids and have no Farmer identity to mirror.
+CROP_SOWN_REGISTER_ID = "6b06a95a-9a6c-5a33-a33d-c1625716c59c"
+
 _MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
 
 # Farmer ids are issued by the farmer registry as FR- followed by twelve digits.
@@ -39,6 +43,8 @@ def validate_production_season_fields(record):
 
 class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def post_ingest(self, register_id, register_row, session):
+        if register_id != CROP_SOWN_REGISTER_ID:
+            return
         from .farmer_name_projection import refresh_crop_name_on_ingest
         await refresh_crop_name_on_ingest(session, register_row)
 
