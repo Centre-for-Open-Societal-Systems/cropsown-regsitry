@@ -72,10 +72,9 @@ UPDATE "public"."g2p_registry_configuration" SET "registry_name" = 'Crop sown re
 WHERE "configuration_id" = '9a3f5c21-77d4-4b6e-8f10-2c5b9d4e6a73' AND "registry_name" = 'Crop Sown Registry';
 
 -- Display words. The staff portal looks a value up in the English domain
--- translations and falls back to the value itself, so the list columns show
--- these for the codes stored in the records. Master Data stays the source of
--- the dropdown labels; the commodity and season words below are the labels it
--- holds. CROP_TEFF reads "Teff" in lists.
+-- translations and falls back to the value itself. The commodity and season
+-- words come from the ETH-OAN pack: the image build renders them into
+-- 86b_list_words.sql (docker/db-seed/build_list_words_sql.py); none is copied here.
 UPDATE "public"."registry_languages"
 SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) ||
 '{
@@ -98,135 +97,7 @@ SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) |
  "cropsown_intake_tab": "Crop sown registry intake form",
  "cs_farmer_identity": "Farmer identity",
  "fayda_fan_id": "Fayda FAN ID",
- "link_foundational_id": "Fayda FAN ID",
- "CROP_ADZUKI_BEAN": "Adzuki bean",
- "CROP_AFRICAN_MARIGOLD": "African marigold",
- "CROP_ALFALFA": "Alfalfa",
- "CROP_AMARANTH": "Amaranth",
- "CROP_ANCHOTE": "Anchote",
- "CROP_AVOCADO": "Avocado",
- "CROP_BANANA": "Banana",
- "CROP_BARLEY": "Barley",
- "CROP_BASIL": "Basil",
- "CROP_BLACK_CUMIN": "Black cumin",
- "CROP_BLACK_PEPPER": "Black pepper",
- "CROP_BRACHIARIA": "Brachiaria",
- "CROP_BREAD_WHEAT": "Bread wheat",
- "CROP_BROCCOLI": "Broccoli",
- "CROP_BUCKWHEAT": "Buckwheat",
- "CROP_CABBAGE": "Cabbage",
- "CROP_CACAO": "Cacao",
- "CROP_CAMELINA": "Camelina",
- "CROP_CARDAMOM": "Cardamom",
- "CROP_CARROT": "Carrot",
- "CROP_CASSAVA": "Cassava",
- "CROP_CASTOR": "Castor",
- "CROP_CAULIFLOWER": "Cauliflower",
- "CROP_CHAMOMILE": "Chamomile",
- "CROP_CHICKPEA": "Chickpea",
- "CROP_CITRONELLA_GRASS": "Citronella grass",
- "CROP_COFFEE": "Coffee",
- "CROP_COMMON_BEAN": "Common bean",
- "CROP_CORIANDER": "Coriander",
- "CROP_COTTON": "Cotton",
- "CROP_COWPEA": "Cowpea",
- "CROP_CUCUMBER": "Cucumber",
- "CROP_DATE_PALM": "Date palm",
- "CROP_DEKOKO": "Dekoko",
- "CROP_DURUM_WHEAT": "Durum wheat",
- "CROP_EGGPLANT": "Eggplant",
- "CROP_EMMER_WHEAT": "Emmer wheat",
- "CROP_ENSET": "Enset",
- "CROP_ETHIOPIAN_MUSTARD": "Ethiopian mustard",
- "CROP_FABA_BEAN": "Faba bean",
- "CROP_FENUGREEK": "Fenugreek",
- "CROP_FIELD_PEA": "Field pea",
- "CROP_FIG": "Fig",
- "CROP_FINE_BUSH_BEAN": "Fine bush bean",
- "CROP_FINGER_MILLET": "Finger millet",
- "CROP_FOXTAIL_MILLET": "Foxtail millet",
- "CROP_GARLIC": "Garlic",
- "CROP_GERANIUM": "Geranium",
- "CROP_GINGER": "Ginger",
- "CROP_GRASS_PEA": "Grass pea",
- "CROP_GREEN_COURGETTE": "Green courgette",
- "CROP_GROUNDNUT": "Groundnut",
- "CROP_HARICOT_BEAN": "Haricot bean",
- "CROP_HIBISCUS": "Hibiscus",
- "CROP_JAPANESE_MINT": "Japanese mint",
- "CROP_KENAF": "Kenaf",
- "CROP_KORARIMA": "Korarima",
- "CROP_LAVENDER": "Lavender",
- "CROP_LEMONGRASS": "Lemongrass",
- "CROP_LEMON_SCENTED_EUCALYPTUS": "Lemon-scented eucalyptus",
- "CROP_LEMON_VERBENA": "Lemon verbena",
- "CROP_LENTIL": "Lentil",
- "CROP_LETTUCE": "Lettuce",
- "CROP_LIMA_BEAN": "Lima bean",
- "CROP_LINSEED": "Linseed",
- "CROP_MAIZE": "Maize",
- "CROP_MALT_BARLEY": "Malt barley",
- "CROP_MANGO": "Mango",
- "CROP_MARJORAM_OREGANO": "Marjoram / oregano",
- "CROP_MUNG_BEAN": "Mung bean",
- "CROP_MUSKMELON": "Muskmelon",
- "CROP_NOUG": "Noug",
- "CROP_OAT": "Oat",
- "CROP_OKRA": "Okra",
- "CROP_ONION": "Onion",
- "CROP_OTHER": "Other",
- "CROP_PAK_CHOI": "Pak choi",
- "CROP_PALMAROSA": "Palmarosa",
- "CROP_PAPAYA": "Papaya",
- "CROP_PEACH": "Peach",
- "CROP_PEARL_MILLET": "Pearl millet",
- "CROP_PEPPER": "Pepper",
- "CROP_PEPPERMINT": "Peppermint",
- "CROP_PIGEON_PEA": "Pigeon pea",
- "CROP_PINEAPPLE": "Pineapple",
- "CROP_POTATO": "Potato",
- "CROP_PYRETHRUM": "Pyrethrum",
- "CROP_QUINOA": "Quinoa",
- "CROP_RAPESEED": "Rapeseed",
- "CROP_RED_BEET": "Red beet",
- "CROP_RICE": "Rice",
- "CROP_ROSE": "Rose",
- "CROP_ROSEMARY": "Rosemary",
- "CROP_SAFFLOWER": "Safflower",
- "CROP_SAGE": "Sage",
- "CROP_SESAME": "Sesame",
- "CROP_SHALLOT": "Shallot",
- "CROP_SNAP_BEAN": "Snap bean",
- "CROP_SNAP_PEA": "Snap pea",
- "CROP_SNOW_PEA": "Snow pea",
- "CROP_SORGHUM": "Sorghum",
- "CROP_SOYBEAN": "Soybean",
- "CROP_SPANISH_MINT": "Spanish mint",
- "CROP_SPEARMINT": "Spearmint",
- "CROP_STEVIA": "Stevia",
- "CROP_SUGARCANE": "Sugarcane",
- "CROP_SUMMER_SQUASH": "Summer squash",
- "CROP_SUNFLOWER": "Sunflower",
- "CROP_SWEET_ANNIE": "Sweet annie",
- "CROP_SWEET_CORN": "Sweet corn",
- "CROP_SWEET_POTATO": "Sweet potato",
- "CROP_TARO": "Taro",
- "CROP_TEFF": "Teff",
- "CROP_TOBACCO": "Tobacco",
- "CROP_TOMATO": "Tomato",
- "CROP_TRITICALE": "Triticale",
- "CROP_TURMERIC": "Turmeric",
- "CROP_VANILLA": "Vanilla",
- "CROP_VERNONIA": "Vernonia",
- "CROP_WATERMELON": "Watermelon",
- "CROP_WHITE_CUMIN": "White cumin",
- "CROP_WINE_GRAPE": "Wine grape",
- "CROP_YAM": "Yam",
- "CROP_YELLOW_COURGETTE": "Yellow courgette",
- "CROP_ZIZIPHUS": "Ziziphus",
- "SEASON_BELG": "Belg (short rains)",
- "SEASON_IRRIGATION": "Irrigation (dry season)",
- "SEASON_MEHER": "Meher (main rains)"
+ "link_foundational_id": "Fayda FAN ID"
 }'::jsonb)::json
 WHERE "language_code" = 'en';
 
@@ -277,23 +148,30 @@ DECLARE
     tbl text;
     required text[] := ARRAY['record_name', 'commodity', 'season', 'planned_date', 'planned_area'];
     reference_suffix text;
+    base_name text;
 BEGIN
     FOREACH tbl IN ARRAY ARRAY['g2p_register_plannings', 'g2p_register_history_plannings', 'g2p_intake_form_plannings'] LOOP
         CONTINUE WHEN to_regclass(format('public.%I', tbl)) IS NULL;
         CONTINUE WHEN (SELECT count(*) FROM information_schema.columns c
                        WHERE c.table_schema = 'public' AND c.table_name = tbl AND c.column_name = ANY (required)) <> 5;
         reference_suffix := '';
+        base_name := 'record_name';
         IF EXISTS (SELECT 1 FROM information_schema.columns c
                    WHERE c.table_schema = 'public' AND c.table_name = tbl AND c.column_name = 'application_reference') THEN
             reference_suffix := ' || CASE WHEN coalesce(application_reference, '''') = '''' THEN '''' ELSE '' '' || application_reference END';
+            base_name := 'CASE WHEN coalesce(application_reference, '''') <> '''' AND right(record_name, length(application_reference) + 1) = '' '' || application_reference THEN left(record_name, length(record_name) - length(application_reference) - 1) ELSE record_name END';
         END IF;
+        -- Only a name the old builder produced: the commodity code, the season code
+        -- and an optional area, joined by single spaces (and, on the intake table,
+        -- the application reference). A name a person edited, or one that is
+        -- already words, does not match, so it is never touched.
         EXECUTE format(
             'UPDATE public.%1$I SET record_name = pg_temp.planning_name(commodity, season, planned_date, planned_area)%2$s'
-            ' WHERE coalesce(nullif(btrim(commodity), ''''), nullif(btrim(season), '''')) ~ ''^[A-Z0-9]+(_[A-Z0-9]+)+$'''
-            ' AND (record_name = coalesce(nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
-            ' OR left(record_name, length(coalesce(nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))) + 1)'
-            '    = coalesce(nullif(btrim(commodity), ''''), nullif(btrim(season), '''')) || '' '')',
-            tbl, reference_suffix);
+            ' WHERE concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
+            '       ~ ''^(CROP_[A-Z0-9_]+( (CROP_)?SEASON_[A-Z0-9_]+)?|(CROP_)?SEASON_[A-Z0-9_]+)$'''
+            ' AND %3$s ~ (''^'' || concat_ws('' '', nullif(btrim(commodity), ''''), nullif(btrim(season), ''''))'
+            '             || ''( [0-9]+(\.[0-9]+)?)?$'')',
+            tbl, reference_suffix, base_name);
     END LOOP;
 END;
 $$;

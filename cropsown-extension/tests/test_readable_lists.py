@@ -106,23 +106,59 @@ def test_list_words_for_gender_action_source_and_status():
     assert words["cs_farmer_identity"] == "Farmer identity"
 
 
-def test_list_words_for_the_planning_columns():
-    words = overlay_translations()
+GENERATOR = SRC.parents[2] / "docker" / "db-seed" / "build_list_words_sql.py"
+PACK = Path(__file__).parent / "fixtures" / "pack"
+
+
+def generator():
+    spec = importlib.util.spec_from_file_location("list_words_generator", GENERATOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def generated_words():
+    sql = generator().render(generator().words(PACK))
+    block = re.search(r"'(\{\n.*?\n\})'::jsonb", sql, re.S).group(1)
+    return sql, json.loads(block)
+
+
+def test_no_commodity_or_season_word_is_typed_into_the_overlay():
+    assert not [key for key in overlay_translations() if key.startswith(("CROP_", "SEASON_"))]
+    assert "86b_list_words.sql" in (SRC.parents[2] / "docker" / "db-seed" / "Dockerfile").read_text(encoding="utf-8")
+
+
+def test_the_generator_renders_the_pack_labels():
+    sql, words = generated_words()
     assert words["CROP_MAIZE"] == "Maize"
-    assert words["CROP_TEFF"] == "Teff"
+    assert words["CROP_TEFF"] == "Teff"  # whatever the pack says, no special case
+    assert words["CROP_MARJORAM_OREGANO"] == "Marjoram / oregano"
     assert words["SEASON_MEHER"] == "Meher (main rains)"
     assert words["SEASON_BELG"] == "Belg (short rains)"
     assert words["SEASON_IRRIGATION"] == "Irrigation (dry season)"
-    commodities = [key for key in words if key.startswith("CROP_")]
-    assert len(commodities) >= 120
-    assert all("_" not in words[key] and not words[key].isupper() for key in commodities)
+    assert len(words) == 8
 
 
-def test_record_name_words_match_the_commodity_list_words():
-    words = overlay_translations()
-    differing = [key for key, label in words.items() if key.startswith("CROP_") and key != "CROP_TEFF"
-                 and plain.commodity_label(key) != label]
-    assert differing == []
+def test_the_generated_sql_keeps_local_translations_and_is_repeatable():
+    sql, _ = generated_words()
+    assert "}'::jsonb || COALESCE(\"domain_translation\"::jsonb, '{}'::jsonb))::json" in sql  # defaults first, local last
+    assert sql == generator().render(generator().words(PACK))
+    assert chr(13) not in sql
+
+
+def test_the_generator_escapes_quotes():
+    assert "O''Brien" in generator().render({"CROP_X": "O'Brien"})
+
+
+def test_record_name_words_match_the_pack_labels():
+    _, words = generated_words()
+    assert [key for key, label in words.items() if key.startswith("CROP_") and plain.commodity_label(key) != label] == []
+
+
+@unittest.skipUnless(os.environ.get("OPENG2P_DATA_DIR"), "Needs an openg2p-data checkout")
+def test_record_name_words_match_the_whole_pinned_pack():
+    words = generator().words(Path(os.environ["OPENG2P_DATA_DIR"]))
+    assert [key for key, label in words.items() if key.startswith("CROP_") and plain.commodity_label(key) != label] == []
 
 
 def test_the_fayda_number_has_one_name():
@@ -241,7 +277,7 @@ class ReadableListsReplayTests(unittest.IsolatedAsyncioTestCase):
         assert not every & {"Fayda FAN (16 digits)", "Fayda ID (FAN)", "Farmer reference", "Fayda FIN (from verification)"}
         assert {form.form_id: form.form_mnemonic for form in forms} == INTAKE_FORMS
         assert {d.register_id: d.register_subject for d in definitions}[CROP] == "Crop sown registry"
-        assert shown["FEMALE"] == "Female" and shown["SEASON_MEHER"] == "Meher (main rains)"
+        assert shown["FEMALE"] == "Female"
         assert shown["fayda_fan_id"] == "Fayda FAN ID"
         assert shown["cropsown_farmer_tab"] == "Farmer"  # the earlier overlays' keys survive the merge
 
