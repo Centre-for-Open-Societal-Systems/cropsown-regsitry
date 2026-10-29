@@ -49,7 +49,7 @@
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
-#   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads images/templates to MinIO
+#   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads the transform templates to MinIO
 #   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
 #                                               cropsown-registry-dashboard-api (image
 #                                               ${DASHBOARD_API_ECR}:<tag>)
@@ -296,7 +296,8 @@ registry:
     image: {repository: '${ECR}/celery', tag: '${TAG}'}
   dbSeed:
     enabled: ${RUN_DB_SEED}
-    loadImages: ${SEED_MINIO_ASSETS}
+    # The crop db-seed image carries configuration only (no /seed/upload_images.py).
+    loadImages: false
     loadTemplates: ${SEED_MINIO_ASSETS}
     image: {repository: '${ECR}/db-seed', tag: '${TAG}'}
   sanity:
