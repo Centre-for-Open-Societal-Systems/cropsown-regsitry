@@ -3,8 +3,10 @@
 No platform method is reassigned. CR construction, approval, history, ingestion,
 outgestion and webhook authentication remain native implementations.
 """
+import asyncio
 from contextvars import ContextVar
 from importlib import import_module
+import logging
 import os
 
 from sqlalchemy import select
@@ -30,6 +32,20 @@ from .profile import FarmerReferenceError, reference_identity, intake_identity, 
 # The platform's own name for change requests raised by its ingestion pipeline
 # (ChangeRequestSourceEnum.INGESTION_PIPELINE); the native ingest worker passes it.
 INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
+
+_logger = logging.getLogger("coss-farmer-reference-validate")
+_IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
+
+
+def _issue_code(reference_code: str) -> str:
+    """The Validate issue code for a Farmer reference refusal."""
+    if (reference_code in messages.UNAVAILABLE
+            or reference_code in {"FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"}):
+        return "LOOKUP_UNAVAILABLE"
+    if reference_code in _IDENTITY_MISMATCH:
+        return "FARMER_IDENTITY_MISMATCH"
+    return "FARMER_NOT_FOUND"
+
 
 _approved_callback = ContextVar("coss_farmer_approved_callback", default=None)
 
@@ -192,8 +208,9 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
             if problem:
                 from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
 
+                code, sentence = problem
                 result.issues.append(IntakeSubmissionValidationIssue(
-                    code="FARMER_NOT_FOUND", message=problem if problem[-1:] in ".!?" else problem + "."))
+                    code=code, message=sentence if sentence[-1:] in ".!?" else sentence + "."))
                 result.is_valid = False
         return result
 
@@ -223,7 +240,7 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
                     validate_production_season_fields({"crop_year": row.crop_year,
                                                        "production_season": row.production_season})
                 except G2PRegistryException as error:
-                    return error.message
+                    return "SUBMISSION_INCOMPLETE", error.message
         if await session.get(FarmerSubmissionDependency, submission_id):
             return None
         live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
@@ -242,13 +259,19 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
                 return None  # the missing ID is reported with the other missing fields
             client = configured_lookup()
             if declared.get("fayda_fin"):
-                source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
+                call = client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
             else:
-                source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+                call = client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+            # httpx times each phase, not the whole call: bound the whole lookup.
+            seconds = getattr(getattr(client, "config", None), "timeout_seconds", None) or 8.0
+            source = await asyncio.wait_for(call, seconds)
             if not matches_declared_identity(declared, source.profile):
                 raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         except FarmerReferenceError as error:
-            return explain(str(error), declared_ids)
+            return _issue_code(str(error)), explain(str(error), declared_ids)
+        except Exception as error:  # noqa: BLE001 - signing, transport or timeout: Validate must answer
+            _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
         return None
 
     async def _finalize_with_farmer(self, submission_id, session, finalized_by, bearer_token, requester_sub,

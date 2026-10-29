@@ -92,7 +92,7 @@ def test_a_message_that_is_not_about_a_list_is_unchanged():
 def test_the_translation_is_seeded_without_replacing_other_keys():
     sql = (META / "zz-oan" / "87_code_choice_message.sql").read_text(encoding="utf-8")
     assert '"coss_code_choice": "{label}: choose {noun} from the list."' in sql
-    assert 'COALESCE("domain_translation"::jsonb' in sql and "||" in sql and "\r" not in sql
+    assert sql.index("coss_code_choice") < sql.index('COALESCE("domain_translation"') and "\r" not in sql
 
 
 def test_the_installed_validator_rewords_what_core_refuses(monkeypatch):
@@ -150,7 +150,7 @@ def _validate(service, base):
 
 
 def test_validate_reports_a_farmer_who_cannot_be_linked():
-    service = _reference_service("No farmer with Farmer ID FR-000000000001 is in the Farmer Registry")
+    service = _reference_service(("FARMER_NOT_FOUND", "No farmer with Farmer ID FR-000000000001 is in the Farmer Registry"))
     result = _validate(service, SimpleNamespace(issues=[], is_valid=True))
     assert not result.is_valid
     assert result.issues[0].message == "No farmer with Farmer ID FR-000000000001 is in the Farmer Registry."
@@ -162,7 +162,7 @@ def test_validate_is_valid_when_the_farmer_checks_out():
 
 
 def test_the_farmer_is_not_looked_up_while_the_form_is_still_incomplete():
-    service = _reference_service("anything")
+    service = _reference_service(("X", "anything"))
     result = _validate(service, SimpleNamespace(issues=["missing"], is_valid=False))
     service._submission_problem.assert_not_called()
     assert result.issues == ["missing"]
@@ -224,14 +224,14 @@ def _row(**changes):
 def test_an_unknown_farmer_is_explained_before_submit(monkeypatch):
     service = _lookup_service(
         monkeypatch, AsyncMock(side_effect=profile.FarmerReferenceError("FARMER_REFERENCE_NOT_FOUND")))
-    text = run(service._submission_problem("s", _session(_row())))
+    code, text = run(service._submission_problem("s", _session(_row())))
     assert text.startswith("No farmer with Farmer ID FR-123456789012 and FAN 1234567890123456 is in the Farmer Registry")
 
 
 def test_a_wrong_pair_is_explained_before_submit(monkeypatch):
     found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "9999999999999999"})
     service = _lookup_service(monkeypatch, AsyncMock(return_value=found))
-    text = run(service._submission_problem("s", _session(_row())))
+    code, text = run(service._submission_problem("s", _session(_row())))
     assert text.startswith("The Farmer ID and Fayda ID belong to different farmers in the Farmer Registry")
 
 
@@ -251,7 +251,7 @@ def test_a_form_already_linked_to_a_farmer_is_left_to_submit(monkeypatch):
 def test_a_missing_production_season_is_reported_before_any_lookup(monkeypatch):
     lookup = AsyncMock()
     service = _lookup_service(monkeypatch, lookup)
-    text = run(service._submission_problem("s", _session(_row(production_season=None))))
+    code, text = run(service._submission_problem("s", _session(_row(production_season=None))))
     assert text and "season" in text.lower()
     lookup.assert_not_called()
 
@@ -259,5 +259,43 @@ def test_a_missing_production_season_is_reported_before_any_lookup(monkeypatch):
 def test_an_unreachable_registry_is_not_called_a_wrong_farmer(monkeypatch):
     service = _lookup_service(
         monkeypatch, AsyncMock(side_effect=profile.FarmerReferenceError("FARMER_REFERENCE_LOOKUP_UNAVAILABLE")))
-    text = run(service._submission_problem("s", _session(_row())))
+    code, text = run(service._submission_problem("s", _session(_row())))
     assert text.startswith("The Farmer Registry could not be reached")
+
+
+def _problem(monkeypatch, lookup, **row):
+    return run(_lookup_service(monkeypatch, lookup)._submission_problem("s", _session(_row(**row))))
+
+
+def test_issue_codes_tell_the_causes_apart(monkeypatch):
+    err = profile.FarmerReferenceError
+    assert _problem(monkeypatch, AsyncMock(side_effect=err("FARMER_REFERENCE_NOT_FOUND")))[0] == "FARMER_NOT_FOUND"
+    assert _problem(monkeypatch, AsyncMock(side_effect=err("FARMER_REFERENCE_LOOKUP_UNAVAILABLE")))[0] == "LOOKUP_UNAVAILABLE"
+    assert _problem(monkeypatch, AsyncMock(side_effect=err("FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED")))[0] == "LOOKUP_UNAVAILABLE"
+    assert _problem(monkeypatch, AsyncMock(side_effect=err("FARMER_REFERENCE_RESPONSE_SIGNATURE_INVALID")))[0] == "LOOKUP_UNAVAILABLE"
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "9999999999999999"})
+    assert _problem(monkeypatch, AsyncMock(return_value=found))[0] == "FARMER_IDENTITY_MISMATCH"
+    assert _problem(monkeypatch, AsyncMock(), production_season=None)[0] == "SUBMISSION_INCOMPLETE"
+
+
+def test_a_signing_failure_is_answered_not_raised(monkeypatch):
+    code, text = _problem(monkeypatch, AsyncMock(side_effect=ValueError("bad key material")))
+    assert code == "LOOKUP_UNAVAILABLE"
+    assert text.startswith("The Farmer Registry could not be reached") and "bad key" not in text
+
+
+def test_a_lookup_that_never_answers_is_cut_off(monkeypatch):
+    async def never(*args, **kwargs):
+        await asyncio.sleep(60)
+
+    service = _lookup_service(monkeypatch, never)
+    monkeypatch.setattr(native, "configured_lookup",
+                        lambda: SimpleNamespace(lookup=never, config=SimpleNamespace(timeout_seconds=0.05)))
+    code, _ = run(service._submission_problem("s", _session(_row())))
+    assert code == "LOOKUP_UNAVAILABLE"
+
+
+def test_validate_files_the_issue_under_the_code_of_the_problem():
+    service = _reference_service(("FARMER_IDENTITY_MISMATCH", "The IDs belong to different farmers"))
+    result = _validate(service, SimpleNamespace(issues=[], is_valid=True))
+    assert result.issues[0].code == "FARMER_IDENTITY_MISMATCH"
