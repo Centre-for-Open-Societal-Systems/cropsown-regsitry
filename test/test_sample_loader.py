@@ -307,3 +307,30 @@ def test_an_intact_reference_is_used_as_it_is_and_a_pending_one_stops_the_load(l
     with pytest.raises(RuntimeError, match="PENDING, not APPROVED"):
         loader.Registry._ensure_farmer(FakeCursor(reference=("ref-1", "FR-1", "local-1", "PENDING")),
                                        plan(loader)[0]["farmer"], "a", "b", "ETH-IND-0001")
+
+
+KEYCLOAK_TOKEN = "https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token"
+
+
+@pytest.mark.parametrize("environ, expected", [
+    ({"STAFF_IAM_URL": "https://iam.example.org", "STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://iam.example.org"),
+    ({"STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://staff-iam.development.oanstaging.com"),
+    ({"STAFF_TOKEN_URL": "https://keycloak.farmer.openg2p.org/realms/staff/protocol/openid-connect/token"},
+     "https://staff-iam.farmer.openg2p.org"),
+])
+def test_staff_iam_is_the_public_host_next_to_keycloak(loader, monkeypatch, environ, expected):
+    for name in ("STAFF_IAM_URL", "STAFF_TOKEN_URL"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environ.items():
+        monkeypatch.setenv(name, value)
+    assert loader.staff_iam_url() == expected
+
+
+@pytest.mark.parametrize("token_url", [None, "https://auth.example.org/realms/staff/protocol/openid-connect/token"])
+def test_staff_iam_needs_the_address_when_keycloak_is_not_keycloak_domain(loader, monkeypatch, token_url):
+    monkeypatch.delenv("STAFF_IAM_URL", raising=False)
+    monkeypatch.delenv("STAFF_TOKEN_URL", raising=False)
+    if token_url:
+        monkeypatch.setenv("STAFF_TOKEN_URL", token_url)
+    with pytest.raises(RuntimeError):
+        loader.staff_iam_url()
