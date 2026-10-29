@@ -181,6 +181,76 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
             raise G2PRegistryException(code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
                                        message=explain(str(error), declared_ids)) from None
 
+    async def validate_submission_for_approval_with_session(self, submission_id, session):
+        """Validate also checks what Submit checks before it creates anything:
+        the production season, and the Farmer, looked up read only. A wrong
+        Farmer ID and Fayda ID pair or an unknown farmer is reported here and
+        not first by Submit."""
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        if not result.issues:
+            problem = await self._submission_problem(submission_id, session)
+            if problem:
+                from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+
+                result.issues.append(IntakeSubmissionValidationIssue(
+                    code="FARMER_NOT_FOUND", message=problem if problem[-1:] in ".!?" else problem + "."))
+                result.is_valid = False
+        return result
+
+    async def _submission_problem(self, submission_id, session):
+        """The sentence Submit would refuse the draft with after the form is
+        complete (season, then the Farmer ID and Fayda ID), or None. Nothing is
+        created: the signed lookup is only read. A form already linked to a
+        farmer is left to Submit."""
+        submission = await self._get_submission_or_error(submission_id, session)
+        definition = await self._get_register_definition(submission.register_id, session)
+        if definition.register_mnemonic not in {"CropSown", "Livestock"}:
+            return None
+        models = domain_models()
+        root = getattr(models, "G2PIntakeForm" + definition.register_mnemonic)
+        rows = (await session.execute(select(root).where(root.submission_id == submission_id))).scalars().all()
+        if len(rows) != 1:
+            return None
+        row = rows[0]
+        if definition.register_mnemonic == "CropSown":
+            sections = await self._get_form_sections(submission.form_id, session)
+            if any(section.section_mnemonic in {"cs_intake_season", "cs_common_intake_season"}
+                   for section in sections):
+                from ..register_domain.services.g2p_register_domain_service_crop_sown import (
+                    validate_production_season_fields,
+                )
+                try:
+                    validate_production_season_fields({"crop_year": row.crop_year,
+                                                       "production_season": row.production_season})
+                except G2PRegistryException as error:
+                    return error.message
+        if await session.get(FarmerSubmissionDependency, submission_id):
+            return None
+        live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
+        if live and live.last_approved_at and live.farmer_uuid:
+            return None
+        return await self._farmer_problem(row)
+
+    async def _farmer_problem(self, row):
+        from .messages import explain
+
+        declared_ids = {key: value for key, value in model_identity(row).items()
+                        if key in {"farmer_id", "fayda_fin", "fayda_fan_id"} and value}
+        try:
+            declared = intake_identity(model_identity(row))
+            if not declared.get("farmer_id"):
+                return None  # the missing ID is reported with the other missing fields
+            client = configured_lookup()
+            if declared.get("fayda_fin"):
+                source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
+            else:
+                source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+            if not matches_declared_identity(declared, source.profile):
+                raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        except FarmerReferenceError as error:
+            return explain(str(error), declared_ids)
+        return None
+
     async def _finalize_with_farmer(self, submission_id, session, finalized_by, bearer_token, requester_sub,
                                     declared_ids):
         # A person submitting (bearer present) is told at once; workers hold and retry.

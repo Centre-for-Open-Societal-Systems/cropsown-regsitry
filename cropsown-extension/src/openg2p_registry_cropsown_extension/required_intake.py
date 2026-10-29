@@ -41,6 +41,14 @@ def refuse(problems):
     )
 
 
+def incomplete_issue(message: str):
+    from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+
+    message = str(message).strip(" ;")
+    return IntakeSubmissionValidationIssue(
+        code="SUBMISSION_INCOMPLETE", message=message if message[-1:] in ".!?" else message + ".")
+
+
 class RequiredFieldsMixin:
     async def _required_messages(self, session) -> dict:
         """The default language's translations; the sentences read fine without."""
@@ -68,6 +76,16 @@ class RequiredFieldsMixin:
         return await super().save_intake_form_submission_with_session(
             submission_id, section_id, section_payload, section_register_id,
             form_id, register_id, created_by, session, documents=documents)
+
+    async def validate_submission_for_approval_with_session(self, submission_id, session):
+        """Validate says what Submit will say: the platform's row and link
+        checks, then the completeness checks Submit runs first, so a draft is
+        not reported valid and then refused."""
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        for problem in dict.fromkeys(await self._required_on_finalize(submission_id, session)):
+            result.issues.append(incomplete_issue(problem))
+        result.is_valid = not result.issues
+        return result
 
     async def ensure_form_complete(self, submission_id, session):
         """Refuse a submission whose form still has a required field empty.
