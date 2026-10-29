@@ -48,3 +48,28 @@ ON CONFLICT ("key_path_id") DO UPDATE SET
     "key_path_for_signature_payload" = EXCLUDED."key_path_for_signature_payload",
     "is_list" = EXCLUDED."is_list",
     "key_path_for_list_elements" = EXCLUDED."key_path_for_list_elements";
+
+-- FILE_IMPORT_TO_CROP_*_INTAKE: the import worker wraps every file row as
+-- {"headers": {message_id, sender_id, signature}, "body": <flat row>}.
+INSERT INTO "public"."incoming_model_key_paths" (
+    "key_path_id",
+    "data_model_id",
+    "key_path_for_message_id",
+    "key_path_for_sender",
+    "key_path_for_signature",
+    "key_path_for_signature_payload",
+    "is_list",
+    "key_path_for_list_elements"
+) VALUES
+('file_import_to_crop_planning_intake_key_path','file_import_to_crop_planning_intake','$.headers.message_id','$.headers.sender_id','$.headers.signature','$.body','FALSE',''),
+('file_import_to_crop_cultivation_intake_key_path','file_import_to_crop_cultivation_intake','$.headers.message_id','$.headers.sender_id','$.headers.signature','$.body','FALSE',''),
+('file_import_to_crop_sowing_intake_key_path','file_import_to_crop_sowing_intake','$.headers.message_id','$.headers.sender_id','$.headers.signature','$.body','FALSE',''),
+('file_import_to_crop_harvesting_intake_key_path','file_import_to_crop_harvesting_intake','$.headers.message_id','$.headers.sender_id','$.headers.signature','$.body','FALSE','')
+ON CONFLICT ("key_path_id") DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "key_path_for_message_id" = EXCLUDED."key_path_for_message_id",
+    "key_path_for_sender" = EXCLUDED."key_path_for_sender",
+    "key_path_for_signature" = EXCLUDED."key_path_for_signature",
+    "key_path_for_signature_payload" = EXCLUDED."key_path_for_signature_payload",
+    "is_list" = EXCLUDED."is_list",
+    "key_path_for_list_elements" = EXCLUDED."key_path_for_list_elements";

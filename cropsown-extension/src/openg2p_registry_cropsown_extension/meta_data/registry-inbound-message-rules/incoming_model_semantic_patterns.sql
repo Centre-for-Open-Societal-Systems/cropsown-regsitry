@@ -191,3 +191,29 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
     "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
     "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";
+
+-- FILE_IMPORT_TO_CROP_*_INTAKE patterns: the import names the register and the form itself, so the stage that
+-- classifies by pattern is skipped and the intake-form pattern never has to match. The business
+-- payload is the flat row; the enricher is the identity pass-through, the template does the mapping.
+INSERT INTO "public"."incoming_model_semantic_patterns" (
+    "semantic_pattern_id",
+    "data_model_id",
+    "register_id",
+    "intake_form_id",
+    "pattern_for_register",
+    "pattern_for_intake_form",
+    "key_path_for_business_payload",
+    "raw_payload_enricher_class"
+) VALUES
+('file_import_to_crop_planning_intake_pattern','file_import_to_crop_planning_intake','6b06a95a-9a6c-5a33-a33d-c1625716c59c','5bf0068c-ce19-46f8-874c-7147997f793b','$.headers.sender_id=>^.+$','$.headers.sender_id=>^NEVER_CLASSIFY$','$.body','G2PPassThroughEnricherService'),
+('file_import_to_crop_cultivation_intake_pattern','file_import_to_crop_cultivation_intake','6b06a95a-9a6c-5a33-a33d-c1625716c59c','6be15ab9-0f1b-4c38-995f-395d52a1b17a','$.headers.sender_id=>^.+$','$.headers.sender_id=>^NEVER_CLASSIFY$','$.body','G2PPassThroughEnricherService'),
+('file_import_to_crop_sowing_intake_pattern','file_import_to_crop_sowing_intake','6b06a95a-9a6c-5a33-a33d-c1625716c59c','4a7c2c98-0ffb-41d8-8fea-f22349823675','$.headers.sender_id=>^.+$','$.headers.sender_id=>^NEVER_CLASSIFY$','$.body','G2PPassThroughEnricherService'),
+('file_import_to_crop_harvesting_intake_pattern','file_import_to_crop_harvesting_intake','6b06a95a-9a6c-5a33-a33d-c1625716c59c','52150a37-153d-496d-9cd9-2a3815d6e13b','$.headers.sender_id=>^.+$','$.headers.sender_id=>^NEVER_CLASSIFY$','$.body','G2PPassThroughEnricherService')
+ON CONFLICT ("semantic_pattern_id") DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "register_id" = EXCLUDED."register_id",
+    "intake_form_id" = EXCLUDED."intake_form_id",
+    "pattern_for_register" = EXCLUDED."pattern_for_register",
+    "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
+    "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
+    "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";

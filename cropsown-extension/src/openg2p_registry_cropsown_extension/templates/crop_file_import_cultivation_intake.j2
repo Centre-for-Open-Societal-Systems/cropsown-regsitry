@@ -1,0 +1,66 @@
+{#-
+  Crop Sown file import, cultivation intake. One flat row of a CSV or Excel file (every value a string) becomes
+  the sections of one cultivation intake. The import worker hands the row over as the business payload, so
+  the columns are the register's own field names (docs/file-import.md lists them with their codes).
+  Child rows are not imported: add them in the staff portal or by change request.
+  A value the register cannot take fails this row only, with the column named in the error.
+-#}
+{% macro fail(message) %}{{ {}[message].invalid }}{% endmacro %}
+{% set row = expanded if expanded is defined else {} %}
+{% set cell = {} %}
+{% for key, raw in row.items() %}{% set _ = cell.update({(key | string | trim | lower): ((raw if raw is not none else '') | string | trim)}) %}{% endfor %}
+
+{% set farmer_id = cell.get('farmer_id', '') | upper %}
+{% if not (farmer_id.startswith('FR-') and farmer_id[3:].isdigit() and farmer_id | length == 15) %}{{ fail('column farmer_id must be FR- followed by 12 digits, got ' ~ farmer_id) }}{% endif %}
+{% set fayda_id = cell.get('fayda_id', '') | replace(' ', '') %}
+{% if not (fayda_id.isdigit() and fayda_id | length in [12, 16]) %}{{ fail('column fayda_id must be a 16-digit FAN or a 12-digit FIN, got ' ~ fayda_id) }}{% endif %}
+{% set crop_year = cell.get('crop_year', '') %}
+{% if not (crop_year.isdigit() and crop_year | length == 4) %}{{ fail('column crop_year must be a four-digit year, got ' ~ crop_year) }}{% endif %}
+{% set production_season = cell.get('production_season', '') %}
+{% if not production_season %}{{ fail('column production_season is required') }}{% endif %}
+
+{% set text_columns = ['land_id', 'season', 'commodity', 'crop_category', 'crop_variety', 'local_name', 'scientific_name', 'cultivation_type', 'seed_variety', 'actual_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
+{% set number_columns = ['land_area', 'actual_crop_area', 'actual_yield', 'actual_seed_qty', 'actual_fertilizer_qty'] %}
+{% set integer_columns = ['start_month', 'start_day', 'end_month', 'end_day', 'actual_growth_duration_days'] %}
+{% set date_columns = ['start_gc', 'end_gc', 'actual_cultivation_date'] %}
+{% set flag_columns = ['is_plot_not_registered'] %}
+{% set choice_columns = {'cropping_system': ['MONO_CROPPING', 'INTER_CROPPING'], 'actual_seed_class': ['LOCAL', 'IMPROVED'], 'actual_seed_source': ['GOVERNMENT / WOREDS AGRICULTURE', 'AGRICULTURE COOPERATIVE / UNION', 'PRIVATE SEED ENTERPRISE', 'FARMER-TO-FARMER EXCHANGE / SAVED']} %}
+{% set comma_list_columns = ['land_prep_method'] %}
+{% set choice_list_columns = {} %}
+
+{% set record = {} %}
+{% for key in text_columns %}{% if cell.get(key) %}{% set _ = record.update({key: cell[key]}) %}{% endif %}{% endfor %}
+{% for key in number_columns %}{% set value = cell.get(key, '') %}{% if value %}
+  {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ key ~ ' must be a number, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value | float}) %}
+{% endif %}{% endfor %}
+{% for key in integer_columns %}{% set value = cell.get(key, '') %}{% if value %}
+  {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ key ~ ' must be a whole number, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value | float | int}) %}
+{% endif %}{% endfor %}
+{% for key in date_columns %}{% set value = cell.get(key, '')[:10] %}{% if value %}
+  {% set parts = value.split('-') %}
+  {% if not (parts | length == 3 and parts[0] | length == 4 and parts[1] | length == 2 and parts[2] | length == 2 and (parts | join('')).isdigit()) %}{{ fail('column ' ~ key ~ ' must be a date as YYYY-MM-DD, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value}) %}
+{% endif %}{% endfor %}
+{% for key in flag_columns %}{% set value = cell.get(key, '') | lower %}{% if value %}
+  {% if value not in ['true', 'yes', '1', 'false', 'no', '0'] %}{{ fail('column ' ~ key ~ ' must be yes or no, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value in ['true', 'yes', '1']}) %}
+{% endif %}{% endfor %}
+{% for key, allowed in choice_columns.items() %}{% set value = cell.get(key, '') | upper %}{% if value %}
+  {% if value not in allowed %}{{ fail('column ' ~ key ~ ' must be one of ' ~ allowed | join(', ') ~ ', got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value}) %}
+{% endif %}{% endfor %}
+{% for key in comma_list_columns %}{% set values = cell.get(key, '').split(';') | map('trim') | reject('equalto', '') | map('upper') | list %}{% if values %}
+  {% set _ = record.update({key: values | join(',')}) %}
+{% endif %}{% endfor %}
+{% for key, allowed in choice_list_columns.items() %}{% set values = cell.get(key, '').split(';') | map('trim') | reject('equalto', '') | map('upper') | list %}{% if values %}
+  {% for value in values %}{% if value not in allowed %}{{ fail('column ' ~ key ~ ' takes ' ~ allowed | join(' and ') ~ ' separated by semicolons, got ' ~ value) }}{% endif %}{% endfor %}
+  {% set _ = record.update({key: values}) %}
+{% endif %}{% endfor %}
+{% if 'season' not in record %}{% set _ = record.update({'season': production_season}) %}{% endif %}
+
+{% set lookup = {'farmer_id': farmer_id, 'fayda_fin': fayda_id if fayda_id | length == 12 else none, 'fayda_fan_id': fayda_id if fayda_id | length == 16 else none, 'status': 'DRAFT', 'lifecycle_stage': 'CULTIVATION'} %}
+{% set sections = {'crop_farmer_lookup': [lookup], 'cs_common_intake_season': [{'crop_year': crop_year, 'production_season': production_season}], 'cs_cultivation_details': [record]} %}
+
+{{ sections | tojson }}
