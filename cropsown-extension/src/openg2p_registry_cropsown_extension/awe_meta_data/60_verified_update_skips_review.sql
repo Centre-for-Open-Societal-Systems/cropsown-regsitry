@@ -16,8 +16,8 @@ ON CONFLICT (policy_key,version) DO NOTHING;
 INSERT INTO public.approval_stage (id,policy_id,stage_order,name,mode,mode_value,sla_hours,parallel_group,skip_if,on_empty,on_breach,escalation_rules_json,created_at,updated_at)
 SELECT v.id,p.id,v.stage_order,v.name,'any-n',1,CAST(NULL AS integer),CAST(NULL AS integer),CAST('{"and": [{"==": [{"var": "change_type"}, "UPDATE"]}, {"==": [{"var": "source"}, "farmer-registry"]}]}' AS json),'block',CAST(NULL AS integer),'null',NOW(),NOW()
 FROM (VALUES
-('fb4ec737-a1c4-5a5b-a4a9-1b788c16cc68','registry.change_request.cropsown-farmer.verified-update-skips-review',1,'Stage 1 Officers'),
-('5cc7ff63-487e-5861-8a87-38454ee8466a','registry.change_request.cropsown-farmer.verified-update-skips-review',2,'Stage 2 Officers')) AS v(id,policy_key,stage_order,name)
+('fb4ec737-a1c4-5a5b-a4a9-1b788c16cc68','registry.change_request.cropsown-farmer.verified-update-skips-review',1,'Stage 1 officers'),
+('5cc7ff63-487e-5861-8a87-38454ee8466a','registry.change_request.cropsown-farmer.verified-update-skips-review',2,'Stage 2 officers')) AS v(id,policy_key,stage_order,name)
 JOIN public.approval_policy p ON p.policy_key=v.policy_key AND p.version=1
 WHERE NOT EXISTS (SELECT 1 FROM public.approval_stage s WHERE s.policy_id=p.id AND s.stage_order=v.stage_order)
 ON CONFLICT (id) DO NOTHING;
