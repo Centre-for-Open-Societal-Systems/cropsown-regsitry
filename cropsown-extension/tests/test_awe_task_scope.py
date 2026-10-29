@@ -192,6 +192,23 @@ class ListMyTasksTests(unittest.TestCase):
         result = run(service.list_my_tasks(Payload(), bearer_token="t"))
         self.assertEqual([t["policy_key"] for t in result["items"]], [legacy])
 
+    def test_key_listed_in_the_extra_keys_setting_is_owned(self):
+        retired = "registry.intake_form.planning_cropsown"
+        tasks = [task(1, retired), task(2, "registry.change_request.devcropsown"), task(3, FOREIGN[0])]
+        setting = {scope_module.EXTRA_POLICY_KEYS_SETTING: f" {retired} , registry.change_request.devcropsown,"}
+        with mock.patch.dict(scope_module.os.environ, setting):
+            service = make_service(tasks)
+            result = run(service.list_my_tasks(Payload(), bearer_token="t"))
+        self.assertEqual(sorted(t["policy_key"] for t in result["items"]),
+                         ["registry.change_request.devcropsown", retired])
+
+    def test_extra_keys_setting_alone_does_not_scope_an_unreadable_seed(self):
+        setting = {scope_module.EXTRA_POLICY_KEYS_SETTING: "registry.intake_form.planning_cropsown"}
+        with tempfile.TemporaryDirectory() as empty, mock.patch.dict(scope_module.os.environ, setting):
+            service = make_service(mixed_tasks(), package_dir=Path(empty))
+            result = run(service.list_my_tasks(Payload(), bearer_token="t"))
+        self.assertEqual(result["items"], ["platform"])
+
     def test_unreadable_seed_leaves_the_platform_listing_untouched(self):
         with tempfile.TemporaryDirectory() as empty:
             service = make_service(mixed_tasks(), package_dir=Path(empty))

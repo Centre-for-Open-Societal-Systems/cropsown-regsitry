@@ -13,12 +13,15 @@ domain (``registry.change_request.cropsown-farmer.default`` belongs to
 ``cropsown``, ``registry.intake_form.household`` to ``household``), which also
 keeps variants of the seeded keys together. Keys the registry configures in its
 own database (``g2p_registry_awe_policy_configurations``) are added at run
-time.
+time. Keys the registry no longer seeds or binds, but whose open tasks it still
+owns, are listed in the ``AWE_TASK_SCOPE_EXTRA_POLICY_KEYS`` setting
+(comma-separated).
 
 This module has no platform imports so it can be tested on its own.
 """
 import logging
 import math
+import os
 import re
 import time
 from pathlib import Path
@@ -38,6 +41,7 @@ AWE_PAGE_SIZE = 100
 # response cannot loop forever.
 MAX_AWE_PAGES = 100
 CONFIGURED_KEYS_TTL_SECONDS = 60.0
+EXTRA_POLICY_KEYS_SETTING = "AWE_TASK_SCOPE_EXTRA_POLICY_KEYS"
 
 
 def _domain(policy_key: str) -> Optional[str]:
@@ -82,6 +86,13 @@ def seeded_policy_keys(package_dir: Path) -> set:
         except OSError:
             _logger.warning("Cannot read approval seed %s", path)
     return keys
+
+
+def extra_policy_keys(value: Optional[str] = None) -> set:
+    """Policy keys listed in the extra-keys setting."""
+    if value is None:
+        value = os.environ.get(EXTRA_POLICY_KEYS_SETTING, "")
+    return {key.strip() for key in value.split(",") if key.strip()}
 
 
 def paged(items: list, page: int, page_size: int) -> dict:
@@ -136,6 +147,8 @@ class ScopedAweTasksMixin:
         """None means the seed could not be read: do not hide tasks then."""
         if self._seed_scope is None:
             self._seed_scope = PolicyScope(seeded_policy_keys(self.scope_package_dir))
+            if self._seed_scope:
+                self._seed_scope = self._seed_scope.with_keys(extra_policy_keys())
             if not self._seed_scope:
                 _logger.warning(
                     "No approval policy keys found under %s; task lists are not scoped",

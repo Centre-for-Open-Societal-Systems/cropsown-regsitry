@@ -82,7 +82,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
 )
 ON CONFLICT DO NOTHING;
 
--- CSR_DATA_MODEL patterns for ODK Central submissions
+-- ODK_TO_CROP_INTAKE patterns for ODK Central submissions: one per form, matched by the
+-- message id prefix the ODK connector sets
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
     "data_model_id",
@@ -93,15 +94,22 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     "key_path_for_business_payload",
     "raw_payload_enricher_class"
 ) VALUES (
-    '11111111-ce19-46f8-874c-7147997f793b',
-    'e442ca96-ac35-4014-9d13-4ef327f6b79c',
+    'odk_to_crop_intake_plan_pattern',
+    'odk_to_crop_intake',
     '6b06a95a-9a6c-5a33-a33d-c1625716c59c',
     '5bf0068c-ce19-46f8-874c-7147997f793b',
     '$.body.message.payload.register_mnemonic=>^CropSown$',
     '$.body.header.message_id=>^crop_sown_registry_plan.*$',
     '$.body.message.payload',
     'G2PDciCropSownCreateEnricherService'
-) ON CONFLICT (semantic_pattern_id) DO NOTHING;
+) ON CONFLICT (semantic_pattern_id) DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "register_id" = EXCLUDED."register_id",
+    "intake_form_id" = EXCLUDED."intake_form_id",
+    "pattern_for_register" = EXCLUDED."pattern_for_register",
+    "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
+    "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
+    "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -113,15 +121,22 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     "key_path_for_business_payload",
     "raw_payload_enricher_class"
 ) VALUES (
-    '22222222-0f1b-4c38-995f-395d52a1b17a',
-    'e442ca96-ac35-4014-9d13-4ef327f6b79c',
+    'odk_to_crop_intake_prep_pattern',
+    'odk_to_crop_intake',
     '6b06a95a-9a6c-5a33-a33d-c1625716c59c',
     '6be15ab9-0f1b-4c38-995f-395d52a1b17a',
     '$.body.message.payload.register_mnemonic=>^CropSown$',
     '$.body.header.message_id=>^crop_sown_registry_prep.*$',
     '$.body.message.payload',
     'G2PDciCropSownCreateEnricherService'
-) ON CONFLICT (semantic_pattern_id) DO NOTHING;
+) ON CONFLICT (semantic_pattern_id) DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "register_id" = EXCLUDED."register_id",
+    "intake_form_id" = EXCLUDED."intake_form_id",
+    "pattern_for_register" = EXCLUDED."pattern_for_register",
+    "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
+    "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
+    "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -133,15 +148,22 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     "key_path_for_business_payload",
     "raw_payload_enricher_class"
 ) VALUES (
-    '33333333-0ffb-41d8-8fea-f22349823675',
-    'e442ca96-ac35-4014-9d13-4ef327f6b79c',
+    'odk_to_crop_intake_sown_pattern',
+    'odk_to_crop_intake',
     '6b06a95a-9a6c-5a33-a33d-c1625716c59c',
     '4a7c2c98-0ffb-41d8-8fea-f22349823675',
     '$.body.message.payload.register_mnemonic=>^CropSown$',
     '$.body.header.message_id=>^crop_sown_registry_sown.*$',
     '$.body.message.payload',
     'G2PDciCropSownCreateEnricherService'
-) ON CONFLICT (semantic_pattern_id) DO NOTHING;
+) ON CONFLICT (semantic_pattern_id) DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "register_id" = EXCLUDED."register_id",
+    "intake_form_id" = EXCLUDED."intake_form_id",
+    "pattern_for_register" = EXCLUDED."pattern_for_register",
+    "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
+    "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
+    "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";
 
 INSERT INTO "public"."incoming_model_semantic_patterns" (
     "semantic_pattern_id",
@@ -153,12 +175,19 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     "key_path_for_business_payload",
     "raw_payload_enricher_class"
 ) VALUES (
-    '44444444-153d-496d-9cd9-2a3815d6e13b',
-    'e442ca96-ac35-4014-9d13-4ef327f6b79c',
+    'odk_to_crop_intake_harvest_pattern',
+    'odk_to_crop_intake',
     '6b06a95a-9a6c-5a33-a33d-c1625716c59c',
     '52150a37-153d-496d-9cd9-2a3815d6e13b',
     '$.body.message.payload.register_mnemonic=>^CropSown$',
     '$.body.header.message_id=>^crop_sown_registry_harvest.*$',
     '$.body.message.payload',
     'G2PDciCropSownCreateEnricherService'
-) ON CONFLICT (semantic_pattern_id) DO NOTHING;
+) ON CONFLICT (semantic_pattern_id) DO UPDATE SET
+    "data_model_id" = EXCLUDED."data_model_id",
+    "register_id" = EXCLUDED."register_id",
+    "intake_form_id" = EXCLUDED."intake_form_id",
+    "pattern_for_register" = EXCLUDED."pattern_for_register",
+    "pattern_for_intake_form" = EXCLUDED."pattern_for_intake_form",
+    "key_path_for_business_payload" = EXCLUDED."key_path_for_business_payload",
+    "raw_payload_enricher_class" = EXCLUDED."raw_payload_enricher_class";
