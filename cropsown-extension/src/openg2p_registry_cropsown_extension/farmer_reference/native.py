@@ -18,6 +18,7 @@ from openg2p_registry_core.services.g2p_register_change_request_service import G
 from openg2p_registry_core.services.g2p_change_request_worker_service import G2PChangeRequestWorkerService
 from openg2p_registry_core.services.g2p_awe_webhook_service import G2PAweWebhookService
 
+from ..direct_approval import DirectApprovalClosed
 from .configuration import configured_lookup
 from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerPendingLookup
 from .onboarding import OnboardingService
@@ -127,7 +128,7 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
-class ReferenceIntakeService(G2PIntakeFormDataService):
+class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
     async def approve_submission(self, submission_id, approved_by):
         # The legacy staff endpoint does not call the session-aware AWE hook.
         # These registries require business decisions through their own AWE
@@ -266,7 +267,7 @@ class ReferenceIntakeService(G2PIntakeFormDataService):
             schema_class, register_class, intake_row, session)
 
 
-class ReferenceChangeRequestService(G2PRegisterChangeRequestService):
+class ReferenceChangeRequestService(DirectApprovalClosed, G2PRegisterChangeRequestService):
     async def create_change_request(self, change_request_request_payload, *args, **kwargs):
         async with get_async_session_maker()() as session:
             section = await session.get(G2PRegisterSection, change_request_request_payload.section_id) if change_request_request_payload.section_id else None
