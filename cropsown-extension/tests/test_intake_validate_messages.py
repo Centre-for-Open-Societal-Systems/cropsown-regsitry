@@ -139,14 +139,17 @@ def test_validate_is_valid_for_a_complete_form():
 
 def _reference_service(problem):
     service = object.__new__(native.ReferenceIntakeService)
-    service._submission_problem = AsyncMock(return_value=problem)
+    async def fake(submission_id, session, season=True, farmer=True):
+        return problem if farmer else None
+
+    service._submission_problem = AsyncMock(side_effect=fake)
     return service
 
 
-def _validate(service, base):
+def _validate(service, base, session=None):
     with patch.object(required_intake.RequiredFieldsMixin, "validate_submission_for_approval_with_session",
                       AsyncMock(return_value=base)):
-        return run(service.validate_submission_for_approval_with_session("s", None))
+        return run(service.validate_submission_for_approval_with_session("s", session))
 
 
 def test_validate_reports_a_farmer_who_cannot_be_linked():
@@ -164,8 +167,8 @@ def test_validate_is_valid_when_the_farmer_checks_out():
 def test_the_farmer_is_not_looked_up_while_the_form_is_still_incomplete():
     service = _reference_service(("X", "anything"))
     result = _validate(service, SimpleNamespace(issues=["missing"], is_valid=False))
-    service._submission_problem.assert_not_called()
-    assert result.issues == ["missing"]
+    assert [c.kwargs.get("season", True) for c in service._submission_problem.await_args_list] == [False]
+    assert result.issues[0] == "missing"
 
 
 class _Rows:
@@ -299,3 +302,37 @@ def test_validate_files_the_issue_under_the_code_of_the_problem():
     service = _reference_service(("FARMER_IDENTITY_MISMATCH", "The IDs belong to different farmers"))
     result = _validate(service, SimpleNamespace(issues=[], is_valid=True))
     assert result.issues[0].code == "FARMER_IDENTITY_MISMATCH"
+
+
+def _incomplete(*messages):
+    issues = [SimpleNamespace(code="SUBMISSION_INCOMPLETE", message=m) for m in messages]
+    return SimpleNamespace(issues=issues, is_valid=False)
+
+
+def test_an_incomplete_draft_with_an_unknown_farmer_reports_both():
+    service = _reference_service(("FARMER_NOT_FOUND", "No farmer with Farmer ID FR-000000000001 is in the Farmer Registry"))
+    result = _validate(service, _incomplete("Season details: fill in Production season.", "Planning: add at least one row."))
+    assert not result.is_valid
+    assert [i.code for i in result.issues] == ["SUBMISSION_INCOMPLETE", "SUBMISSION_INCOMPLETE", "FARMER_NOT_FOUND"]
+
+
+def test_an_incomplete_draft_with_a_wrong_pair_reports_the_mismatch_too(monkeypatch):
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "9999999999999999"})
+    service = _lookup_service(monkeypatch, AsyncMock(return_value=found))
+    result = _validate(service, _incomplete("Planning: add at least one row."), _session(_row()))
+    assert [i.code for i in result.issues] == ["SUBMISSION_INCOMPLETE", "FARMER_IDENTITY_MISMATCH"]
+
+
+def test_a_complete_draft_with_a_good_farmer_is_still_valid(monkeypatch):
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"})
+    service = _lookup_service(monkeypatch, AsyncMock(return_value=found))
+    result = _validate(service, SimpleNamespace(issues=[], is_valid=True), _session(_row()))
+    assert result.is_valid and result.issues == []
+
+
+def test_a_missing_or_malformed_id_is_not_looked_up(monkeypatch):
+    lookup = AsyncMock()
+    service = _lookup_service(monkeypatch, lookup)
+    assert run(service._submission_problem("s", _session(_row(farmer_id=None)), season=False)) is None
+    assert run(service._submission_problem("s", _session(_row(farmer_id="FR-12")), season=False)) is None
+    lookup.assert_not_called()
