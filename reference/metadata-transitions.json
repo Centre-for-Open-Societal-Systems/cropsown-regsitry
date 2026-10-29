@@ -3,6 +3,20 @@
   "acceptance": "test/test_metadata_transitions.py",
   "transitions": [
     {
+      "from_section": "cropsown_planning_details_section_01",
+      "path": "crop_variety",
+      "mechanism": "retired_field",
+      "replaced_by": "seed_variety",
+      "reason": "One variety dropdown (Variety, on SEED_VARIETY) replaces the duplicate Crop Variety dropdown; the database column stays"
+    },
+    {
+      "from_section": "cropsown_cultivation_details_section_01",
+      "path": "crop_variety",
+      "mechanism": "retired_field",
+      "replaced_by": "seed_variety",
+      "reason": "One variety dropdown (Variety, on SEED_VARIETY) replaces the duplicate Crop Variety dropdown; the database column stays"
+    },
+    {
       "from_section": "cropsown_intake_record_section_01",
       "path": "6b06a95a-9a6c-5a33-a33d-c1625716c59c.crop_year",
       "to_section": "cropsown_intake_season_section_01",

@@ -58,3 +58,18 @@ def test_retired_source_section_names_the_tabs_that_owned_it(failure):
     if failure=='owning-tab-missing-target': rules[0]['owning_tabs'].append('another-tab')
     comparison.reconcile_sections(rows,metadata,rules)
     assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)
+
+
+@pytest.mark.parametrize('failure',[None,'still-present','replacement-missing','register-changed','unreviewed'])
+def test_retired_field_needs_its_replacement_in_the_same_section(failure):
+    rows = [{'section_id':'planning','section_register_id':'register','removed_field_paths':['crop_variety']}]
+    schema = {'widgets':[{'widget':'select','widget-data-path':'seed_variety'}]}
+    metadata = {'g2p_register_sections':[{'section_id':'planning','section_register_id':'register','section_ui_schema':schema}],
+                'g2p_intake_form_ui_tab_sections':[],'g2p_register_ui_tab_sections':[]}
+    rules = [{'from_section':'planning','path':'crop_variety','mechanism':'retired_field','replaced_by':'seed_variety'}]
+    if failure=='still-present': schema['widgets'].append({'widget':'select','widget-data-path':'crop_variety'})
+    if failure=='replacement-missing': schema['widgets']=[]
+    if failure=='register-changed': metadata['g2p_register_sections'][0]['section_register_id']='another-register'
+    if failure=='unreviewed': rules=[]
+    comparison.reconcile_sections(rows,metadata,rules)
+    assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)

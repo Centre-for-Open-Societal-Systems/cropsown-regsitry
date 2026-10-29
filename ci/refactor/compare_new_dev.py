@@ -51,6 +51,15 @@ def reconcile_sections(rows, metadata, transitions):
             valid = False
             if len(rules)==1:
                 rule = rules[0]
+                if rule['mechanism']=='retired_field':
+                    # The field is retired on purpose: its section stays, no longer carries it, and carries
+                    # the field that replaces it.
+                    own = sections.get(row['section_id'])
+                    valid = own is not None and own['section_register_id']==row['section_register_id']
+                    valid = valid and path not in paths(own['section_ui_schema']) and rule.get('replaced_by') in paths(own['section_ui_schema'])
+                    outcomes.append({**rule,'verified':bool(valid)})
+                    if not valid: unresolved.append(path)
+                    continue
                 target = sections.get(rule['to_section'])
                 valid = target is not None and target['section_register_id']==row['section_register_id'] and path in paths(target['section_ui_schema'])
                 if valid and rule['mechanism']=='section_move':

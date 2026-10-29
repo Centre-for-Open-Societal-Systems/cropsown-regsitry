@@ -5,7 +5,7 @@ table columns of both sections in the base seed and in the zz-oan overlay that r
 have it; the database columns stay. The overlay's own replay on PostgreSQL is described in the pull request.
 """
 import json
-import re
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -102,18 +102,21 @@ def test_nothing_around_the_forms_asks_for_a_crop_variety():
 
 
 def test_the_odk_forms_have_one_variety_question_and_nothing_needs_crop_variety():
-    openpyxl = pytest.importorskip("openpyxl")
     assert not (ROOT / "odk/mds-export/CROP_VARIETY.json").exists()
     assert not (ROOT / "odk/media/mds/crop_variety.csv").exists()
     assert "CROP_VARIETY" not in (ROOT / "odk/tools/build_mds_forms.py").read_text(encoding="utf-8")
     manifest = (ROOT / "odk/forms/manifest.json").read_text(encoding="utf-8")
     assert "crop_variety" not in manifest and "seed_variety.csv" in manifest
     for form in ("plan", "prep", "sown", "harvest"):
-        book = openpyxl.load_workbook(ROOT / f"odk/forms/crop_sown_registry_{form}.xlsx")
-        rows = list(book["survey"].iter_rows(values_only=True))
-        names = {r[1] for r in rows}
-        text = json.dumps([[str(c) for c in r if c] for r in rows])
-        assert "crop_variety" not in text and "crop_variety_id" not in names, form
-        labels = [r[2] for r in rows if r[1] == "seed_variety"]
-        assert labels in ([], ["Variety"]), form
-        assert not re.search(r"Crop Variety|Seed Variety", text), form
+        with zipfile.ZipFile(ROOT / f"odk/forms/crop_sown_registry_{form}.xlsx") as workbook:
+            text = "".join(workbook.read(n).decode("utf-8") for n in workbook.namelist() if n.startswith("xl/worksheets/"))
+        assert "crop_variety" not in text and "Crop Variety" not in text and "Seed Variety" not in text, form
+        assert ("seed_variety" in text) == (form in ("plan", "prep")) and ("Variety" in text) == (form in ("plan", "prep")), form
+
+
+
+def test_the_retired_crop_variety_translation_keys_are_not_seeded_for_english():
+    seed = (META / "registry-configurations/registry_languages.sql").read_text(encoding="utf-8")
+    assert '"crop_variety": "Crop Variety"' not in seed and '"Crop Variety": "Crop Variety"' not in seed
+    sql = OVERLAY.read_text(encoding="utf-8")
+    assert "- 'crop_variety' - 'Crop Variety'" in sql

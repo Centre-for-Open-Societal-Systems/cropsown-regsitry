@@ -49,9 +49,10 @@ UPDATE "public"."g2p_register_sections"
        'cropsown_cultivation_details_section_01')
    AND ("section_ui_schema"::text LIKE '%crop_variety%' OR "section_ui_schema"::text LIKE '%Seed Variety%');
 
--- Display text: the English translations of the variety label (seed wins over the older files)
+-- Display text: drop the retired Crop Variety keys, then merge the English translations of the
+-- variety label (seed wins over the older files)
 UPDATE "public"."registry_languages"
-SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) ||
+SET "domain_translation" = ((COALESCE("domain_translation"::jsonb, '{}'::jsonb) - 'crop_variety' - 'Crop Variety') ||
 '{
  "seed_variety": "Variety",
  "Seed Variety": "Variety",
@@ -74,6 +75,11 @@ BEGIN
          WHERE s."section_id" IN ('cropsown_planning_details_section_01', 'cropsown_cultivation_details_section_01')
            AND w->>'widget-label' <> 'Variety') THEN
         RAISE EXCEPTION 'The seed_variety dropdown of a Crop Sown section is not labelled Variety';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM "public"."registry_languages"
+         WHERE "language_code" = 'en' AND "domain_translation"::jsonb ?| ARRAY['crop_variety', 'Crop Variety']) THEN
+        RAISE EXCEPTION 'The English translations still name the retired Crop Variety dropdown';
     END IF;
 END
 $$;
