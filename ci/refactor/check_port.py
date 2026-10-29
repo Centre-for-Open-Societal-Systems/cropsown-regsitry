@@ -65,8 +65,12 @@ def verify(repo: Path, domain: str) -> dict:
         errors.append("platform patches remain")
     if any((repo / "docker/staff-ui").rglob("patch-*.js")):
         errors.append("compiled UI patches remain")
-    if (source / "register_domain/factory").exists():
-        errors.append("replacement domain factory remains")
+    factory = source / "register_domain/factory"
+    # The ingest worker imports this module to run the post-ingest hook; only the
+    # domain service resolver belongs here (no id generator factory).
+    if factory.exists() and {path.name for path in factory.iterdir() if path.suffix == ".py"} != {
+            "__init__.py", "g2p_register_domain_factory.py"}:
+        errors.append("domain factory holds more than the domain service resolver")
     if (source / "register_domain/controllers/g2p_animal_bulk_import_controller.py").exists():
         errors.append("custom bulk import remains")
     awe = source / "awe_meta_data"

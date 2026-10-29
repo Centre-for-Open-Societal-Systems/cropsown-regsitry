@@ -96,3 +96,36 @@ def explain(code: str, identity: Mapping | None = None, *, held=False) -> str:
         # must not say otherwise in the durable worker diagnostic.
         text = text.replace("Nothing was submitted.", "This intake is saved and held.")
     return text
+
+
+# What the intake list shows (register ingest error text) and the intake's
+# Farmer reference status while an approved intake waits for the Farmer ADD.
+WAITING_FOR_FARMER_APPROVAL = "Approved, waiting for Farmer approval"
+FARMER_APPROVAL_REJECTED = (
+    "Approved, but the Farmer registration was rejected, so this record was not added. "
+    "Check the Farmer ID and Fayda ID, or ask the approver why, and submit a new intake"
+)
+FARMER_REFERENCE_MISSING = (
+    "Approved, but no Farmer registration is linked to this intake, so this record was not added. "
+    "Ask the administrator to check the intake"
+)
+FARMER_REFERENCE_LINKED = "Farmer reference linked"
+# Before the intake is approved: the Farmer is itself awaiting approval.
+FARMER_REFERENCE_AWAITING = "Farmer reference awaiting approval; the record will be added after that approval"
+FARMER_LOOKUP_PENDING = "Waiting for the Farmer lookup; the record will be added once the farmer is found and approved"
+
+# Values written before readable text replaced the codes; still recognised so
+# intakes already held keep being released.
+LEGACY_WAITING = "FARMER_REFERENCE_DEPENDENCY_PENDING"
+
+
+def is_waiting_text(value) -> bool:
+    return value in (WAITING_FOR_FARMER_APPROVAL, FARMER_LOOKUP_PENDING, LEGACY_WAITING)
+
+
+def held_text(reference, pending_lookup) -> str:
+    """Text for an approved intake whose record cannot be added yet."""
+    if reference is None:
+        return WAITING_FOR_FARMER_APPROVAL if pending_lookup is not None and pending_lookup.state == "PENDING" \
+            else FARMER_REFERENCE_MISSING
+    return FARMER_APPROVAL_REJECTED if reference.state == "REJECTED" else WAITING_FOR_FARMER_APPROVAL

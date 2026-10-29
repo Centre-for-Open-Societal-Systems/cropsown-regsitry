@@ -325,8 +325,8 @@
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/factory/__init__.py",
-      "decision": "retired",
-      "reason": "Use the platform's selected-extension factories"
+      "decision": "ported",
+      "reason": "Restored as a minimal resolver: the deployed ingest worker imports this module to run the post-ingest hook; CropSown resolution failure raises"
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/factory/g2p_id_generator_factory.py",
@@ -335,8 +335,8 @@
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/factory/g2p_register_domain_factory.py",
-      "decision": "retired",
-      "reason": "Use the platform's selected-extension factories"
+      "decision": "ported",
+      "reason": "Restored as a minimal resolver: the deployed ingest worker imports this module to run the post-ingest hook; CropSown resolution failure raises"
     },
     {
       "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/id_generator/__init__.py",

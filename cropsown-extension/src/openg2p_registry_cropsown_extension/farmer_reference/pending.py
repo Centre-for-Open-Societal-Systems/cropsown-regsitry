@@ -27,6 +27,7 @@ async def resolve_or_wait(session, submission, row, *, lookup=None, interactive=
     interactive: a person is submitting and can correct the IDs, so any
     failure is refused (nothing is created) instead of held.
     """
+    from . import messages
     from .native import onboarding_service
 
     declared = intake_identity(
@@ -108,7 +109,7 @@ async def resolve_or_wait(session, submission, row, *, lookup=None, interactive=
     row.farmer_reference_status = (
         "Farmer reference linked"
         if reference.state == "APPROVED"
-        else "Farmer reference awaiting approval; the record will be added after that approval"
+        else messages.FARMER_REFERENCE_AWAITING
     )
     await session.flush()
     return reference
