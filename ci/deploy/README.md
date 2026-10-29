@@ -31,3 +31,49 @@ the VPN deploy node rechecks the exact package and values without GitHub access.
 A corrupt cached archive fails closed and does not trigger a network fallback.
 Manual runs can prefetch on a connected machine and carry that directory with
 the same immutable profile. Cached archives are not editable Helm sources.
+
+## cropsown-connector release (New Dev)
+
+`ci/deploy/connector-chart` is the `openg2p-connector` 0.1.0 chart that the standalone
+`cropsown-connector` release (namespace `crop`) runs. It is the chart this repository once
+carried at `openg2p-connector-service/deploy/charts/openg2p-connector`, with two additions
+(`extraEnv`/`extraEnvFrom`, and an optional `image.digest` per component), identical to the
+copy in livestock-registry `ci/connector/chart`.
+
+Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
+
+| Action | What it does |
+| --- | --- |
+| `connector-plan` | Changes nothing. Prints the image digest it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the client secret below is present. |
+| `connector-upgrade` | Builds no image. Refuses to run without the client secret, archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker and beat. Upgrade only, safe to rerun. |
+
+The image is `gen2/cropsown-registry/registry-connector` (built by this pipeline from
+`docker/registry-connector`), taken from the tag `CONNECTOR_IMAGE_TAG` (default `develop`, or
+a build tag such as `develop-186`) and pinned by digest, so the Helm release owns the image
+instead of a hand-run `kubectl set image`.
+
+Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
+release's values with `helm get values`, writes a small override file (the image on api,
+worker and beat, `postgres-init` off, the client secret reference) and upgrades with
+`--reset-values -f <current> -f <override>`; both files are printed. Never `--reuse-values`.
+
+### Keycloak client secret
+
+The connector's admin calls use the staff-realm Keycloak client `registry-connector`.
+
+- The client is created by the Commons `keycloak-init`. The Commons `client-secrets-sync`
+  Job then writes its generated secret to a Secret named after the client,
+  `registry-connector`, key `client_secret`, in the **commons** namespace (the Job writes to
+  its own release namespace).
+- A `secretKeyRef` cannot cross namespaces, so the connector reads a copy in `crop`: Secret
+  `registry-connector-client`, key `client_secret`, exposed as the environment variable
+  `CONNECTOR_ADMIN_AUTH_CLIENT_SECRET` through `extraEnvFrom` with `optional: false`. No value
+  is in git or in values.
+- The copy is a documented sync step done by whoever owns Commons: after the Commons upgrade
+  that adds the client, copy `commons/registry-connector` to `crop/registry-connector-client`
+  (same key). `connector-plan` reports whether the copy exists; `connector-upgrade` stops
+  before changing anything when it is missing or empty.
+- The #162 admin-auth extension only validates tokens: it reads `CONNECTOR_ADMIN_AUTH_ISSUER`,
+  `_JWKS_URL`, `_CLIENT_ID`, `_ROLE` and `_UI_CLIENT_ID` (or the baked `admin-auth.json`) and no
+  client secret yet. The variable above is where the secret is delivered for the connector's
+  client-credentials calls once they exist.
