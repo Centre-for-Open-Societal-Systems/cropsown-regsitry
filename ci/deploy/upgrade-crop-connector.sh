@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Upgrade the New Dev cropsown-connector release (namespace crop) to the connector
-# image that this registry's pipeline builds, pinned by digest.
+# images that this registry's pipeline builds (service and UI), pinned by digest.
 #
 # A Helm upgrade of the existing release, with the vendored chart ci/deploy/connector-chart
 # (openg2p-connector 0.1.0). It replaces the image that a hand-run `kubectl set image`
@@ -9,9 +9,12 @@
 # Values: nothing is hidden in a flag. The running release's user values are read with
 # `helm get values` into a file, the image override is written to a second file, and the
 # upgrade runs with --reset-values -f <current> -f <override> (never --reuse-values).
-# Both files are printed. The override sets only the api, worker and beat image
-# (repository@digest) and keeps postgres-init off, as the release has run since its
-# first install. Everything else is exactly what the release already has.
+# Both files are printed. The override sets only the four images (api, worker and beat
+# from the registry-connector repository, ui from registry-connector-ui, each as
+# repository@digest). It does not mention postgres-init: the release's own value
+# (enabled: false) is kept, and the chart's preserved-init-serviceaccount.yaml keeps the
+# ServiceAccount that the release still owns. Everything else is exactly what the release
+# already has.
 #
 # Upgrade only. The connector database is archived to the New Dev box first (same host
 # and directory tree as fresh-install), then a server-side dry run and the rendered
@@ -19,14 +22,18 @@
 # upgraded. Connector definitions, checkpoints and webhook secrets live in that database
 # and are not touched.
 #
-# PLAN_ONLY=1 (Jenkins connector-plan) stops after printing the image it would set, the
+# PLAN_ONLY=1 (Jenkins connector-plan) stops after printing the images it would set, the
 # values, the manifest diff and the dry run. It changes nothing and needs no backup key.
+# The first upgrade must change images only: the plan FAILS when the diff removes a line
+# that is not an image line, or the target renders a Job. ALLOW_NON_IMAGE_CHANGES=1
+# turns those two failures into warnings for a deliberate chart change.
 #
 # The Keycloak client secret Secret crop/registry-connector-client is only reported (PRESENT,
 # MISSING or UNKNOWN); nothing in the connector image reads it and it never blocks a run.
 #
 # Env: KUBECONFIG (crop-dev-kubeconfig); CONNECTOR_IMAGE_REPOSITORY and
-# CONNECTOR_IMAGE_DIGEST (set by the pipeline from ECR); BACKUP_SSH_KEY
+# CONNECTOR_IMAGE_DIGEST, CONNECTOR_UI_IMAGE_REPOSITORY and CONNECTOR_UI_IMAGE_DIGEST
+# (set by the pipeline from ECR, for the same image tag); BACKUP_SSH_KEY
 # (farmer-new-dev-backup-ssh, not needed with PLAN_ONLY=1); optional CONNECTOR_DB
 # (default: global.connectorDB of the running release).
 set -euo pipefail
@@ -38,9 +45,16 @@ cd "$REPO_ROOT"
 : "${KUBECONFIG:?Jenkins must bind crop-dev-kubeconfig}"
 : "${CONNECTOR_IMAGE_REPOSITORY:?The pipeline must resolve the connector image repository}"
 : "${CONNECTOR_IMAGE_DIGEST:?The pipeline must resolve the connector image digest}"
-[[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Not a sha256 digest: $CONNECTOR_IMAGE_DIGEST" >&2; exit 1; }
+: "${CONNECTOR_UI_IMAGE_REPOSITORY:?The pipeline must resolve the connector UI image repository}"
+: "${CONNECTOR_UI_IMAGE_DIGEST:?The pipeline must resolve the connector UI image digest}"
+for digest_value in "$CONNECTOR_IMAGE_DIGEST" "$CONNECTOR_UI_IMAGE_DIGEST"; do
+  [[ "$digest_value" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Not a sha256 digest: $digest_value" >&2; exit 1; }
+done
 : "${PLAN_ONLY:=0}"
-[[ "$CONNECTOR_IMAGE_REPOSITORY" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "Not an image repository: $CONNECTOR_IMAGE_REPOSITORY" >&2; exit 1; }
+: "${ALLOW_NON_IMAGE_CHANGES:=0}"
+for repository_value in "$CONNECTOR_IMAGE_REPOSITORY" "$CONNECTOR_UI_IMAGE_REPOSITORY"; do
+  [[ "$repository_value" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "Not an image repository: $repository_value" >&2; exit 1; }
+done
 [[ "$PLAN_ONLY" == 1 ]] || : "${BACKUP_SSH_KEY:?Bind farmer-new-dev-backup-ssh}"
 NAMESPACE=crop
 RELEASE=cropsown-connector
@@ -90,16 +104,18 @@ CONNECTOR_DB="${CONNECTOR_DB:-$(python3 -c 'import json,sys; print(json.load(ope
 PGHOST_VALUE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("global", {}).get("postgresqlHost") or "commons-postgresql.commons.svc.cluster.local")' "$STATE/current.values.json")
 [[ -n "$CONNECTOR_DB" ]] || { echo "global.connectorDB is not in the release values; set CONNECTOR_DB" >&2; exit 1; }
 IMAGE="$CONNECTOR_IMAGE_REPOSITORY@$CONNECTOR_IMAGE_DIGEST"
-python3 - "$STATE/override.values.json" "$CONNECTOR_IMAGE_REPOSITORY" "$CONNECTOR_IMAGE_DIGEST" <<'PY'
+UI_IMAGE="$CONNECTOR_UI_IMAGE_REPOSITORY@$CONNECTOR_UI_IMAGE_DIGEST"
+python3 - "$STATE/override.values.json" "$CONNECTOR_IMAGE_REPOSITORY" "$CONNECTOR_IMAGE_DIGEST" "$CONNECTOR_UI_IMAGE_REPOSITORY" "$CONNECTOR_UI_IMAGE_DIGEST" <<'PY'
 import json, sys
-path, repository, digest = sys.argv[1:4]
+path, repository, digest, ui_repository, ui_digest = sys.argv[1:6]
 image = {"repository": repository, "tag": "", "digest": digest}
 override = {name: {"image": dict(image)} for name in ("api", "worker", "beat")}
-override["postgres-init"] = {"enabled": False}
+override["ui"] = {"image": {"repository": ui_repository, "tag": "", "digest": ui_digest}}
 json.dump(override, open(path, "w"), indent=2)
 PY
-echo "=== image this run sets on api, worker and beat ==="
-echo "$IMAGE"
+echo "=== images this run sets ==="
+echo "api, worker, beat: $IMAGE"
+echo "ui: $UI_IMAGE"
 echo "=== current user values of $RELEASE (helm get values) ==="
 cat "$STATE/current.values.json"; echo
 echo "=== override applied on top ==="
@@ -114,14 +130,28 @@ plan() {
   diff -u "$STATE/current.yaml" "$STATE/target.yaml" > "$STATE/manifest.diff" || true
   cat "$STATE/manifest.diff"
   echo "=== end of diff ==="
-  removed=$(grep -E '^-' "$STATE/manifest.diff" | grep -cvE '^---|^-[[:space:]]+image:' || true)
+  # Image lines (api, worker, beat and ui) and blank lines are not counted as removals.
+  not_images_only=0
+  removed=$(grep -E '^-' "$STATE/manifest.diff" | grep -cvE '^---|^-[[:space:]]+image:|^-[[:space:]]*$' || true)
+  jobs=$(grep -c '^kind: Job' "$STATE/target.yaml" || true)
+  images=$(grep -cE '^\+[[:space:]]+image:' "$STATE/manifest.diff" || true)
+  echo "Image lines changed (expected 4): $images"
   echo "Removed lines other than image lines (expected 0): $removed"
-  echo "Jobs in target manifest: $(grep -c '^kind: Job' "$STATE/target.yaml" || true)"
+  echo "Jobs in target manifest (expected 0): $jobs"
+  if [[ "$removed" != 0 || "$jobs" != 0 ]]; then
+    if [[ "$ALLOW_NON_IMAGE_CHANGES" == 1 ]]; then
+      echo "WARNING: the diff is not images only; continuing because ALLOW_NON_IMAGE_CHANGES=1." >&2
+    else
+      echo "FAIL: the first upgrade must change images only (removed non-image lines: $removed, Jobs: $jobs). Set ALLOW_NON_IMAGE_CHANGES=1 to accept a deliberate chart change." >&2
+      not_images_only=1
+    fi
+  fi
   echo "=== live Deployment images ==="
   kubectl get deploy -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE" -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image
   helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values \
     -f "$STATE/current.values.json" -f "$STATE/override.values.json" --dry-run=server > /dev/null
   echo "Server-side dry run passed."
+  [[ "$not_images_only" == 0 ]] || exit 1
 }
 if [[ "$PLAN_ONLY" == 1 ]]; then
   plan
@@ -221,7 +251,11 @@ for d in api worker beat; do
   got=$(kubectl get deployment -n "$NAMESPACE" "$RELEASE-$d" -o jsonpath='{.spec.template.spec.containers[0].image}')
   test "$got" = "$IMAGE" || { echo "$RELEASE-$d runs $got, expected $IMAGE" >&2; exit 1; }
 done
+if [[ "$UI_ENABLED" != false ]]; then
+  got=$(kubectl get deployment -n "$NAMESPACE" "$RELEASE-ui" -o jsonpath='{.spec.template.spec.containers[0].image}')
+  test "$got" = "$UI_IMAGE" || { echo "$RELEASE-ui runs $got, expected $UI_IMAGE" >&2; exit 1; }
+fi
 API_POD=$(kubectl get pod -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api" --field-selector=status.phase=Running -o name | head -n 1)
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8050/health", timeout=10).status)'
 helm history "$RELEASE" -n "$NAMESPACE" --max 3
-echo "Upgraded $RELEASE in $NAMESPACE to $IMAGE (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"
+echo "Upgraded $RELEASE in $NAMESPACE to $IMAGE, ui $UI_IMAGE (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"

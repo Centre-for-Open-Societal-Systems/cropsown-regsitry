@@ -44,23 +44,32 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 
 | Action | What it does |
 | --- | --- |
-| `connector-plan` | Changes nothing. Prints the image digest it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). |
-| `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker and beat. Upgrade only, safe to rerun. |
+| `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (set `ALLOW_NON_IMAGE_CHANGES=1` only for a deliberate chart change). |
+| `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker, beat and ui. Upgrade only, safe to rerun. |
 
-The image is `gen2/cropsown-registry/registry-connector` (built by this pipeline from
-`docker/registry-connector`), taken from the tag `CONNECTOR_IMAGE_TAG` (default `develop`, or
-a build tag such as `develop-186`) and pinned by digest, so the Helm release owns the image
-instead of a hand-run `kubectl set image`.
+The service image (api, worker, beat) is `gen2/cropsown-registry/registry-connector` (built by this
+pipeline from `docker/registry-connector`) and the UI image is `gen2/cropsown-registry/registry-connector-ui`
+(from `docker/registry-connector-ui`). Both are taken from the tag `CONNECTOR_IMAGE_TAG` (default
+`develop`, or a build tag such as `develop-195`), each resolved to its own digest in ECR and pinned by
+digest, so the Helm release owns the images instead of a hand-run `kubectl set image`.
 
 Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
 release's values with `helm get values`, writes a small override file (the image on api,
-worker and beat, `postgres-init` off) and upgrades with
+worker, beat and ui, nothing else) and upgrades with
 `--reset-values -f <current> -f <override>`; both files are printed. Never `--reuse-values`.
+
+`postgres-init` is not in the override. The release's own value (`postgres-init.enabled: false`) is
+kept, so the postgres-init Jobs are not rendered. The release still owns the ServiceAccount
+`cropsown-connector-postgres-init`, which an older revision of the chart rendered from
+`templates/preserved-init-serviceaccount.yaml`; that template is part of the vendored chart again
+(rendered only while `postgres-init.enabled` is false), so the upgrade does not delete the ServiceAccount.
 
 Plan output, before anyone upgrades: release status and history, the image
 (`...@sha256:<64 hex>`), the current values, the manifest diff, the live Deployment images and
-`Server-side dry run passed.`. The expected diff touches only the api, worker and beat image
-and removes nothing else; no Service, VirtualService, HPA, probe or Job changes. The upgrade
+`Server-side dry run passed.`. The expected diff touches only the four image lines (api, worker, beat, ui)
+and removes nothing else; no Service, VirtualService, HPA, probe, ServiceAccount or Job changes.
+The plan prints `Image lines changed (expected 4)`, `Removed lines other than image lines (expected 0)`
+and `Jobs in target manifest (expected 0)`, and exits non-zero after the dry run when the last two are not 0. The upgrade
 runs with `--atomic`, so a failed rollout rolls the release back to the previous revision.
 
 The connector needs no Keycloak client secret: its admin access only validates incoming

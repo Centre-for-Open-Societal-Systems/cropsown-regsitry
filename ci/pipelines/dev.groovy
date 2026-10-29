@@ -312,19 +312,28 @@ pipeline {
                         if (!(tag ==~ /[A-Za-z0-9._-]{1,128}/)) {
                             error "CONNECTOR_IMAGE_TAG must match [A-Za-z0-9._-]{1,128}; got '${tag}'"
                         }
+                        // The service image (api, worker, beat) and the UI image come from the same
+                        // build, so one tag resolves to one digest in each repository.
                         env.CONNECTOR_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector"
-                        try {
-                            env.CONNECTOR_IMAGE_DIGEST = sh(returnStdout: true, script: """
-                                aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/registry-connector" \
-                                    --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
-                            """).trim()
-                        } catch (err) {
-                            error "image ${ECR_BASE}/registry-connector:${tag} was not found in ECR (${err.message})"
+                        env.CONNECTOR_UI_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector-ui"
+                        def resolved = [:]
+                        ['registry-connector', 'registry-connector-ui'].each { name ->
+                            def digest
+                            try {
+                                digest = sh(returnStdout: true, script: """
+                                    aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/${name}"                                         --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
+                                """).trim()
+                            } catch (err) {
+                                error "image ${ECR_BASE}/${name}:${tag} was not found in ECR (${err.message})"
+                            }
+                            if (!(digest ==~ /sha256:[0-9a-f]{64}/)) {
+                                error "could not resolve ${ECR_BASE}/${name}:${tag} to a digest"
+                            }
+                            echo "connector image ${ECR_BASE}/${name}:${tag} = ${digest}"
+                            resolved[name] = digest
                         }
-                        if (!(env.CONNECTOR_IMAGE_DIGEST ==~ /sha256:[0-9a-f]{64}/)) {
-                            error "could not resolve ${ECR_BASE}/registry-connector:${tag} to a digest"
-                        }
-                        echo "connector image ${ECR_BASE}/registry-connector:${tag} = ${env.CONNECTOR_IMAGE_DIGEST}"
+                        env.CONNECTOR_IMAGE_DIGEST = resolved['registry-connector']
+                        env.CONNECTOR_UI_IMAGE_DIGEST = resolved['registry-connector-ui']
                     }
                 }
             }
