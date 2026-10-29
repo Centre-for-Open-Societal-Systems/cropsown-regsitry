@@ -337,7 +337,6 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             "land_id",
             "season",
             "commodity",
-            "crop_variety",
             "crop_category",
             "land_prep_method",
             "cultivation_type",

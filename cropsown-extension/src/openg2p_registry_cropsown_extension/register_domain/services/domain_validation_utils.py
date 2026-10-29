@@ -133,7 +133,7 @@ def get_attribute_variants(value, prefix: str = "") -> list[str]:
         return []
     v_str = str(value).strip()
     clean = v_str
-    for p in ("CROP_SEASON_", "CROP_COMMODITY_", "CROP_VARIETY_", "CROP_CATEGORY_"):
+    for p in ("CROP_SEASON_", "CROP_COMMODITY_", "CROP_CATEGORY_"):
         clean = clean.replace(p, "")
     clean = clean.strip().upper()
     variants = {v_str, clean, v_str.upper(), v_str.lower(), clean.capitalize()}

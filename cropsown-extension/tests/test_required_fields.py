@@ -267,6 +267,9 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # it never adds, removes or reorders a row.
         if path.name.endswith(("_label_casing.sql", "_readable_text.sql", "_readable_lists.sql")):
             continue
+        # The one-variety overlay only removes the crop_variety column and labels seed_variety "Variety".
+        if path.name.endswith("_one_variety_list.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):

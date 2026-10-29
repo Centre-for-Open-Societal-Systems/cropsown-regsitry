@@ -1,8 +1,7 @@
 {
-  "version": "2026.10.31.1",
+  "version": "2026.10.31.2",
   "media_rows": {
     "crop_name.csv": 125,
-    "crop_variety.csv": 1952,
     "seed_variety.csv": 794,
     "region.csv": 14,
     "zone.csv": 125,
@@ -12,11 +11,10 @@
   "forms": [
     {
       "form_id": "crop_sown_registry_plan",
-      "version": "2026.10.31.1",
+      "version": "2026.10.31.2",
       "workbook": "crop_sown_registry_plan.xlsx",
       "media": [
         "crop_name.csv",
-        "crop_variety.csv",
         "kebele.csv",
         "region.csv",
         "seed_variety.csv",
@@ -42,11 +40,10 @@
     },
     {
       "form_id": "crop_sown_registry_prep",
-      "version": "2026.10.31.1",
+      "version": "2026.10.31.2",
       "workbook": "crop_sown_registry_prep.xlsx",
       "media": [
         "crop_name.csv",
-        "crop_variety.csv",
         "kebele.csv",
         "region.csv",
         "seed_variety.csv",
@@ -71,7 +68,7 @@
     },
     {
       "form_id": "crop_sown_registry_sown",
-      "version": "2026.10.31.1",
+      "version": "2026.10.31.2",
       "workbook": "crop_sown_registry_sown.xlsx",
       "media": [
         "crop_name.csv"
@@ -104,7 +101,7 @@
     },
     {
       "form_id": "crop_sown_registry_harvest",
-      "version": "2026.10.31.1",
+      "version": "2026.10.31.2",
       "workbook": "crop_sown_registry_harvest.xlsx",
       "media": [
         "crop_name.csv"

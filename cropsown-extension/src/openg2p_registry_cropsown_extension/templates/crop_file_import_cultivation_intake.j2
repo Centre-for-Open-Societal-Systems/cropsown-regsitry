@@ -19,7 +19,7 @@
 {% set production_season = cell.get('production_season', '') %}
 {% if not production_season %}{{ fail('column production_season is required') }}{% endif %}
 
-{% set text_columns = ['land_id', 'season', 'commodity', 'crop_category', 'crop_variety', 'local_name', 'scientific_name', 'cultivation_type', 'seed_variety', 'actual_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
+{% set text_columns = ['land_id', 'season', 'commodity', 'crop_category', 'local_name', 'scientific_name', 'cultivation_type', 'seed_variety', 'actual_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
 {% set number_columns = ['land_area', 'actual_crop_area', 'actual_yield', 'actual_seed_qty', 'actual_fertilizer_qty'] %}
 {% set integer_columns = ['start_month', 'start_day', 'end_month', 'end_day', 'actual_growth_duration_days'] %}
 {% set date_columns = ['start_gc', 'end_gc', 'actual_cultivation_date'] %}

@@ -41,11 +41,10 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `soil_fertility_type` | `cs_planning_details` | No | Code from the SOIL_FERTILITY list below. |
 | `season` | `cs_planning_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_planning_details` | Yes | Code from the CROP_COMMODITY list below. |
-| `crop_variety` | `cs_planning_details` | No | Code from the CROP_VARIETY list below. |
 | `crop_category` | `cs_planning_details` | No | Code from the CROP_CATEGORY list below. |
 | `local_name` | `cs_planning_details` | No | Text |
 | `scientific_name` | `cs_planning_details` | No | Text |
-| `seed_variety` | `cs_planning_details` | No | Code from the SEED_VARIETY list below. |
+| `seed_variety` | `cs_planning_details` | No | The variety (shown as "Variety"): code from the SEED_VARIETY list below. |
 | `planned_fertilizer_type` | `cs_planning_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `water_source` | `cs_planning_details` | No | Code from the WATER_SOURCE list below. |
 | `water_source_method` | `cs_planning_details` | No | Code from the WATER_SOURCE_METHOD list below. |
@@ -87,11 +86,10 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `season` | `cs_cultivation_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_cultivation_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `crop_category` | `cs_cultivation_details` | No | Code from the CROP_CATEGORY list below. |
-| `crop_variety` | `cs_cultivation_details` | No | Code from the CROP_VARIETY list below. |
 | `local_name` | `cs_cultivation_details` | No | Text |
 | `scientific_name` | `cs_cultivation_details` | No | Text |
 | `cultivation_type` | `cs_cultivation_details` | No | Code from the MACHINERY list below. |
-| `seed_variety` | `cs_cultivation_details` | No | Code from the SEED_VARIETY list below. |
+| `seed_variety` | `cs_cultivation_details` | No | The variety (shown as "Variety"): code from the SEED_VARIETY list below. |
 | `actual_fertilizer_type` | `cs_cultivation_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `water_source` | `cs_cultivation_details` | No | Code from the WATER_SOURCE list below. |
 | `water_source_method` | `cs_cultivation_details` | No | Code from the WATER_SOURCE_METHOD list below. |
@@ -209,12 +207,6 @@ Master Data list `CROP_COMMODITY` as the ETH-OAN pack seeds it.
 Master Data list `SEED_VARIETY`.
 
 Too long to repeat here: use the `value_code` of each value in `packs/ETH-OAN/domains/agriculture/seed_variety.json` of the openg2p-data repository (for example `VAR_TEFF_QUNCHO`).
-
-### CROP_VARIETY
-
-Master Data list `CROP_VARIETY`.
-
-Too long to repeat here: use the `value_code` of each value in `odk/mds-export/CROP_VARIETY.json` (an export of the live list).
 
 ### SOIL_FERTILITY
 
