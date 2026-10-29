@@ -51,8 +51,8 @@ DATE_FIELDS = frozenset(
 PAST_ONLY = frozenset({"date_of_birth", "registration_date"})
 LABELS = {
     "farmer_id": "Farmer ID",
-    "fayda_fin": "FIN (Fayda ID)",
-    "fayda_fan_id": "Fayda ID (FAN)",
+    "fayda_fin": "Fayda FIN",
+    "fayda_fan_id": "Fayda FAN ID",
     "fayda_id": "Fayda ID (FAN or FIN)",
     "da_name": "Development agent name",
     "surveyor_name": "Development agent name",
@@ -69,8 +69,8 @@ MESSAGES = {
     "coss_field_name_format": "{label}: use 1 to 100 letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
     "coss_field_amharic_name_format": "{label}: use 1 to 100 Ethiopic letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
     "coss_field_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
-    "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the FAN field for a 16-digit FAN.",
-    "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the FIN field for a 12-digit FIN.",
+    "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the Fayda FAN ID field for a 16-digit number.",
+    "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the Fayda FIN field for a 12-digit number.",
     "coss_field_date_format": "{label}: enter a real date. In imported files, write dates as year-month-day in the Gregorian calendar, for example 2018-12-25.",
     "coss_field_date_min": "{label}: the date is too early. Enter a date in 1900 or later.",
     "coss_field_date_future": "{label}: the date is in the future. Enter today's date or an earlier date.",

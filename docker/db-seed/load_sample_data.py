@@ -113,16 +113,24 @@ LOOKUP = "crop_farmer_lookup"
 # Each stage's form, its season section, and its list sections with the pack key
 # that fills them; the first list is the stage's own and must have rows.
 STAGES = (
-    ("1.Crop Sown Planning Intake", "cropsown_intake_season_section_01",
+    ("Crop planning intake", "cropsown_intake_season_section_01",
      (("cropsown_planning_details_section_01", "planning"), ("cropsown_cluster_details_section_01", "clusters"))),
-    ("2.Crop Sown Cultivation Intake", "cropsown_common_intake_season_section_01",
+    ("Crop cultivation intake", "cropsown_common_intake_season_section_01",
      (("cropsown_cultivation_details_section_01", "cultivation"),
       ("cropsown_cultivation_cluster_details_section_01", "cultivation_clusters"))),
-    ("3.Crop Sown Sowing Intake", "cropsown_common_intake_season_section_01",
+    ("Crop sowing intake", "cropsown_common_intake_season_section_01",
      (("cropsown_sowing_details_section_01", "sowing"), ("cropsown_infestation_details_section_01", "infestations"))),
-    ("4.Crop Sown Harvesting Intake", "cropsown_common_intake_season_section_01",
+    ("Crop harvesting intake", "cropsown_common_intake_season_section_01",
      (("cropsown_harvest_details_section_01", "harvest"),)),
 )
+# The sample records' ids are derived from these names, which are the forms' names
+# before they lost their numbers; renaming a form must not give the samples new ids.
+SEED_KEYS = {
+    "Crop planning intake": "1.Crop Sown Planning Intake",
+    "Crop cultivation intake": "2.Crop Sown Cultivation Intake",
+    "Crop sowing intake": "3.Crop Sown Sowing Intake",
+    "Crop harvesting intake": "4.Crop Sown Harvesting Intake",
+}
 LOCATION = "cropsown_cropsown_location_section_03"  # Planning only
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -230,14 +238,14 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, crops: list[dict], p
             own = lists[0][1]
             if not sample.get(own):
                 continue
-            root = seed_record_id("cropsown-sample", who, form, year)
+            root = seed_record_id("cropsown-sample", who, SEED_KEYS[form], year)
             sections = {
                 LOOKUP: [{"internal_record_id": root, "farmer_id": farmer_ids[who],
                           "fayda_id": person["national_id"]}],
                 season_section: [{"internal_record_id": root, "crop_year": str(year),
                                   "production_season": season}],
             }
-            if form.startswith("1.") and sample.get("location"):
+            if own == "planning" and sample.get("location"):
                 sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
             for section, key in lists:
                 rows = [{"internal_record_id": new_id(), "link_internal_record_id": root,

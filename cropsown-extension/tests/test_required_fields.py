@@ -263,9 +263,9 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # Translation files name the sections for their labels; no other later file may.
         if path.parent.name == "registry-configurations":
             continue
-        # The label casing and readable text overlays only reword display text (labels and titles);
+        # The label casing, readable text and readable lists overlays only reword display text (labels and titles);
         # it never adds, removes or reorders a row.
-        if path.name.endswith(("_label_casing.sql", "_readable_text.sql")):
+        if path.name.endswith(("_label_casing.sql", "_readable_text.sql", "_readable_lists.sql")):
             continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",

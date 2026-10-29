@@ -109,7 +109,8 @@ def plan(loader, crops=CROPS, people=PEOPLE):
 
 def test_each_stage_with_rows_is_one_intake_in_stage_order(loader):
     planned = plan(loader)
-    assert [[s["form"][:2] for s in p["stages"]] for p in planned] == [["1.", "2.", "3.", "4."], ["1."]]
+    forms = [stage[0] for stage in loader.STAGES]
+    assert [[s["form"] for s in p["stages"]] for p in planned] == [forms, forms[:1]]
     planning = planned[0]["stages"][0]["sections"]
     root = planned[0]["stages"][0]["root"]
     assert list(planning) == ["crop_farmer_lookup", "cropsown_intake_season_section_01",
@@ -211,7 +212,7 @@ def run(loader, registry):
     runner.registry, runner.approve_timeout, runner.ingest_timeout, runner.year = registry, 5, 5, YEAR
     runner.submitter = types.SimpleNamespace(username="alex.carter")
     runner.approvers = [FakeApprover("alex.carter", 1, registry, calls), FakeApprover("nina.patel", 2, registry, calls)]
-    runner.forms = {form: (f"form-{form[:1]}", "register", {}) for form, _, _ in loader.STAGES}
+    runner.forms = {form: (f"form-{number}", "register", {}) for number, (form, _, _) in enumerate(loader.STAGES, 1)}
 
     def submit(stage, reference_id, draft=None):
         if draft:
@@ -219,7 +220,7 @@ def run(loader, registry):
             registry.pending.append(draft)
             return draft
         sid = f"sub-{len(submitted) + 1}"
-        submitted.append((stage["form"][:1], reference_id, stage["sections"]["crop_farmer_lookup"][0]["farmer_id"]))
+        submitted.append((str([f for f, _, _ in loader.STAGES].index(stage["form"]) + 1), reference_id, stage["sections"]["crop_farmer_lookup"][0]["farmer_id"]))
         registry.pending.append(sid)
         return sid
 
