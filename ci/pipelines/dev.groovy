@@ -210,6 +210,8 @@ pipeline {
 
         stage('Build & Push') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
+            // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
+            environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
                 // AWS_ACCOUNT_ID stays inside this block: a bound credential is
                 // masked in the log only where it is in scope.
@@ -217,6 +219,9 @@ pipeline {
                     sh '''
                         set -eu
                         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                        # Keep the buildx/compose CLI plugins visible from the per-build config dir.
+                        mkdir -p "$DOCKER_CONFIG"; chmod 700 "$DOCKER_CONFIG"; if [ -d "$HOME/.docker/cli-plugins" ]; then ln -sfn "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"; fi
 
                         aws ecr get-login-password --region "${AWS_REGION}" \
                             | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
@@ -466,9 +471,7 @@ Jenkins
         }
         always {
             sh 'docker image prune -f || true'
-            withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
-                sh 'docker logout "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" || true'
-            }
+            sh 'rm -rf "${WORKSPACE}/.docker-${BUILD_TAG}"'
         }
     }
 }
