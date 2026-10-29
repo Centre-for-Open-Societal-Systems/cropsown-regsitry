@@ -19,6 +19,7 @@ from openg2p_registry_core.services.g2p_change_request_worker_service import G2P
 from openg2p_registry_core.services.g2p_awe_webhook_service import G2PAweWebhookService
 
 from ..direct_approval import DirectApprovalClosed
+from ..required_intake import RequiredFieldsMixin
 from . import messages
 from .configuration import configured_lookup
 from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerPendingLookup
@@ -146,7 +147,7 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
-class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
+class ReferenceIntakeService(RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
     # No approve_submission here: the DirectApprovalClosed guard answers a
     # direct approval first, for every register, before any lookup, so a
     # made-up id and a real one get the same AWE_APPROVAL_REQUIRED.
@@ -169,6 +170,7 @@ class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
     async def finalize_submission_with_session(self, submission_id, session, finalized_by=None,
                                                 bearer_token=None, requester_sub=None):
         from .messages import explain
+        await self.ensure_form_complete(submission_id, session)
         # The service is a shared component: the declared IDs belong to this call.
         declared_ids = {}
         try:
