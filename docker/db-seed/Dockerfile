@@ -9,29 +9,19 @@ COPY cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/ /seed
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/templates/ /seed/templates/
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
-# OAN theme: the staff-portal theme (palette and background image) is data in
-# openg2p-data (themes/oan_theme). Render this registry's entry into the seed
-# tree; it runs after the registry configuration and points it at oan_theme.
-# The ref is a commit SHA; move the repository to the COSS copy once merged there.
-ARG OAN_THEME_DATA_REPO=https://github.com/asmitonweb/openg2p-data.git
-ARG OAN_THEME_DATA_REF=bba20c3b7144f76cb99fae3522344bd31783d090
-RUN mkdir -p /tmp/oan-theme-data /seed/meta_data/zz-oan \
- && cd /tmp/oan-theme-data \
- && git init -q \
- && git fetch -q --depth 1 "${OAN_THEME_DATA_REPO}" "${OAN_THEME_DATA_REF}" \
- && git checkout -q FETCH_HEAD \
- && python3 scripts/themes/build_theme_sql.py crop > /seed/meta_data/zz-oan/90_oan_theme.sql \
- && cd / && rm -rf /tmp/oan-theme-data
-
-# Sample data (LOAD_SAMPLE_DATA=true). The platform image checks out openg2p-data
-# at /openg2p-data; this one checks out the COSS repository at a pinned commit in
-# its place, the source of the ETH-OAN pack's sample farmers and their crop
-# records (samples/farmer_ids.json, samples/crop_sown.json).
+# Seed data lives in openg2p-data. The platform image checks out openg2p-data at
+# /openg2p-data; this one checks out the COSS repository at a pinned commit in its
+# place. It is the source of the staff-portal theme (themes/oan_theme, rendered
+# into the seed tree after the registry configuration, pointing it at oan_theme
+# and setting the registry logo) and of the ETH-OAN pack's sample farmers and
+# their crop records (samples/farmer_ids.json, samples/crop_sown.json) for
+# LOAD_SAMPLE_DATA=true.
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
-ARG OPENG2P_DATA_REF=5aa26d65aabd979ad96a2fc4a293c8f12de18bf7
-RUN rm -rf /openg2p-data && mkdir -p /openg2p-data && cd /openg2p-data \
+ARG OPENG2P_DATA_REF=34b239463cc38af8c028428df1eb52d786cc14c2
+RUN rm -rf /openg2p-data && mkdir -p /openg2p-data /seed/meta_data/zz-oan && cd /openg2p-data \
     && git init -q && git remote add origin ${OPENG2P_DATA_REPO} \
     && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD \
-    && rm -rf .git
+    && rm -rf .git \
+    && python3 scripts/themes/build_theme_sql.py crop > /seed/meta_data/zz-oan/90_oan_theme.sql
 COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 ENTRYPOINT ["/seed/entrypoint.sh"]
