@@ -1,0 +1,121 @@
+{
+  "version": "2026.10.30",
+  "media_rows": {
+    "crop_name.csv": 125,
+    "crop_variety.csv": 1952,
+    "seed_variety.csv": 794,
+    "region.csv": 14,
+    "zone.csv": 125,
+    "woreda.csv": 1362,
+    "kebele.csv": 19535
+  },
+  "forms": [
+    {
+      "form_id": "crop_sown_registry_plan",
+      "version": "2026.10.30",
+      "workbook": "crop_sown_registry_plan.xlsx",
+      "media": [
+        "crop_name.csv",
+        "crop_variety.csv",
+        "kebele.csv",
+        "region.csv",
+        "seed_variety.csv",
+        "woreda.csv",
+        "zone.csv"
+      ],
+      "master_data_lists": {
+        "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
+        "crop_season": "CROP_SEASON"
+      },
+      "lists_left_as_published": [
+        "cropping_sys",
+        "fertilizer_type",
+        "frequency",
+        "method",
+        "ownership",
+        "plot_cat",
+        "seed_class",
+        "seed_source",
+        "soil_fertility",
+        "water_source"
+      ]
+    },
+    {
+      "form_id": "crop_sown_registry_prep",
+      "version": "2026.10.30",
+      "workbook": "crop_sown_registry_prep.xlsx",
+      "media": [
+        "crop_name.csv",
+        "crop_variety.csv",
+        "kebele.csv",
+        "region.csv",
+        "seed_variety.csv",
+        "woreda.csv",
+        "zone.csv"
+      ],
+      "master_data_lists": {
+        "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
+        "crop_season": "CROP_SEASON"
+      },
+      "lists_left_as_published": [
+        "cropping_sys",
+        "cult_method",
+        "fertilizer_type",
+        "frequency",
+        "land_prep_method",
+        "method",
+        "seed_class",
+        "seed_source",
+        "water_source"
+      ]
+    },
+    {
+      "form_id": "crop_sown_registry_sown",
+      "version": "2026.10.30",
+      "workbook": "crop_sown_registry_sown.xlsx",
+      "media": [
+        "crop_name.csv"
+      ],
+      "master_data_lists": {
+        "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
+        "crop_season": "CROP_SEASON"
+      },
+      "lists_left_as_published": [
+        "cluster_status",
+        "disease_type",
+        "fert_type",
+        "fertilizer_type",
+        "fungicide_type",
+        "growth_stage",
+        "infestation_type",
+        "m_control",
+        "method_control",
+        "method_of_control",
+        "nutrient_type",
+        "pest_type",
+        "pesticides_type",
+        "recovery_type",
+        "security_level",
+        "shock_type",
+        "sowing_status",
+        "weed_type",
+        "weedicides_type"
+      ]
+    },
+    {
+      "form_id": "crop_sown_registry_harvest",
+      "version": "2026.10.30",
+      "workbook": "crop_sown_registry_harvest.xlsx",
+      "media": [
+        "crop_name.csv"
+      ],
+      "master_data_lists": {
+        "crop_season": "CROP_SEASON"
+      },
+      "lists_left_as_published": [
+        "cluster_status",
+        "crop_maturity"
+      ]
+    }
+  ]
+}
