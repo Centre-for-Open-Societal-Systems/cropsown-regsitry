@@ -49,7 +49,7 @@
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
-#   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
+#   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads images/templates to MinIO
 #   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
 #                                               cropsown-registry-dashboard-api (image
 #                                               ${DASHBOARD_API_ECR}:<tag>)
@@ -96,12 +96,12 @@ RUN_SANITY="${RUN_SANITY:-false}"
 # (https://keycloak.<namespace>.openg2p.test), which pods cannot reach here, so
 # it retries 30 times and holds the deploy. The app is registered already.
 RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
-# db-seed's image and template loaders upload to MinIO at global.minioHost, the
-# PUBLIC host (minio-api.<namespace>.openg2p.test, https), which pods cannot
-# reach here either â€” locally the same loaders use minio:9000. The host has to
-# stay public for the APIs' browser pre-signed URLs, so db-seed skips those two
-# loaders by default and loads only SQL metadata, geo data and AWE config.
-SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-false}"
+# db-seed's image and template loaders upload to MinIO at global.minioHost.
+# The ODK and DCI transform templates are read from MinIO, not from the image,
+# so a deploy that skips the upload keeps running the old templates (crop ran
+# its 15 October ODK template until this was turned back on). Livestock uploads
+# to the same MinIO host on every deploy.
+SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-true}"
 # The reporting views the dashboard service reads, and the service itself
 # (templates/reporting-views*.yaml, templates/dashboard-api.yaml).
 DASHBOARD_API="${DASHBOARD_API:-true}"
