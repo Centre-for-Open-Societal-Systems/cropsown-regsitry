@@ -177,7 +177,7 @@ class FakeRegistry:
     def approval_status(self, submission_id):
         return self.status.get(submission_id)
 
-    def wait_for(self, table, record_id, timeout):
+    def wait_for(self, table, record_id, timeout, submission_id=None):
         self.waited.append((table, record_id))
 
 
@@ -593,3 +593,62 @@ def test_root_records_are_the_loaders_own_and_stable_across_runs(loader):
     assert [s["root"] for s in first[0]["stages"]] == [s["root"] for s in again[0]["stages"]]
     other_year = loader.plan(PEOPLE, FARMS, FARMER_IDS, CROPS, PLACES, YEAR + 1)
     assert first[0]["stages"][0]["root"] != other_year[0]["stages"][0]["root"]
+
+
+def test_the_farmer_copy_carries_its_functional_record_id(loader):
+    farmer = plan(loader)[0]["farmer"]
+    assert farmer["functional_record_id"] == farmer["farmer_id"] == "FR-100000000001"
+    assert loader.farmer_with_id(farmer, "FR-9")["functional_record_id"] == "FR-9"
+    cur = FakeCursor()
+    loader.Registry._ensure_farmer(cur, farmer, "alex.carter", "nina.patel", "ETH-IND-0001")
+    insert = [p for sql, p in cur.statements if sql.startswith('INSERT INTO "public"."g2p_register_farmers"')][0]
+    assert "FR-100000000001" in insert
+
+
+def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(loader):
+    assert loader.Loader.time_budget == 780 and loader.HARD_LIMIT == 840 and loader.INGEST_POLL <= 5
+    assert loader.Loader.time_budget < loader.HARD_LIMIT < 900
+
+
+class IngestRegistry:
+    """Registry.wait_for over a scripted database: the intake's status, then the register."""
+
+    def __init__(self, loader, statuses, record_after=None):
+        self.statuses, self.record_after, self.looks = list(statuses), record_after, 0
+        self.wait_for = lambda *a, **k: loader.Registry.wait_for(self, *a, **k)
+        self.ingested = lambda *a, **k: loader.Registry.ingested(self, *a, **k)
+
+    def rows(self, sql, params=()):
+        if "register_ingest_process_status FROM g2p_intake_form_submissions" in sql and "submission_id" in sql:
+            self.looks += 1
+            return [(self.statuses[min(self.looks - 1, len(self.statuses) - 1)],)]
+        if sql.startswith("SELECT 1 FROM"):
+            return [(1,)] if self.record_after is not None and self.looks >= self.record_after else []
+        return []
+
+
+def test_the_ingest_wait_ends_when_the_intake_is_processed_even_under_another_record_id(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda s: None)
+    registry = IngestRegistry(loader, ["PENDING", "PENDING", "PROCESSED"])
+    registry.wait_for("g2p_register_crop_sowns", "root", 60, "sub-1")
+    assert registry.looks == 3
+
+
+def test_the_ingest_wait_accepts_the_root_record_too(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda s: None)
+    registry = IngestRegistry(loader, ["PENDING"], record_after=2)
+    registry.wait_for("g2p_register_crop_sowns", "root", 60, "sub-1")
+
+
+def test_an_ingest_that_does_not_finish_is_pending_not_a_failed_farmer(loader):
+    registry = FakeRegistry()
+
+    def wait_for(table, record_id, timeout, submission_id=None):
+        raise loader.IngestPending("slow")
+
+    registry.wait_for = wait_for
+    done, submitted, _ = run(loader, registry)
+    stages = [len(p["stages"]) for p in plan(loader)]
+    assert done["farmers failed"] == 0 and done["intakes approved, ingest pending"] == len(stages)
+    assert len(submitted) == len(stages)  # each farmer stops after its first stage
+    assert done["intakes left for the next run"] == sum(stages) - len(stages)
