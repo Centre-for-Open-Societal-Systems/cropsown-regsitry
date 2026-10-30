@@ -28,6 +28,10 @@
 # that is not an image line, or the target renders a Job. ALLOW_NON_IMAGE_CHANGES=1
 # turns those two failures into warnings for a deliberate chart change.
 #
+# The verification at the end mints a client-credentials token for the Keycloak client
+# registry-connector (secret from commons/registry-connector; KEYCLOAK_URL overrides the host)
+# because the connector API is admin-only, and asserts that a request without a token is refused.
+#
 # The Keycloak client secret Secret crop/registry-connector-client is only reported (PRESENT,
 # MISSING or UNKNOWN); nothing in the connector image reads it and it never blocks a run.
 #
@@ -257,5 +261,56 @@ if [[ "$UI_ENABLED" != false ]]; then
 fi
 API_POD=$(kubectl get pod -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api" --field-selector=status.phase=Running -o name | head -n 1)
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8050/health", timeout=10).status)'
+
+# The connector API is admin-only (Keycloak realm staff, client registry-connector, role
+# REGISTRY_CONNECTOR_ADMIN). Mint a client-credentials token for the client's service account.
+# The client secret is read from the Secret registry-connector in commons (key client_secret,
+# written by keycloak-init). Neither the secret nor the token is printed or put on a command line:
+# the token reaches the pod on stdin.
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
+TOKEN_URL="${KEYCLOAK_URL%/}/realms/staff/protocol/openid-connect/token"
+set +x
+client_secret=$(kubectl get secret registry-connector -n commons -o jsonpath='{.data.client_secret}' | base64 -d)
+[[ -n "$client_secret" ]] || { echo "Secret commons/registry-connector has no client_secret; cannot verify the admin-only API." >&2; exit 1; }
+ADMIN_TOKEN=$(CLIENT_SECRET="$client_secret" TOKEN_URL="$TOKEN_URL" python3 -c '
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+body = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": "registry-connector",
+                               "client_secret": os.environ["CLIENT_SECRET"]}).encode()
+try:
+    with urllib.request.urlopen(urllib.request.Request(os.environ["TOKEN_URL"], data=body), timeout=20) as r:
+        print(json.load(r)["access_token"])
+except urllib.error.HTTPError as e:
+    sys.exit("Keycloak refused the registry-connector client-credentials grant: HTTP %s" % e.code)
+except Exception as e:
+    sys.exit("Could not obtain a registry-connector token from the token endpoint: %s" % type(e).__name__)
+')
+unset client_secret
+[[ -n "$ADMIN_TOKEN" ]] || { echo "Keycloak returned no access token for registry-connector." >&2; exit 1; }
+# Run a python program (argument 1, stdlib only) in the API pod. stdin carries the token on line 1,
+# then the program; the program sees it as TOKEN.
+pod_py() {
+  { printf '%s\n' "$ADMIN_TOKEN"; printf '%s\n' "$1"; } |
+    kubectl exec -i -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import sys; TOKEN = sys.stdin.readline().strip(); exec(sys.stdin.read())'
+}
+# The upgrade exists to make this true: a request without a token must be refused.
+pod_py '
+import urllib.error, urllib.request
+try:
+    urllib.request.urlopen("http://127.0.0.1:8050/connectors/meta", timeout=10)
+except urllib.error.HTTPError as e:
+    if e.code not in (401, 403):
+        raise SystemExit("Unauthenticated GET /connectors/meta answered HTTP %s, expected 401 or 403" % e.code)
+    print("Unauthenticated GET /connectors/meta refused with HTTP %s" % e.code)
+else:
+    raise SystemExit("Unauthenticated GET /connectors/meta succeeded: the connector API is NOT admin-only")
+'
+pod_py '
+import json, urllib.request
+req = urllib.request.Request("http://127.0.0.1:8050/connectors/meta", headers={"Authorization": "Bearer " + TOKEN})
+print("Authenticated GET /connectors/meta:", urllib.request.urlopen(req, timeout=10).status)
+req = urllib.request.Request("http://127.0.0.1:8050/connectors", headers={"Authorization": "Bearer " + TOKEN})
+rows = json.load(urllib.request.urlopen(req, timeout=10))
+print("Authenticated GET /connectors: %d connector(s)" % len(rows if isinstance(rows, list) else rows.get("items") or rows.get("data") or []))
+'
 helm history "$RELEASE" -n "$NAMESPACE" --max 3
 echo "Upgraded $RELEASE in $NAMESPACE to $IMAGE, ui $UI_IMAGE (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"
