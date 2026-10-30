@@ -38,9 +38,12 @@ def test_loader_signs_in_like_the_portal_and_writes_only_the_farmer_reference():
     source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
     for forbidden in ("grant_type", "KEYCLOAK_ADMIN", "admin-cli", "/admin/realms", "directAccessGrants",
-                      "UPDATE ", "DELETE FROM", "/approve_change_request", "g2p_register_crop_sowns\" (",
+                      "DELETE FROM", "/approve_change_request", "g2p_register_crop_sowns\" (",
                       "INSERT INTO g2p_register_crop", "INSERT INTO \"public\".\"g2p_register_crop"):
         assert forbidden not in code, forbidden
+    # The one UPDATE: the backfill of the functional record id on the loader's own farmer copies.
+    updates = __import__("re").findall(r"UPDATE [^\"]*", code)
+    assert len(updates) == 1 and updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
     # The only rows written directly: the farmer copy, its reference, and the intake's link to it.
     written = sorted(set(__import__("re").findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
     assert written == ["coss_farmer_references", "coss_farmer_submission_dependencies", "g2p_register_farmers"]
@@ -652,3 +655,24 @@ def test_an_ingest_that_does_not_finish_is_pending_not_a_failed_farmer(loader):
     assert done["farmers failed"] == 0 and done["intakes approved, ingest pending"] == len(stages)
     assert len(submitted) == len(stages)  # each farmer stops after its first stage
     assert done["intakes left for the next run"] == sum(stages) - len(stages)
+
+
+def test_the_backfill_touches_only_the_loaders_own_copies_without_a_functional_id(loader):
+    cur = FakeCursor()
+    cur.rowcount = 7
+    registry = loader.Registry.__new__(loader.Registry)
+
+    class Managed:
+        def __enter__(self):
+            return cur
+
+        def __exit__(self, *exc):
+            return False
+
+    registry.conn = types.SimpleNamespace(cursor=Managed)
+    got = loader.Registry.backfill_functional_ids(registry, ["FR-1", "FR-2"], "alex.carter")
+    sql, params = cur.statements[0]
+    assert got == 7 and params == (["FR-1", "FR-2"], "alex.carter")
+    assert sql.startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id WHERE")
+    assert "farmer_id = ANY(%s)" in sql and "created_by = %s" in sql and "coalesce(functional_record_id, '') = ''" in sql
+    assert sql.count("SET") == 1 and ", " not in sql.split("SET")[1].split("WHERE")[0]

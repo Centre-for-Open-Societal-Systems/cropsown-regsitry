@@ -506,6 +506,19 @@ class Registry:
         cur.execute(f'INSERT INTO "public"."g2p_register_farmers" ({", ".join(columns)})'
                     f" VALUES ({', '.join(['%s'] * len(columns))})", list(columns.values()))
 
+    def backfill_functional_ids(self, farmer_ids: list[str], created_by: str) -> int:
+        """Set functional_record_id = farmer_id on the loader's own earlier inserts that lack it.
+
+        Only the pack's sample Farmer IDs, only rows this loader created (created_by is the submitting
+        username; the platform's own flows record display names), only where the id is empty. Nothing
+        else is touched.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE g2p_register_farmers SET functional_record_id = farmer_id"
+                        " WHERE farmer_id = ANY(%s) AND created_by = %s"
+                        " AND coalesce(functional_record_id, '') = ''", (farmer_ids, created_by))
+            return cur.rowcount
+
     def link(self, submission_id: str, reference_id: str) -> None:
         """Tie a draft intake to its approved farmer reference, so finalizing needs no Farmer lookup."""
         self.rows("INSERT INTO coss_farmer_submission_dependencies (submission_id, reference_id)"
@@ -770,6 +783,12 @@ def main() -> None:
             [session(env("INTAKE_SEED_APPROVER_1", "alex.carter")),
              session(env("INTAKE_SEED_APPROVER_2", "nina.patel"))],
             int(env("INTAKE_SEED_APPROVE_TIMEOUT", "180")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "420")), year)
+        submitter = loader.submitter.username
+        try:
+            fixed = registry.backfill_functional_ids([p["farmer"]["farmer_id"] for p in planned], submitter)
+            log(f"{fixed} earlier sample farmer copies given their functional record id")
+        except Exception as exc:  # a nicety: sample data must not fail the upgrade
+            log(f"functional record id backfill skipped: {exc!r}")
         done = loader.run(planned)
     finally:
         registry.conn.close()
