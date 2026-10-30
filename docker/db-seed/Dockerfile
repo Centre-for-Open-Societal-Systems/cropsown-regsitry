@@ -17,7 +17,7 @@ COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 # their crop records (samples/individuals.json, samples/crop_sown.json) for
 # LOAD_SAMPLE_DATA=true.
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
-ARG OPENG2P_DATA_REF=34b239463cc38af8c028428df1eb52d786cc14c2
+ARG OPENG2P_DATA_REF=2614a3252a078d8c24f1d982d6e3e702d56b5de7
 RUN rm -rf /openg2p-data && mkdir -p /openg2p-data /seed/meta_data/zz-oan && cd /openg2p-data \
     && git init -q && git remote add origin ${OPENG2P_DATA_REPO} \
     && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD \
