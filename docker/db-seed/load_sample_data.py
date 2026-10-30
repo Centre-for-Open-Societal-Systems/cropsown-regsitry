@@ -79,7 +79,8 @@ approved; the farmer's later stages wait for that run, as they build on it. Afte
 intake no further farmer starts in the run, so one slow worker cannot burn the whole run.
 An ingest in a failure status (INGEST_FAILED) that holds for two polls in a row, or after
 INGEST_MAX_ATTEMPTS attempts, stops the wait, is logged with its error columns and counted as a failed
-farmer (a failure status can be a retry's intermediate state, so one look is not enough); a later run reports an approved intake whose ingest
+farmer (a failure status can be a retry's intermediate state, so one look is not enough);
+a later run reports an approved intake whose ingest
 failed instead of skipping it as approved, and treats one whose ingest is still pending like a slow
 ingest: the farmer's next stage is not submitted before it is in the register.
 
