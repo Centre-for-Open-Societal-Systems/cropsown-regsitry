@@ -13,8 +13,8 @@ COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 # /openg2p-data; this one checks out the COSS repository at a pinned commit in its
 # place. It is the source of the staff-portal theme (themes/oan_theme, rendered
 # into the seed tree after the registry configuration, pointing it at oan_theme
-# and setting the registry logo) and of the ETH-OAN pack's sample farmers and
-# their crop records (samples/farmer_ids.json, samples/crop_sown.json) for
+# and setting the registry logo) and of the ETH-OAN pack's sample people and
+# their crop records (samples/individuals.json, samples/crop_sown.json) for
 # LOAD_SAMPLE_DATA=true.
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
 ARG OPENG2P_DATA_REF=34b239463cc38af8c028428df1eb52d786cc14c2
