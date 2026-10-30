@@ -2,8 +2,11 @@
 records entered as stage intakes and approved at both stages by the sample approvers."""
 
 import ast
+import builtins
 import importlib.util
+import io
 import itertools
+import re
 import sys
 import types
 from pathlib import Path
@@ -38,11 +41,15 @@ def test_loader_signs_in_like_the_portal_and_writes_only_the_farmer_reference():
     source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
     for forbidden in ("grant_type", "KEYCLOAK_ADMIN", "admin-cli", "/admin/realms", "directAccessGrants",
-                      "UPDATE ", "DELETE FROM", "/approve_change_request", "g2p_register_crop_sowns\" (",
+                      "DELETE FROM", "/approve_change_request", "g2p_register_crop_sowns\" (",
                       "INSERT INTO g2p_register_crop", "INSERT INTO \"public\".\"g2p_register_crop"):
         assert forbidden not in code, forbidden
+    # The one UPDATE: the backfill of the functional record id on the loader's own farmer copies.
+    updates = re.findall(r"UPDATE [^\"]*", code)
+    assert len(updates) == 1
+    assert updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
     # The only rows written directly: the farmer copy, its reference, and the intake's link to it.
-    written = sorted(set(__import__("re").findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
+    written = sorted(set(re.findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
     assert written == ["coss_farmer_references", "coss_farmer_submission_dependencies", "g2p_register_farmers"]
     for required in ("/auth/start_authentication_transaction", "kc-form-login", "/auth/callback",
                      "/intake-form-data/finalize_intake_form_submission", "/awe/submit_task_decision",
@@ -160,7 +167,14 @@ def test_bad_samples_fail(loader, change, message):
 class FakeRegistry:
     def __init__(self, previous=None, existing=None):
         self.previous, self.existing = dict(previous or {}), dict(existing or {})
-        self.status, self.waited, self.pending, self.seeded = {}, [], [], []
+        self.status, self.waited, self.pending, self.seeded, self.failures = {}, [], [], [], {}
+        self.unprocessed = set()
+
+    def ingest_failure(self, submission_id):
+        return self.failures.get(submission_id)
+
+    def ingest_pending(self, submission_id):
+        return submission_id in self.unprocessed
 
     def ensure_farmer(self, farmer, created_by, approved_by, source_record_id):
         if farmer["fayda_fin"] in self.existing:
@@ -177,7 +191,7 @@ class FakeRegistry:
     def approval_status(self, submission_id):
         return self.status.get(submission_id)
 
-    def wait_for(self, table, record_id, timeout):
+    def wait_for(self, table, record_id, timeout, submission_id=None):
         self.waited.append((table, record_id))
 
 
@@ -593,3 +607,207 @@ def test_root_records_are_the_loaders_own_and_stable_across_runs(loader):
     assert [s["root"] for s in first[0]["stages"]] == [s["root"] for s in again[0]["stages"]]
     other_year = loader.plan(PEOPLE, FARMS, FARMER_IDS, CROPS, PLACES, YEAR + 1)
     assert first[0]["stages"][0]["root"] != other_year[0]["stages"][0]["root"]
+
+
+def test_the_farmer_copy_carries_its_functional_record_id(loader):
+    farmer = plan(loader)[0]["farmer"]
+    assert farmer["functional_record_id"] == farmer["farmer_id"] == "FR-100000000001"
+    assert loader.farmer_with_id(farmer, "FR-9")["functional_record_id"] == "FR-9"
+    cur = FakeCursor()
+    loader.Registry._ensure_farmer(cur, farmer, "alex.carter", "nina.patel", "ETH-IND-0001")
+    insert = [p for sql, p in cur.statements if sql.startswith('INSERT INTO "public"."g2p_register_farmers"')][0]
+    assert "FR-100000000001" in insert
+
+
+def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(loader):
+    assert loader.Loader.time_budget == 660 and loader.HARD_LIMIT == 720 and loader.INGEST_POLL <= 5
+    assert loader.Loader.time_budget < loader.HARD_LIMIT <= 900 - 120  # margin to the 15 minute hook wait
+
+
+class IngestRegistry:
+    """Registry.wait_for over a scripted database: the intake's status per look, then the register."""
+
+    def __init__(self, loader, statuses, record_after=None, attempts=2):
+        self.statuses, self.record_after, self.looks, self.attempts = list(statuses), record_after, 0, attempts
+        for name in ("wait_for", "ingest_state", "ingest_failure"):
+            setattr(self, name, getattr(loader.Registry, name).__get__(self))
+
+    def status(self):
+        return self.statuses[min(self.looks - 1, len(self.statuses) - 1)]
+
+    def rows(self, sql, params=()):
+        if "register_ingest_process_attempts" in sql and "WHERE submission_id" in sql:
+            self.looks += 1
+            return [(self.status(), self.attempts, "boom")]
+        if sql.startswith("SELECT register_ingest_process_status FROM"):
+            return [(self.status(),)]
+        if sql.startswith("SELECT 1 FROM"):
+            return [(1,)] if self.record_after is not None and self.looks >= self.record_after else []
+        self.stuck_query = (sql, params)
+        return [("PENDING", 3, "")]  # the latest unprocessed intake
+
+
+class Clock:
+    """A clock that only the waits move."""
+
+    def __init__(self):
+        self.now = 1000.0
+
+    def time(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_the_ingest_wait_ends_when_the_intake_is_processed_even_under_another_record_id(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["PENDING", "PENDING", "PROCESSED"])
+    registry.wait_for("g2p_register_crop_sowns", "root", 60, "sub-1")
+    assert registry.looks == 3
+
+
+def test_the_ingest_wait_accepts_the_root_record_too(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["PENDING"], record_after=2)
+    registry.wait_for("g2p_register_crop_sowns", "root", 60, "sub-1")
+
+
+def test_an_ingest_that_does_not_finish_is_pending_not_a_failed_farmer(loader):
+    registry = FakeRegistry()
+
+    def wait_for(table, record_id, timeout, submission_id=None):
+        raise loader.IngestPending("slow")
+
+    registry.wait_for = wait_for
+    done, submitted, _ = run(loader, registry)
+    assert done["farmers failed"] == 0 and done["intakes approved, ingest pending"] == 1
+    assert len(submitted) == 1  # the farmer stops after its first stage
+
+
+def test_the_backfill_touches_only_the_loaders_own_copies_without_a_functional_id(loader):
+    cur = FakeCursor()
+    cur.rowcount = 7
+    registry = loader.Registry.__new__(loader.Registry)
+
+    class Managed:
+        def __enter__(self):
+            return cur
+
+        def __exit__(self, *exc):
+            return False
+
+    registry.conn = types.SimpleNamespace(cursor=Managed)
+    got = loader.Registry.backfill_functional_ids(registry, ["FR-1", "FR-2"], "alex.carter")
+    sql, params = cur.statements[0]
+    assert got == 7 and params == (["FR-1", "FR-2"], "alex.carter")
+    assert sql.startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id WHERE")
+    for part in ("farmer_id = ANY(%s)", "created_by = %s", "coalesce(functional_record_id, '') = ''"):
+        assert part in sql
+    assert sql.count("SET") == 1 and ", " not in sql.split("SET")[1].split("WHERE")[0]
+
+
+def test_a_wait_that_runs_out_raises_pending_with_the_latest_unprocessed_intake(loader, monkeypatch):
+    clock = Clock()
+    monkeypatch.setattr(loader, "time", clock)
+    registry = IngestRegistry(loader, ["PENDING"])
+    with pytest.raises(loader.IngestPending, match=r"not ingested within 30s.*PENDING"):
+        registry.wait_for("g2p_register_crop_sowns", "root", 30, "sub-1")
+    assert clock.now == 1030.0 and registry.looks >= 10  # polled every few seconds, ended at the timeout
+    sql, params = registry.stuck_query
+    assert "AND submission_id = %s" in sql and params == ("sub-1",)
+
+
+def test_a_failure_status_that_holds_ends_the_wait_with_its_error(loader, monkeypatch):
+    clock = Clock()
+    monkeypatch.setattr(loader, "time", clock)
+    registry = IngestRegistry(loader, ["PENDING", "ERROR"])
+    with pytest.raises(loader.IngestFailed, match=r"sub-1 failed: status ERROR, attempts 2, error 'boom'"):
+        registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")
+    assert clock.now < 1010  # two polls in a row, not the whole wait
+
+
+def test_a_failure_status_seen_once_is_a_retry_in_between_not_the_end(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR", "PENDING", "ERROR", "PROCESSED"])
+    registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")  # no raise
+
+
+def test_a_failure_status_at_the_attempt_limit_is_terminal_at_once(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR"], attempts=3)
+    with pytest.raises(loader.IngestFailed, match="attempts 3"):
+        registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")
+    assert registry.looks == 1
+
+
+def test_a_failed_ingest_counts_as_a_failed_farmer(loader):
+    registry = FakeRegistry()
+
+    def wait_for(table, record_id, timeout, submission_id=None):
+        raise loader.IngestFailed("ingest of intake x failed: status ERROR")
+
+    registry.wait_for = wait_for
+    done, _, _ = run(loader, registry)
+    assert done["farmers failed"] == 2 and done["intakes approved, ingest pending"] == 0
+
+
+def test_after_the_first_slow_ingest_no_further_farmer_starts(loader):
+    registry = FakeRegistry()
+
+    def wait_for(table, record_id, timeout, submission_id=None):
+        raise loader.IngestPending("slow")
+
+    registry.wait_for = wait_for
+    done, submitted, _ = run(loader, registry)
+    stages = [len(p["stages"]) for p in plan(loader)]
+    assert len(submitted) == 1 and registry.seeded and len(registry.seeded) == 1
+    assert done["intakes approved, ingest pending"] == 1
+    assert done["intakes left for the next run"] == sum(stages) - 1
+
+
+def test_a_rerun_skips_an_approved_intake_still_pending_but_reports_one_whose_ingest_failed(loader):
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")]})
+    done, submitted, _ = run(loader, registry)
+    assert done["intakes already approved"] == 1 and done["intakes approved, ingest failed"] == 0
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")]})
+    registry.failures["sub-old"] = ("status ERROR, attempts 5, error 'boom'", 5)
+    done, submitted, _ = run(loader, registry)
+    assert done["intakes approved, ingest failed"] == 1 and done["intakes already approved"] == 0
+    assert "FR-100000000001" not in [s[2] for s in submitted]  # the first farmer is left alone
+
+
+def test_the_job_start_comes_from_the_environment_or_pid_1_and_ignores_nonsense(loader, monkeypatch):
+    now = loader.time.time()
+    monkeypatch.setenv("INTAKE_SEED_STARTED_AT", str(now - 120))
+    assert abs(loader.job_started() - (now - 120)) < 5
+    monkeypatch.setenv("INTAKE_SEED_STARTED_AT", str(now - 99999))
+    assert abs(loader.job_started() - now) < 5
+    monkeypatch.setenv("INTAKE_SEED_STARTED_AT", "not a number")
+    assert abs(loader.job_started() - now) < 5
+
+
+def test_a_rerun_does_not_submit_the_next_stage_while_an_approved_one_is_not_ingested(loader):
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")]})
+    registry.unprocessed.add("sub-old")
+    done, submitted, _ = run(loader, registry)
+    assert submitted == [] and done["intakes approved, ingest pending"] == 1
+    stages = sum(len(p["stages"]) for p in plan(loader))
+    assert done["intakes left for the next run"] == stages - 1 and done["farmers failed"] == 0
+
+
+def test_the_job_start_reads_pid_1_stat_even_with_spaces_and_a_bracket_in_the_name(loader, monkeypatch):
+    monkeypatch.delenv("INTAKE_SEED_STARTED_AT", raising=False)
+    # field 2 (comm) may hold spaces and ')'; starttime is field 22 after it: 500 ticks of 100/s = 5 s after boot
+    stat = "1 (entry (point) x) S " + " ".join(["0"] * 18) + " 500 0 0\n"
+    files = {"/proc/1/stat": stat, "/proc/uptime": "1000.00 900.00\n"}
+    real_open = builtins.open
+
+    def fake_open(path, *args, **kwargs):
+        if path in files:
+            return io.StringIO(files[path])
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(loader.os, "sysconf", lambda name: 100, raising=False)
+    assert abs((loader.time.time() - loader.job_started()) - 995) < 5
