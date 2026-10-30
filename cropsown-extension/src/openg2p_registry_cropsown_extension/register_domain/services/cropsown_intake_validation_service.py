@@ -244,7 +244,7 @@ def validate_farmer_identity_required_fields(section_id: str, section_payload: l
             if not farmer_id:
                 validation_error("Farmer ID is required in Farmer Identity.")
             if not _FARMER_ID_PATTERN.match(str(farmer_id).strip()):
-                validation_error(f"farmer_id must be FR- followed by 12 digits (got '{farmer_id}')")
+                validation_error(f"Farmer ID must be FR- followed by 12 digits (got '{farmer_id}')")
 
         # 2. Fayda ID (FAN)
         if not fayda_fan_id:
@@ -677,7 +677,7 @@ async def validate_cultivation_cluster_against_planning(session, section_payload
         if matching_plan_date is not None and cult_date < matching_plan_date:
             validation_error(
                 f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
             )
 
 
@@ -756,7 +756,7 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
         if is_cluster:
             cluster_name = str(row.get("cluster_name") or "").strip()
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Sowing.")
+                validation_error("Farmers Production Cluster Name is required for clustered Sowing.")
 
             matched_cluster = None
             for c_land, c_cname, c_start, c_est in cult_cls_rows:
@@ -770,7 +770,7 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
                 if sow_date and cult_date and sow_date < cult_date:
                     validation_error(
                         f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                        f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                        f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
                     )
         else:
             commodity = str(row.get("commodity") or "").strip()
@@ -848,7 +848,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
         if is_cluster:
             cluster_name = str(row.get("cluster_name") or "").strip()
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Infestation.")
+                validation_error("Farmers Production Cluster Name is required for clustered Infestation.")
 
             cluster_matched = False
             matched_sowing = None
@@ -860,7 +860,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
 
             if not cluster_matched:
                 validation_error(
-                    f"No active Sowing record found for FPC Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
+                    f"No active Sowing record found for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
                     f"Infestation incident can only be reported for a sown cluster."
                 )
 
@@ -868,7 +868,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
             if obs_date and sow_date and obs_date <= sow_date:
                 validation_error(
                     f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
                 )
         else:
             commodity = str(row.get("commodity") or row.get("crop_type_affected") or "").strip()
@@ -957,7 +957,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
             harvest_date = parse_date_flexible(row.get("cluster_harvest_date") or row.get("harvest_date"))
 
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Harvest.")
+                validation_error("Farmers Production Cluster Name is required for clustered Harvest.")
 
             cluster_matched = False
             matched_sowing_date = None
@@ -973,7 +973,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
                 if harvest_date and sow_date and harvest_date <= sow_date:
                     validation_error(
                         f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
-                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
                     )
         else:
             commodity = str(row.get("commodity") or "").strip()
