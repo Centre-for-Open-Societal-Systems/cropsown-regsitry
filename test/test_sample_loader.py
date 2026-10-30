@@ -2,7 +2,9 @@
 records entered as stage intakes and approved at both stages by the sample approvers."""
 
 import ast
+import builtins
 import importlib.util
+import io
 import itertools
 import re
 import sys
@@ -166,9 +168,13 @@ class FakeRegistry:
     def __init__(self, previous=None, existing=None):
         self.previous, self.existing = dict(previous or {}), dict(existing or {})
         self.status, self.waited, self.pending, self.seeded, self.failures = {}, [], [], [], {}
+        self.unprocessed = set()
 
     def ingest_failure(self, submission_id):
         return self.failures.get(submission_id)
+
+    def ingest_pending(self, submission_id):
+        return submission_id in self.unprocessed
 
     def ensure_farmer(self, farmer, created_by, approved_by, source_record_id):
         if farmer["fayda_fin"] in self.existing:
@@ -621,8 +627,8 @@ def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(
 class IngestRegistry:
     """Registry.wait_for over a scripted database: the intake's status per look, then the register."""
 
-    def __init__(self, loader, statuses, record_after=None):
-        self.statuses, self.record_after, self.looks = list(statuses), record_after, 0
+    def __init__(self, loader, statuses, record_after=None, attempts=2):
+        self.statuses, self.record_after, self.looks, self.attempts = list(statuses), record_after, 0, attempts
         for name in ("wait_for", "ingest_state", "ingest_failure"):
             setattr(self, name, getattr(loader.Registry, name).__get__(self))
 
@@ -632,11 +638,12 @@ class IngestRegistry:
     def rows(self, sql, params=()):
         if "register_ingest_process_attempts" in sql and "WHERE submission_id" in sql:
             self.looks += 1
-            return [(self.status(), 2, "boom")]
+            return [(self.status(), self.attempts, "boom")]
         if sql.startswith("SELECT register_ingest_process_status FROM"):
             return [(self.status(),)]
         if sql.startswith("SELECT 1 FROM"):
             return [(1,)] if self.record_after is not None and self.looks >= self.record_after else []
+        self.stuck_query = (sql, params)
         return [("PENDING", 3, "")]  # the latest unprocessed intake
 
 
@@ -707,15 +714,31 @@ def test_a_wait_that_runs_out_raises_pending_with_the_latest_unprocessed_intake(
     with pytest.raises(loader.IngestPending, match=r"not ingested within 30s.*PENDING"):
         registry.wait_for("g2p_register_crop_sowns", "root", 30, "sub-1")
     assert clock.now == 1030.0 and registry.looks >= 10  # polled every few seconds, ended at the timeout
+    sql, params = registry.stuck_query
+    assert "AND submission_id = %s" in sql and params == ("sub-1",)
 
 
-def test_a_failed_ingest_ends_the_wait_at_once_with_its_error(loader, monkeypatch):
+def test_a_failure_status_that_holds_ends_the_wait_with_its_error(loader, monkeypatch):
     clock = Clock()
     monkeypatch.setattr(loader, "time", clock)
     registry = IngestRegistry(loader, ["PENDING", "ERROR"])
     with pytest.raises(loader.IngestFailed, match=r"sub-1 failed: status ERROR, attempts 2, error 'boom'"):
         registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")
-    assert clock.now < 1010
+    assert clock.now < 1010  # two polls in a row, not the whole wait
+
+
+def test_a_failure_status_seen_once_is_a_retry_in_between_not_the_end(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR", "PENDING", "ERROR", "PROCESSED"])
+    registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")  # no raise
+
+
+def test_a_failure_status_at_the_attempt_limit_is_terminal_at_once(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR"], attempts=3)
+    with pytest.raises(loader.IngestFailed, match="attempts 3"):
+        registry.wait_for("g2p_register_crop_sowns", "root", 420, "sub-1")
+    assert registry.looks == 1
 
 
 def test_a_failed_ingest_counts_as_a_failed_farmer(loader):
@@ -748,7 +771,7 @@ def test_a_rerun_skips_an_approved_intake_still_pending_but_reports_one_whose_in
     done, submitted, _ = run(loader, registry)
     assert done["intakes already approved"] == 1 and done["intakes approved, ingest failed"] == 0
     registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")]})
-    registry.failures["sub-old"] = "status ERROR, attempts 5, error 'boom'"
+    registry.failures["sub-old"] = ("status ERROR, attempts 5, error 'boom'", 5)
     done, submitted, _ = run(loader, registry)
     assert done["intakes approved, ingest failed"] == 1 and done["intakes already approved"] == 0
     assert "FR-100000000001" not in [s[2] for s in submitted]  # the first farmer is left alone
@@ -762,3 +785,29 @@ def test_the_job_start_comes_from_the_environment_or_pid_1_and_ignores_nonsense(
     assert abs(loader.job_started() - now) < 5
     monkeypatch.setenv("INTAKE_SEED_STARTED_AT", "not a number")
     assert abs(loader.job_started() - now) < 5
+
+
+def test_a_rerun_does_not_submit_the_next_stage_while_an_approved_one_is_not_ingested(loader):
+    registry = FakeRegistry(previous={("form-1", "502628318720"): [("sub-old", "FINAL", "APPROVED", "root-old")]})
+    registry.unprocessed.add("sub-old")
+    done, submitted, _ = run(loader, registry)
+    assert submitted == [] and done["intakes approved, ingest pending"] == 1
+    stages = sum(len(p["stages"]) for p in plan(loader))
+    assert done["intakes left for the next run"] == stages - 1 and done["farmers failed"] == 0
+
+
+def test_the_job_start_reads_pid_1_stat_even_with_spaces_and_a_bracket_in_the_name(loader, monkeypatch):
+    monkeypatch.delenv("INTAKE_SEED_STARTED_AT", raising=False)
+    # field 2 (comm) may hold spaces and ')'; starttime is field 22 after it: 500 ticks of 100/s = 5 s after boot
+    stat = "1 (entry (point) x) S " + " ".join(["0"] * 18) + " 500 0 0\n"
+    files = {"/proc/1/stat": stat, "/proc/uptime": "1000.00 900.00\n"}
+    real_open = builtins.open
+
+    def fake_open(path, *args, **kwargs):
+        if path in files:
+            return io.StringIO(files[path])
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(loader.os, "sysconf", lambda name: 100, raising=False)
+    assert abs((loader.time.time() - loader.job_started()) - 995) < 5
