@@ -63,16 +63,78 @@ class NativeNotificationTests(NativeReferenceTests):
                 lookup_factory.assert_not_called()
                 self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),1)
 
-    async def test_notification_for_unreferenced_farmer_cannot_onboard(self):
+    def _first_notice_client(self, **lookup):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        return SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),
+            lookup=AsyncMock(**({"return_value": self.snapshot} | lookup)))
+
+    async def _deliver_first_notice(self, session, client, local_id="unknown-local", **changes):
         from unittest.mock import patch
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup") as lookup_factory:
-            async with self.sessions.begin() as session:
-                with self.assertRaisesRegex(Error,"UNREFERENCED_NOTIFICATION"):
-                    await native.G2PChangeRequestWorkerService.get_component().create_change_request(
-                        self._notification_payload("unknown-local"),session,
-                        source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
-                lookup_factory.assert_not_called()
-                self.assertEqual(len((await session.execute(select(ledger.FarmerReference))).scalars().all()),0)
+        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+            return await native.G2PChangeRequestWorkerService.get_component().create_change_request(
+                self._notification_payload(local_id,**changes),session,source_partner_id="synthetic-source-partner",
+                change_request_source=native.INGESTION_PIPELINE_SOURCE)
+
+    async def test_notification_for_unreferenced_farmer_queues_the_first_reference_add(self):
+        client=self._first_notice_client()
+        async with self.sessions.begin() as session:
+            cr=await self._deliver_first_notice(session,client)
+            self.assertEqual(client.lookup.await_args.args,(self.snapshot.profile["farmer_id"],self.snapshot.profile["fayda_fan_id"]))
+            reference=(await session.execute(select(ledger.FarmerReference))).scalar_one()
+            request=(await session.execute(select(ledger.FarmerReferenceRequest))).scalar_one()
+            self.assertEqual((reference.state,request.action,request.state),("PENDING","ADD","PENDING"))
+            self.assertEqual(request.native_cr_id,cr.change_request_id)
+            self.assertEqual(cr.approval_status,"PENDING")
+            self.assertEqual(cr.internal_record_id,reference.local_farmer_id)
+            body=await session.get(G2PRegisterChangeRequestPayload,cr.change_request_id)
+            # Values come from the signed lookup, never from the notice.
+            self.assertEqual(body.change_payload[0]["first_name"],"Verified")
+            self.assertEqual(body.change_payload[0]["edit_action"],"ADD")
+            self.assertIsNone(await session.get(native.domain_models().G2PRegisterFarmer,reference.local_farmer_id))
+            self.assertEqual(len((await session.execute(select(ledger.FarmerWorkflowOutbox))).scalars().all()),1)
+
+    async def test_notification_repeat_delivery_keeps_one_pending_add(self):
+        client=self._first_notice_client()
+        async with self.sessions.begin() as session:
+            first=await self._deliver_first_notice(session,client)
+            second=await self._deliver_first_notice(session,client,local_id="another-local-id")
+            self.assertEqual(first.change_request_id,second.change_request_id)
+            self.assertEqual(client.lookup.await_count,1)
+            self.assertEqual(len((await session.execute(select(ledger.FarmerReference))).scalars().all()),1)
+            self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),1)
+
+    async def test_notification_for_unreferenced_farmer_with_lookup_outage_creates_nothing(self):
+        client=self._first_notice_client(side_effect=Error("FARMER_REFERENCE_LOOKUP_UNAVAILABLE"))
+        async with self.sessions.begin() as session:
+            with self.assertRaisesRegex(Error,"LOOKUP_UNAVAILABLE"):
+                await self._deliver_first_notice(session,client)
+            self.assertEqual(len((await session.execute(select(ledger.FarmerReference))).scalars().all()),0)
+            self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),0)
+
+    async def test_notification_for_unreferenced_farmer_with_other_signed_identity_creates_nothing(self):
+        from dataclasses import replace
+        other=replace(self.snapshot,profile={**self.snapshot.profile,"fayda_fan_id":"0000000000000009"})
+        client=self._first_notice_client(return_value=other)
+        async with self.sessions.begin() as session:
+            with self.assertRaisesRegex(Error,"IDENTITY_MISMATCH"):
+                await self._deliver_first_notice(session,client)
+            self.assertEqual(len((await session.execute(select(ledger.FarmerReference))).scalars().all()),0)
+
+    async def test_notification_for_unreferenced_farmer_needs_the_identity_section(self):
+        client=self._first_notice_client()
+        async with self.sessions.begin() as session:
+            with self.assertRaisesRegex(Error,"INVALID_NOTIFICATION_SECTION"):
+                await self._deliver_wrong_section(session,client)
+            client.lookup.assert_not_called()
+
+    async def _deliver_wrong_section(self,session,client):
+        from unittest.mock import patch
+        payload=self._notification_payload("unknown-local")
+        payload.section_id="test_farmer_other_section"
+        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+            return await native.G2PChangeRequestWorkerService.get_component().create_change_request(
+                payload,session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
 
     async def test_notification_from_wrong_partner_cannot_lookup_or_create_request(self):
         from unittest.mock import patch
