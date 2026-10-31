@@ -478,17 +478,18 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
         reference = (await session.execute(select(FarmerReference).where(
             FarmerReference.local_farmer_id == payload.internal_record_id))).scalar_one_or_none()
-        if not reference or reference.state != "APPROVED":
-            raise FarmerReferenceError("FARMER_REFERENCE_UNREFERENCED_NOTIFICATION")
         from .notification import notification_change_identity
         notification_pair = notification_change_identity(payload)
+        if reference is None or reference.state == "PENDING":
+            # The Farmer registry announced a farmer this registry has no approved
+            # reference for yet: the notice starts the first reference.
+            return await self._first_reference_from_notice(
+                session, payload, definition, notification_pair, created_by)
+        if reference.state != "APPROVED":
+            raise FarmerReferenceError("FARMER_REFERENCE_DEPENDENCY_REJECTED")
         if notification_pair[0] != reference.farmer_id:
             raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
-        section = await session.get(G2PRegisterSection, payload.section_id)
-        if (payload.register_id != definition.register_id or not section or
-                section.register_id != definition.register_id or section.section_register_id != definition.register_id or
-                "identity" not in section.section_id):
-            raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION_SECTION")
+        await self._require_identity_section(session, payload, definition)
         client = configured_lookup()
         if client.config.source_id != reference.source_system:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_ID_MISMATCH")
@@ -509,4 +510,53 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
                 FarmerReferenceRequest.state == "APPROVED"))).scalar_one_or_none()
             if not request:
                 raise FarmerReferenceError("FARMER_REFERENCE_STALE_SOURCE_VERSION")
+        return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+
+    @staticmethod
+    async def _require_identity_section(session, payload, definition):
+        section = await session.get(G2PRegisterSection, payload.section_id)
+        if (payload.register_id != definition.register_id or not section or
+                section.register_id != definition.register_id or section.section_register_id != definition.register_id or
+                "identity" not in section.section_id):
+            raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION_SECTION")
+
+    async def _first_reference_from_notice(self, session, payload, definition, notification_pair, created_by):
+        """Queue the Farmer reference ADD for a farmer announced by the Farmer registry.
+
+        Only the Farmer ID and Fayda ID of the notice are used, as the typed IDs
+        of an intake are; every value comes from the signed, consented lookup.
+        The request needs the normal approval and is never applied here. A repeat
+        notice, or an update before the ADD is approved, returns the pending ADD.
+        """
+        await self._require_identity_section(session, payload, definition)
+        client = configured_lookup()
+        onboarding = onboarding_service()
+        farmer_id, identifier = notification_pair
+        reference = (await session.execute(select(FarmerReference).where(
+            FarmerReference.source_system == client.config.source_id,
+            FarmerReference.farmer_id == farmer_id))).scalar_one_or_none()
+        if reference is not None and reference.state == "PENDING" and reference.pending_add_request_id:
+            return await self._native_request(session, reference.pending_add_request_id)
+        declared = ({"farmer_id": farmer_id, "fayda_fin": identifier} if len(identifier) == 12
+                    else {"farmer_id": farmer_id, "fayda_fan_id": identifier})
+        if declared.get("fayda_fin"):
+            source = await client.lookup(farmer_id, None, fin=declared["fayda_fin"])
+        else:
+            source = await client.lookup(farmer_id, declared["fayda_fan_id"])
+        if not matches_declared_identity(declared, source.profile):
+            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        async with session.begin_nested():
+            reference = await onboarding.ensure_first_reference(session, source, requester=created_by or "system")
+            if reference.state == "APPROVED":
+                # An already approved local Farmer with this exact identity was adopted:
+                # nothing to add, only the current version to bring in.
+                request = await onboarding.queue_current_update(session, source)
+                if request is None:
+                    raise FarmerReferenceError("FARMER_REFERENCE_STALE_SOURCE_VERSION")
+                return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+        return await self._native_request(session, reference.pending_add_request_id)
+
+    @staticmethod
+    async def _native_request(session, request_id):
+        request = await session.get(FarmerReferenceRequest, request_id)
         return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
