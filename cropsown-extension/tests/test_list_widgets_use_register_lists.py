@@ -54,26 +54,24 @@ def test_land_prep_method_text_column_is_converted_to_a_list():
         assert table in COMPAT
 
 
-# Codes the CLUSTER_STATUS register list stores. A show/hide rule on cluster_status
-# must name one of these, or a piece of one (the rule tests whether the stored
-# list contains the text); the old "CLUSTER_STATUS_*" spellings are not codes.
-CLUSTER_STATUS_CODES = {"CLUSTERED", "INDEPENDENT"}
+# The infestation cluster_status select reads the CLUSTER_STATUS register list with
+# valueKey value_id, so what is stored is the value id (CLUSTER_STATUS_CLUSTERED,
+# CLUSTER_STATUS_INDEPENDENT), not the value code. The show rules and the ODK
+# mapping must keep using the ids. Sowing and harvest use a separate static
+# multi-select with CLUSTER / INDEPENDENT and are not covered here.
+INFESTATION_CLUSTER_IDS = {"CLUSTER_STATUS_CLUSTERED", "CLUSTER_STATUS_INDEPENDENT"}
 
 
-def cluster_status_rule_values():
-    for line in SECTIONS.splitlines():
-        for value in re.findall(r'"field": "cluster_status", "value": "([^"]*)"', line):
-            yield value
+def test_infestation_cluster_status_rules_use_list_value_ids():
+    line = next(l for l in SECTIONS.splitlines() if "cs_infestation_details" in l and "widget-data-columns" in l)
+    values = set(re.findall(r'"field": "cluster_status", "value": "([^"]*)"', line))
+    assert values == INFESTATION_CLUSTER_IDS
 
 
-def test_cluster_status_rules_name_codes_of_the_list():
-    values = set(cluster_status_rule_values())
-    assert values, "no cluster_status show rules found"
-    for value in values:
-        assert any(value in code for code in CLUSTER_STATUS_CODES), value
-        assert not value.startswith("CLUSTER_STATUS_"), value
-    # the infestation section's rules name the codes in full
-    assert {"CLUSTERED", "INDEPENDENT"} <= values
+def test_odk_infestation_cluster_map_emits_list_value_ids():
+    template = (PACKAGE_DIR / "templates" / "odk_to_crop_intake.j2").read_text(encoding="utf-8")
+    block = re.search(r"set inf_cluster_map = \{(.*?)\}", template, re.S).group(1)
+    assert set(re.findall(r':\s*"([^"]+)"', block)) == INFESTATION_CLUSTER_IDS
 
 
 def test_cluster_leadership_fields_are_typed_in_not_empty_selects():
