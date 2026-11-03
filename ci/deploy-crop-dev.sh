@@ -21,6 +21,13 @@
 #      minute and save hook pod logs (hook pods are deleted when they fail).
 #   6. On failure print those logs, the API pod logs, release history and warning
 #      events. On success wait for every Deployment to roll out.
+#   7. If anything fails from the upgrade onwards (the upgrade, a rollout, the
+#      guard on the live Deployments, the schema check, the dashboard smoke test),
+#      save the diagnostics (deploy-failure-<build>.txt) and `helm rollback` to the
+#      last revision that was `deployed` before this run (ci/deploy/release-rollback.sh),
+#      put the staff UI that is not part of the chart back too, then fail the build. A
+#      first install has nothing to go back to. A rollback restores the chart and
+#      values; it does not undo what the db-seed and other hooks wrote to a database.
 #
 # Env:
 #   TAG              image tag to deploy (or first argument)       required
@@ -63,6 +70,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+# shellcheck source=deploy/release-rollback.sh
+. "$REPO_ROOT/ci/deploy/release-rollback.sh"
 python3 ci/deploy/oan_chart.py require-deployable registry dev
 
 TAG="${1:-${TAG:-}}"
@@ -111,9 +120,25 @@ ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
 NS=(-n "$HELM_NAMESPACE")
 WORK="$(mktemp -d)"
 BG_PIDS=()
+# Runs on every exit. Once the upgrade has started, a non-zero exit puts the release back
+# (and the staff UI outside the chart) before the build fails.
+UPGRADE_STARTED=0
+PREV=""
+OUTSIDE_MOVED=()
 cleanup() {
+  local rc=$?
+  trap - EXIT
   [ "${#BG_PIDS[@]}" -eq 0 ] || kill "${BG_PIDS[@]}" 2>/dev/null || true
+  if [ "$rc" -ne 0 ] && [ "$UPGRADE_STARTED" = 1 ]; then
+    rollback_release "$HELM_RELEASE" "$HELM_NAMESPACE" "$PREV" "deploy failed (exit ${rc})" \
+      "deploy-failure-${BUILD_NUMBER:-manual}.txt" || true
+    for D in ${OUTSIDE_MOVED[@]+"${OUTSIDE_MOVED[@]}"}; do
+      echo "putting ${D} back to its previous revision" >&2
+      kubectl rollout undo "deploy/${D}" "${NS[@]}" >&2 || true
+    done
+  fi
   rm -rf "$WORK"
+  exit "$rc"
 }
 trap cleanup EXIT
 
@@ -343,6 +368,14 @@ case "$STATUS" in
     exit 1 ;;
 esac
 
+# The revision to go back to if this run fails: the last one Helm recorded as `deployed`.
+PREV="$(last_deployed_revision "$HELM_RELEASE" "$HELM_NAMESPACE")"
+if [ -n "$PREV" ]; then
+  echo "rollback target: revision ${PREV} ($(revision_chart "$HELM_RELEASE" "$HELM_NAMESPACE" "$PREV"), the last working release)"
+else
+  echo "rollback target: none (no deployed revision found)"
+fi
+
 # â”€â”€ 5. Watchers while helm runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Hook pods are deleted as soon as their Job fails, so save their logs as we go.
 # Only this release's own hook pods: <release>-<job>-<5 chars>.
@@ -389,6 +422,7 @@ kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.y
 kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
   python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" --check-live-secret
 
+UPGRADE_STARTED=1
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
   kill "${BG_PIDS[@]}" 2>/dev/null || true
@@ -448,9 +482,10 @@ if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
       continue
     fi
     C="$(kubectl get deploy "$D" "${NS[@]}" -o jsonpath='{.spec.template.spec.containers[0].name}')"
+    OUTSIDE_MOVED+=("$D")
     kubectl set image "deploy/${D}" "${C}=${IMG}" "${NS[@]}"
     if ! kubectl rollout status "deploy/${D}" "${NS[@]}" --timeout="${ROLLOUT_TIMEOUT:-420s}"; then
-      echo "ERROR: ${D} did not roll out on ${IMG}. Undo: kubectl -n ${HELM_NAMESPACE} rollout undo deploy/${D}" >&2
+      echo "ERROR: ${D} did not roll out on ${IMG}; it is put back with the release." >&2
       kubectl logs "deploy/${D}" "${NS[@]}" --all-containers --prefix --tail=40 >&2 || true
       exit 1
     fi

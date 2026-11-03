@@ -32,6 +32,34 @@ A corrupt cached archive fails closed and does not trigger a network fallback.
 Manual runs can prefetch on a connected machine and carry that directory with
 the same immutable profile. Cached archives are not editable Helm sources.
 
+## develop pipeline: deploy, roll back, pin, oan-helm image pull request
+
+Every develop build of `ci/pipelines/dev.groovy` (action `deploy`, the default) runs these stages in order:
+
+1. **Build & Push** builds the images, pushes them as `develop-<build number>` and records each ECR digest
+   (`.build/image-digests.tsv`).
+2. **Deploy** runs `ci/deploy-crop-dev.sh` with the pinned chart and this build's images. From the helm upgrade onwards
+   a failure (the upgrade, a rollout, the deployment guard, the schema check, the dashboard smoke test) saves the
+   diagnostics as `deploy-failure-<build>.txt` (archived on the build), runs `helm rollback` to the revision that was
+   `deployed` before the run (`ci/deploy/release-rollback.sh`; the log prints it as `rollback target: revision N`),
+   puts the public staff UI, which is outside the chart, back with `kubectl rollout undo`, and fails the build. A
+   first install has nothing to go back to. A rollback restores the chart and values, not what the db-seed and other
+   hooks wrote to the database.
+3. **Propose chart pin update** (`ci/deploy/propose_pin_pr.py`) opens a pull request into develop when oan-helm has a
+   newer chart or changed public values than `oan-chart.json`. Merging it is what moves the pin.
+4. **Open oan-helm image PR** (`ci/deploy/release_images.py`, last stage) puts this build's tags and digests into
+   `charts/openg2p-cropsown-registry/values.yaml` of oan-helm through a pull request from the fork
+   (`bot/cropsown-images-develop-<n>`, credential `oan-helm-fork-token`) into oan-helm main. It does not wait for the
+   merge and is UNSTABLE, never FAILED, if it cannot open the pull request. A person merges it and oan-helm's
+   release workflow publishes the chart and the CHANGELOG entry.
+
+Stages 3 and 4 only run when the build is still `SUCCESS`, on develop, and not for `fresh-install` or the connector
+actions. The build of a commit that changes only `ci/deploy/oan-chart.json` (the merge of a pin pull request) opens no
+image pull request, which keeps the pin and image pull requests from chasing each other.
+
+Offline checks (stand-in helm, kubectl and GitHub; the "Check deploy script" stage runs them):
+`python3 -m unittest discover -s test -p test_deploy_ci.py -v`.
+
 ## cropsown-connector release (New Dev)
 
 `ci/deploy/connector-chart` is the `openg2p-connector` 0.1.0 chart that the standalone
