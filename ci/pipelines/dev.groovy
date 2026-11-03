@@ -28,8 +28,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
-            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
+            description: 'develop only. deploy (the default, also for polled builds) builds and pushes the images, upgrades the existing New Dev release with them and, if that fails, puts the release back to its last working revision (the retired publish-only value, which a stale job definition may still pass once, is a deploy too). After a good deploy the build opens a chart-pin pull request and a pull request that records the images in oan-helm. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
         string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
             description: 'connector-plan and connector-upgrade only. Tag of gen2/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
     }
@@ -43,6 +43,13 @@ pipeline {
         DASHBOARD_UI_ECR = 'oan/cropsown-registry/dashboard-ui'
 
         HELM_NAMESPACE = 'crop'
+
+        // Jenkins credentials of the two stages that open pull requests into oan-helm after a good deploy.
+        // PIN_PR_CRED_ID: a GitHub App credential with Contents and Pull requests write on this repository (the
+        // chart-pin pull request). OAN_HELM_FORK_CRED_ID: "Username with password" = the GitHub account that owns the
+        // fork of oan-helm and its classic token (public_repo); the image pull request goes from that fork into oan-helm main.
+        PIN_PR_CRED_ID = 'oan-ci-app'
+        OAN_HELM_FORK_CRED_ID = 'oan-helm-fork-token'
 
         // Built from docker/<name>/Dockerfile. dashboard-ui is left out: the
         // chart deploys no dashboard, so its image would be published for nothing.
@@ -88,6 +95,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps { checkout scm }
+        }
+
+        stage('Check deploy script') {
+            // Rollback behaviour of ci/deploy-crop-dev.sh, the pin updater and the oan-helm image pull request,
+            // with stand-in helm, kubectl and GitHub: no network, no cluster.
+            steps {
+                sh 'python3 -m unittest discover -s test -p test_deploy_ci.py -v'
+            }
         }
 
         stage('Validate refactor contracts') {
@@ -212,7 +227,7 @@ pipeline {
 
         stage('Build & Push') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
-                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade']) } } }
+                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
             // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
             environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
@@ -228,6 +243,19 @@ pipeline {
 
                         aws ecr get-login-password --region "${AWS_REGION}" \
                             | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+                        # The ECR digest of each image, for the oan-helm image pull request (last stage), read from the
+                        # push output so no extra AWS permission is needed: component<TAB>sha256:...
+                        mkdir -p .build
+                        rm -f .build/image-digests.tsv .build/oan-helm-pr.txt
+                        push_with_digest() {
+                            LOG=".build/push-$1.log"
+                            docker push "$2" > "$LOG" 2>&1 || { cat "$LOG"; return 1; }
+                            cat "$LOG"
+                            DIGEST="$(grep -oE 'digest: sha256:[0-9a-f]{64}' "$LOG" | tail -n 1 | cut -d' ' -f2)"
+                            case "$DIGEST" in sha256:*) ;; *) echo "no digest in the push output of $1" >&2; return 1 ;; esac
+                            printf '%s\\t%s\\n' "$1" "$DIGEST" >> .build/image-digests.tsv
+                        }
 
                         for SVC in ${SERVICES}; do
                             IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
@@ -246,7 +274,7 @@ pipeline {
                               || aws ecr create-repository --region "${AWS_REGION}" \
                                     --repository-name "${ECR_BASE}/${SVC}" >/dev/null
 
-                            docker push "${IMAGE}:${IMAGE_TAG}"
+                            push_with_digest "${SVC}" "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
 
                             # The connector image carries the OAN extension:
@@ -280,7 +308,7 @@ pipeline {
                                 --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
                                 -f .build/dashboard-api/Dockerfile \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
-                            docker push "${IMAGE}:${IMAGE_TAG}"
+                            push_with_digest dashboard-api "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         fi
@@ -298,13 +326,15 @@ pipeline {
                         echo "${ECR_REGISTRY}" > .ecr-registry
                     '''
                 }
+                // Only the digests, for the last stage ("Open oan-helm image PR").
+                stash name: 'image-digests', includes: '.build/image-digests.tsv'
             }
         }
 
         stage('Resolve connector image') {
             // The connector actions build nothing: they take the connector image
             // already in ECR and pin the release to its digest.
-            when { allOf { branch 'develop'; expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade'] } } }
+            when { allOf { branch 'develop'; expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade'] } } }
             steps {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     script {
@@ -393,9 +423,12 @@ pipeline {
             when {
                 beforeAgent true
                 branch 'develop'
-                // A branch-index or polled build has no explicit action: it publishes
-                // only; deploy and fresh-install are requested on purpose.
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
+                // Every develop build deploys: there is no publish-only mode. An empty
+                // value, or the retired publish-only that Jenkins may still pass on the
+                // first run after this change, is a normal deploy; fresh-install is
+                // requested on purpose. A failed deploy is rolled back by
+                // ci/deploy-crop-dev.sh and then fails the build.
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options {
@@ -450,6 +483,11 @@ pipeline {
                     }
                 }
             }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'deploy-failure-*.txt', allowEmptyArchive: true
+                }
+            }
         }
 
         stage('Update staging images') {
@@ -485,6 +523,68 @@ pipeline {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/staging-set-images.sh "${IMAGE_TAG}" --apply'
                         sh 'bash ci/staging-run-db-seed.sh "${IMAGE_TAG}" --apply'
+                    }
+                }
+            }
+        }
+
+        stage('Propose chart pin update') {
+            // After a successful deploy (the Deploy stage fails the build when it fails, and catchError lets the
+            // pipeline carry on, so the build result is checked here): if oan-helm main has a newer Crop Sown
+            // chart or changed public values than ci/deploy/oan-chart.json, open a pull request to develop that
+            // moves the pin (branch bot/oan-chart-pin-*). It never deploys and never changes develop; a person
+            // reviews and merges it, and the next develop build deploys the new pin. A failure here (no GitHub
+            // access, a refused push) only marks this stage UNSTABLE.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 10, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    withCredentials([usernamePassword(credentialsId: "${PIN_PR_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        sh 'python3 ci/deploy/propose_pin_pr.py'
+                    }
+                }
+            }
+        }
+
+        stage('Open oan-helm image PR') {
+            // The last stage. After the images were pushed AND deployed to New Dev (a failed deploy is rolled back and
+            // fails the build, so this stage does not run for it): put this build's image tags and digests into the
+            // oan-helm Crop Sown chart (charts/openg2p-cropsown-registry/values.yaml) through a pull request from the
+            // fork of oan-helm (GH_USER/oan-helm) into Centre-for-Open-Societal-Systems/oan-helm main
+            // (ci/deploy/release_images.py). The stage does not wait for the merge and ends green once the pull request
+            // is open; a person with write access merges it and oan-helm's release workflow then publishes the chart and
+            // updates CHANGELOG.md. If the pull request cannot be opened the stage is UNSTABLE and says why. The build
+            // of a commit that only moves the chart pin opens nothing.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 15, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                sh 'mkdir -p .build && rm -f .build/oan-helm-pr.txt .build/image-digests.tsv'
+                unstash 'image-digests'
+                script {
+                    def subject = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
+                    def commit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                        // AWS_ACCOUNT_ID gives the ECR registry host; the password is the fork owner's classic token.
+                        withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                                         usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                            withEnv(["COMMIT_SUBJECT=${subject}", "SOURCE_COMMIT=${commit}"]) {
+                                sh 'python3 ci/deploy/release_images.py'
+                            }
+                        }
                     }
                 }
             }
