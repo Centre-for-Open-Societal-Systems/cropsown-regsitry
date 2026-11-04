@@ -8,7 +8,7 @@
 {% set is_sown = d.get('sowing_details') is defined and d.get('sowing_details') is not none and d.get('sowing_details') | length > 0 %}
 {% set is_harvest = (d.get('independant_harvest') is defined and d.get('independant_harvest') is not none) or (d.get('harvesting') is defined and d.get('harvesting') is not none) %}
 
-{% set crop_map = {"adzuki_bean": "CROP_COMMODITY_114", "adzuki bean": "CROP_COMMODITY_114", "crop_commodity_114": "CROP_COMMODITY_114", "african_marigold": "CROP_COMMODITY_69", "african marigold": "CROP_COMMODITY_69", "crop_commodity_69": "CROP_COMMODITY_69", "alfalfa": "CROP_COMMODITY_102", "alfalfa (medicago sativa)": "CROP_COMMODITY_102", "crop_commodity_102": "CROP_COMMODITY_102", "amaranthus": "CROP_COMMODITY_133", "crop_commodity_133": "CROP_COMMODITY_133", "anchote": "CROP_COMMODITY_54", "crop_commodity_54": "CROP_COMMODITY_54", "andropogon": "CROP_COMMODITY_95", "crop_commodity_95": "CROP_COMMODITY_95", "avocado": "CROP_COMMODITY_84", "crop_commodity_84": "CROP_COMMODITY_84", "banana": "CROP_COMMODITY_80", "crop_commodity_80": "CROP_COMMODITY_80", "basil": "CROP_COMMODITY_79", "crop_commodity_79": "CROP_COMMODITY_79", "black_cumin": "CROP_COMMODITY_134", "black cumin": "CROP_COMMODITY_134", "crop_commodity_134": "CROP_COMMODITY_134", "black_pepper": "CROP_COMMODITY_58", "black pepper": "CROP_COMMODITY_58", "crop_commodity_58": "CROP_COMMODITY_58", "brachiaria_brizantha_cv_xaraes_descriptors": "CROP_COMMODITY_126", "brachiaria brizantha cv. xaraes descriptors": "CROP_COMMODITY_126", "crop_commodity_126": "CROP_COMMODITY_126", "bread_wheat": "CROP_COMMODITY_2", "bread wheat (triticum aestivum l.)": "CROP_COMMODITY_2", "crop_commodity_2": "CROP_COMMODITY_2", "broccoli": "CROP_COMMODITY_119", "crop_commodity_119": "CROP_COMMODITY_119", "buck_wheat": "CROP_COMMODITY_14", "buck wheat": "CROP_COMMODITY_14", "crop_commodity_14": "CROP_COMMODITY_14", "cabbage": "CROP_COMMODITY_51", "crop_commodity_51": "CROP_COMMODITY_51", "cacao": "CROP_COMMODITY_129", "crop_commodity_129": "CROP_COMMODITY_129", "camelina_sativa": "CROP_COMMODITY_39", "camelina sativa": "CROP_COMMODITY_39", "crop_commodity_39": "CROP_COMMODITY_39", "cardamom": "CROP_COMMODITY_61", "crop_commodity_61": "CROP_COMMODITY_61", "carrot": "CROP_COMMODITY_52", "crop_commodity_52": "CROP_COMMODITY_52", "cassava": "CROP_COMMODITY_43", "crop_commodity_43": "CROP_COMMODITY_43", "castor": "CROP_COMMODITY_38", "crop_commodity_38": "CROP_COMMODITY_38", "cauliflower": "CROP_COMMODITY_120", "crop_commodity_120": "CROP_COMMODITY_120", "chamomile": "CROP_COMMODITY_71", "crop_commodity_71": "CROP_COMMODITY_71", "chickpea": "CROP_COMMODITY_22", "crop_commodity_22": "CROP_COMMODITY_22", "citronella_grass": "CROP_COMMODITY_63", "citronella grass": "CROP_COMMODITY_63", "crop_commodity_63": "CROP_COMMODITY_63", "coffee": "CROP_COMMODITY_112", "crop_commodity_112": "CROP_COMMODITY_112", "common_bean": "CROP_COMMODITY_135", "common bean": "CROP_COMMODITY_135", "crop_commodity_135": "CROP_COMMODITY_135", "common_haricot_bean": "CROP_COMMODITY_25", "common/haricot/ bean": "CROP_COMMODITY_25", "crop_commodity_25": "CROP_COMMODITY_25", "coriander": "CROP_COMMODITY_57", "crop_commodity_57": "CROP_COMMODITY_57", "cotton": "CROP_COMMODITY_109", "crop_commodity_109": "CROP_COMMODITY_109", "cow_pea": "CROP_COMMODITY_94", "cow pea": "CROP_COMMODITY_94", "crop_commodity_94": "CROP_COMMODITY_94", "cowpea": "CROP_COMMODITY_23", "crop_commodity_23": "CROP_COMMODITY_23", "cuccumber": "CROP_COMMODITY_136", "crop_commodity_136": "CROP_COMMODITY_136", "cumin": "CROP_COMMODITY_65", "crop_commodity_65": "CROP_COMMODITY_65", "date_palm": "CROP_COMMODITY_85", "date palm": "CROP_COMMODITY_85", "crop_commodity_85": "CROP_COMMODITY_85", "dekoko": "CROP_COMMODITY_21", "crop_commodity_21": "CROP_COMMODITY_21", "desho_grass": "CROP_COMMODITY_105", "desho grass": "CROP_COMMODITY_105", "crop_commodity_105": "CROP_COMMODITY_105", "dolicos_lablab": "CROP_COMMODITY_90", "dolicos lablab": "CROP_COMMODITY_90", "crop_commodity_90": "CROP_COMMODITY_90", "durum_wheat": "CROP_COMMODITY_3", "durum wheat": "CROP_COMMODITY_3", "crop_commodity_3": "CROP_COMMODITY_3", "eggplant": "CROP_COMMODITY_137", "crop_commodity_137": "CROP_COMMODITY_137", "elephant_grass": "CROP_COMMODITY_87", "elephant grass": "CROP_COMMODITY_87", "crop_commodity_87": "CROP_COMMODITY_87", "emmer_wheat": "CROP_COMMODITY_13", "emmer wheat (aja)": "CROP_COMMODITY_13", "crop_commodity_13": "CROP_COMMODITY_13", "enset": "CROP_COMMODITY_44", "crop_commodity_44": "CROP_COMMODITY_44", "ethiopian_mustard": "CROP_COMMODITY_132", "ethiopian mustard": "CROP_COMMODITY_132", "crop_commodity_132": "CROP_COMMODITY_132", "faba_bean": "CROP_COMMODITY_19", "faba bean": "CROP_COMMODITY_19", "crop_commodity_19": "CROP_COMMODITY_19", "fenugreek": "CROP_COMMODITY_29", "crop_commodity_29": "CROP_COMMODITY_29", "field_pea": "CROP_COMMODITY_20", "field pea": "CROP_COMMODITY_20", "crop_commodity_20": "CROP_COMMODITY_20", "fig": "CROP_COMMODITY_138", "crop_commodity_138": "CROP_COMMODITY_138", "fine_bush": "CROP_COMMODITY_139", "fine bush": "CROP_COMMODITY_139", "crop_commodity_139": "CROP_COMMODITY_139", "finger_millet": "CROP_COMMODITY_10", "finger millet": "CROP_COMMODITY_10", "crop_commodity_10": "CROP_COMMODITY_10", "food_barley": "CROP_COMMODITY_4", "food barley": "CROP_COMMODITY_4", "crop_commodity_4": "CROP_COMMODITY_4", "food_oat": "CROP_COMMODITY_18", "food oat": "CROP_COMMODITY_18", "crop_commodity_18": "CROP_COMMODITY_18", "forage_soyabean": "CROP_COMMODITY_128", "forage soyabean": "CROP_COMMODITY_128", "crop_commodity_128": "CROP_COMMODITY_128", "foxtail_millet": "CROP_COMMODITY_16", "foxtail millet": "CROP_COMMODITY_16", "crop_commodity_16": "CROP_COMMODITY_16", "garlic": "CROP_COMMODITY_47", "crop_commodity_47": "CROP_COMMODITY_47", "ginger": "CROP_COMMODITY_59", "crop_commodity_59": "CROP_COMMODITY_59", "grass_pea_guaya": "CROP_COMMODITY_27", "grass pea/ ''guaya''": "CROP_COMMODITY_27", "crop_commodity_27": "CROP_COMMODITY_27", "green_courgette": "CROP_COMMODITY_140", "green courgette": "CROP_COMMODITY_140", "crop_commodity_140": "CROP_COMMODITY_140", "groundnut": "CROP_COMMODITY_34", "crop_commodity_34": "CROP_COMMODITY_34", "hibiscus": "CROP_COMMODITY_74", "crop_commodity_74": "CROP_COMMODITY_74", "irish_potato": "CROP_COMMODITY_40", "irish potato": "CROP_COMMODITY_40", "crop_commodity_40": "CROP_COMMODITY_40", "japanese_mint": "CROP_COMMODITY_141", "japanese mint": "CROP_COMMODITY_141", "crop_commodity_141": "CROP_COMMODITY_141", "kenaf": "CROP_COMMODITY_110", "crop_commodity_110": "CROP_COMMODITY_110", "kororima": "CROP_COMMODITY_124", "crop_commodity_124": "CROP_COMMODITY_124", "lavender": "CROP_COMMODITY_75", "crop_commodity_75": "CROP_COMMODITY_75", "lemmon_grass": "CROP_COMMODITY_66", "lemmon grass": "CROP_COMMODITY_66", "crop_commodity_66": "CROP_COMMODITY_66", "lemon_scented_eucalyptus": "CROP_COMMODITY_142", "lemon scented eucalyptus": "CROP_COMMODITY_142", "crop_commodity_142": "CROP_COMMODITY_142", "lemon_verbena": "CROP_COMMODITY_72", "lemon verbena": "CROP_COMMODITY_72", "crop_commodity_72": "CROP_COMMODITY_72", "lentil": "CROP_COMMODITY_24", "crop_commodity_24": "CROP_COMMODITY_24", "lettuce": "CROP_COMMODITY_116", "crop_commodity_116": "CROP_COMMODITY_116", "lima_bean": "CROP_COMMODITY_115", "lima bean": "CROP_COMMODITY_115", "crop_commodity_115": "CROP_COMMODITY_115", "linseed": "CROP_COMMODITY_31", "crop_commodity_31": "CROP_COMMODITY_31", "local_forage_legume": "CROP_COMMODITY_107", "local forage legume": "CROP_COMMODITY_107", "crop_commodity_107": "CROP_COMMODITY_107", "lupin": "CROP_COMMODITY_101", "crop_commodity_101": "CROP_COMMODITY_101", "maize": "CROP_COMMODITY_1", "maize ( zea mays l.)": "CROP_COMMODITY_1", "crop_commodity_1": "CROP_COMMODITY_1", "majoram_oregano": "CROP_COMMODITY_76", "majoram/oregano": "CROP_COMMODITY_76", "crop_commodity_76": "CROP_COMMODITY_76", "malt_barley": "CROP_COMMODITY_5", "malt barley": "CROP_COMMODITY_5", "crop_commodity_5": "CROP_COMMODITY_5", "mango": "CROP_COMMODITY_81", "crop_commodity_81": "CROP_COMMODITY_81", "millet": "CROP_COMMODITY_8", "crop_commodity_8": "CROP_COMMODITY_8", "mulberry": "CROP_COMMODITY_108", "crop_commodity_108": "CROP_COMMODITY_108", "mung_bean": "CROP_COMMODITY_28", "mung bean": "CROP_COMMODITY_28", "crop_commodity_28": "CROP_COMMODITY_28", "musk_melon": "CROP_COMMODITY_118", "musk melon": "CROP_COMMODITY_118", "crop_commodity_118": "CROP_COMMODITY_118", "napier_grass": "CROP_COMMODITY_106", "napier grass": "CROP_COMMODITY_106", "crop_commodity_106": "CROP_COMMODITY_106", "noug": "CROP_COMMODITY_30", "crop_commodity_30": "CROP_COMMODITY_30", "oats": "CROP_COMMODITY_97", "crop_commodity_97": "CROP_COMMODITY_97", "okra": "CROP_COMMODITY_53", "crop_commodity_53": "CROP_COMMODITY_53", "onion": "CROP_COMMODITY_48", "crop_commodity_48": "CROP_COMMODITY_48", "pakchoi": "CROP_COMMODITY_143", "crop_commodity_143": "CROP_COMMODITY_143", "palmarosa": "CROP_COMMODITY_144", "crop_commodity_144": "CROP_COMMODITY_144", "panicum": "CROP_COMMODITY_89", "crop_commodity_89": "CROP_COMMODITY_89", "panicum_maximum": "CROP_COMMODITY_100", "panicum maximum": "CROP_COMMODITY_100", "crop_commodity_100": "CROP_COMMODITY_100", "papaya": "CROP_COMMODITY_145", "crop_commodity_145": "CROP_COMMODITY_145", "peach": "CROP_COMMODITY_146", "crop_commodity_146": "CROP_COMMODITY_146", "pearl_millet": "CROP_COMMODITY_15", "pearl millet": "CROP_COMMODITY_15", "crop_commodity_15": "CROP_COMMODITY_15", "pennisetum_polystachion": "CROP_COMMODITY_99", "pennisetum polystachion": "CROP_COMMODITY_99", "crop_commodity_99": "CROP_COMMODITY_99", "pennisetum_sphacelatum": "CROP_COMMODITY_103", "pennisetum sphacelatum": "CROP_COMMODITY_103", "crop_commodity_103": "CROP_COMMODITY_103", "peppermint": "CROP_COMMODITY_147", "crop_commodity_147": "CROP_COMMODITY_147", "perennial_grass": "CROP_COMMODITY_104", "perennial grass": "CROP_COMMODITY_104", "crop_commodity_104": "CROP_COMMODITY_104", "phalaries": "CROP_COMMODITY_91", "crop_commodity_91": "CROP_COMMODITY_91", "pigeon_pea": "CROP_COMMODITY_96", "pigeon pea": "CROP_COMMODITY_96", "crop_commodity_96": "CROP_COMMODITY_96", "pineapple": "CROP_COMMODITY_82", "crop_commodity_82": "CROP_COMMODITY_82", "pyrethrum": "CROP_COMMODITY_64", "crop_commodity_64": "CROP_COMMODITY_64", "quinoa": "CROP_COMMODITY_17", "crop_commodity_17": "CROP_COMMODITY_17", "rapeseed": "CROP_COMMODITY_32", "crop_commodity_32": "CROP_COMMODITY_32", "red_beet": "CROP_COMMODITY_148", "red beet": "CROP_COMMODITY_148", "crop_commodity_148": "CROP_COMMODITY_148", "rhode": "CROP_COMMODITY_88", "crop_commodity_88": "CROP_COMMODITY_88", "rice": "CROP_COMMODITY_9", "crop_commodity_9": "CROP_COMMODITY_9", "rose": "CROP_COMMODITY_125", "crop_commodity_125": "CROP_COMMODITY_125", "rosemary": "CROP_COMMODITY_149", "crop_commodity_149": "CROP_COMMODITY_149", "rose_scented_geranium": "CROP_COMMODITY_70", "rose scented geranium": "CROP_COMMODITY_70", "crop_commodity_70": "CROP_COMMODITY_70", "safflower": "CROP_COMMODITY_36", "crop_commodity_36": "CROP_COMMODITY_36", "sage": "CROP_COMMODITY_77", "crop_commodity_77": "CROP_COMMODITY_77", "sesame": "CROP_COMMODITY_33", "crop_commodity_33": "CROP_COMMODITY_33", "sesbania": "CROP_COMMODITY_98", "crop_commodity_98": "CROP_COMMODITY_98", "shallot": "CROP_COMMODITY_49", "crop_commodity_49": "CROP_COMMODITY_49", "snap_bean": "CROP_COMMODITY_150", "snap bean": "CROP_COMMODITY_150", "crop_commodity_150": "CROP_COMMODITY_150", "snap_pea": "CROP_COMMODITY_121", "snap pea": "CROP_COMMODITY_121", "crop_commodity_121": "CROP_COMMODITY_121", "snow_pea": "CROP_COMMODITY_122", "snow pea": "CROP_COMMODITY_122", "crop_commodity_122": "CROP_COMMODITY_122", "sorghum_forage": "CROP_COMMODITY_127", "sorghum forage": "CROP_COMMODITY_127", "crop_commodity_127": "CROP_COMMODITY_127", "sorghum": "CROP_COMMODITY_7", "sorghum (sorghum bicolor)": "CROP_COMMODITY_7", "crop_commodity_7": "CROP_COMMODITY_7", "soybean": "CROP_COMMODITY_26", "crop_commodity_26": "CROP_COMMODITY_26", "spanish_mint": "CROP_COMMODITY_68", "spanish mint": "CROP_COMMODITY_68", "crop_commodity_68": "CROP_COMMODITY_68", "speare_mint": "CROP_COMMODITY_67", "speare mint": "CROP_COMMODITY_67", "crop_commodity_67": "CROP_COMMODITY_67", "stevia": "CROP_COMMODITY_73", "crop_commodity_73": "CROP_COMMODITY_73", "sugarcane": "CROP_COMMODITY_111", "crop_commodity_111": "CROP_COMMODITY_111", "summarsquash": "CROP_COMMODITY_56", "crop_commodity_56": "CROP_COMMODITY_56", "summer_squash": "CROP_COMMODITY_55", "summer squash": "CROP_COMMODITY_55", "crop_commodity_55": "CROP_COMMODITY_55", "sunflower": "CROP_COMMODITY_35", "crop_commodity_35": "CROP_COMMODITY_35", "sweet_annie": "CROP_COMMODITY_62", "sweet annie": "CROP_COMMODITY_62", "crop_commodity_62": "CROP_COMMODITY_62", "sweet_corn": "CROP_COMMODITY_123", "sweet corn": "CROP_COMMODITY_123", "crop_commodity_123": "CROP_COMMODITY_123", "sweet_hot_pepper": "CROP_COMMODITY_50", "sweet/hot pepper": "CROP_COMMODITY_50", "crop_commodity_50": "CROP_COMMODITY_50", "sweet_potato": "CROP_COMMODITY_41", "sweet potato": "CROP_COMMODITY_41", "crop_commodity_41": "CROP_COMMODITY_41", "taro": "CROP_COMMODITY_42", "crop_commodity_42": "CROP_COMMODITY_42", "tef": "CROP_COMMODITY_6", "tef ( eragrostis tef)": "CROP_COMMODITY_6", "crop_commodity_6": "CROP_COMMODITY_6", "tobaco": "CROP_COMMODITY_113", "crop_commodity_113": "CROP_COMMODITY_113", "tomato": "CROP_COMMODITY_46", "crop_commodity_46": "CROP_COMMODITY_46", "tree_lucerne": "CROP_COMMODITY_86", "tree lucerne": "CROP_COMMODITY_86", "crop_commodity_86": "CROP_COMMODITY_86", "trifolium": "CROP_COMMODITY_92", "crop_commodity_92": "CROP_COMMODITY_92", "triticale": "CROP_COMMODITY_12", "crop_commodity_12": "CROP_COMMODITY_12", "turmeric": "CROP_COMMODITY_60", "crop_commodity_60": "CROP_COMMODITY_60", "vanilla": "CROP_COMMODITY_78", "crop_commodity_78": "CROP_COMMODITY_78", "vernonia": "CROP_COMMODITY_37", "crop_commodity_37": "CROP_COMMODITY_37", "vetch": "CROP_COMMODITY_93", "crop_commodity_93": "CROP_COMMODITY_93", "water_melon": "CROP_COMMODITY_117", "water melon": "CROP_COMMODITY_117", "crop_commodity_117": "CROP_COMMODITY_117", "white_cumin": "CROP_COMMODITY_151", "white cumin": "CROP_COMMODITY_151", "crop_commodity_151": "CROP_COMMODITY_151", "wine_grape": "CROP_COMMODITY_83", "wine grape": "CROP_COMMODITY_83", "crop_commodity_83": "CROP_COMMODITY_83", "yam": "CROP_COMMODITY_45", "crop_commodity_45": "CROP_COMMODITY_45", "yellow_courgette": "CROP_COMMODITY_152", "yellow courgette": "CROP_COMMODITY_152", "crop_commodity_152": "CROP_COMMODITY_152", "ziziphus": "CROP_COMMODITY_153", "ziziphus (kurkura)": "CROP_COMMODITY_153", "crop_commodity_153": "CROP_COMMODITY_153"} %}
+{% set crop_map = {"adzuki_bean": "CROP_ADZUKI_BEAN", "adzuki bean": "CROP_ADZUKI_BEAN", "crop_commodity_114": "CROP_ADZUKI_BEAN", "african_marigold": "CROP_AFRICAN_MARIGOLD", "african marigold": "CROP_AFRICAN_MARIGOLD", "crop_commodity_69": "CROP_AFRICAN_MARIGOLD", "alfalfa": "CROP_ALFALFA", "alfalfa (medicago sativa)": "CROP_ALFALFA", "crop_commodity_102": "CROP_ALFALFA", "amaranthus": "CROP_AMARANTH", "crop_commodity_133": "CROP_AMARANTH", "anchote": "CROP_ANCHOTE", "crop_commodity_54": "CROP_ANCHOTE", "avocado": "CROP_AVOCADO", "crop_commodity_84": "CROP_AVOCADO", "banana": "CROP_BANANA", "crop_commodity_80": "CROP_BANANA", "basil": "CROP_BASIL", "crop_commodity_79": "CROP_BASIL", "black_cumin": "CROP_BLACK_CUMIN", "black cumin": "CROP_BLACK_CUMIN", "crop_commodity_134": "CROP_BLACK_CUMIN", "black_pepper": "CROP_BLACK_PEPPER", "black pepper": "CROP_BLACK_PEPPER", "crop_commodity_58": "CROP_BLACK_PEPPER", "brachiaria_brizantha_cv_xaraes_descriptors": "CROP_BRACHIARIA", "brachiaria brizantha cv. xaraes descriptors": "CROP_BRACHIARIA", "crop_commodity_126": "CROP_BRACHIARIA", "bread_wheat": "CROP_BREAD_WHEAT", "bread wheat (triticum aestivum l.)": "CROP_BREAD_WHEAT", "crop_commodity_2": "CROP_BREAD_WHEAT", "broccoli": "CROP_BROCCOLI", "crop_commodity_119": "CROP_BROCCOLI", "buck_wheat": "CROP_BUCKWHEAT", "buck wheat": "CROP_BUCKWHEAT", "crop_commodity_14": "CROP_BUCKWHEAT", "cabbage": "CROP_CABBAGE", "crop_commodity_51": "CROP_CABBAGE", "cacao": "CROP_CACAO", "crop_commodity_129": "CROP_CACAO", "camelina_sativa": "CROP_CAMELINA", "camelina sativa": "CROP_CAMELINA", "crop_commodity_39": "CROP_CAMELINA", "cardamom": "CROP_CARDAMOM", "crop_commodity_61": "CROP_CARDAMOM", "carrot": "CROP_CARROT", "crop_commodity_52": "CROP_CARROT", "cassava": "CROP_CASSAVA", "crop_commodity_43": "CROP_CASSAVA", "castor": "CROP_CASTOR", "crop_commodity_38": "CROP_CASTOR", "cauliflower": "CROP_CAULIFLOWER", "crop_commodity_120": "CROP_CAULIFLOWER", "chamomile": "CROP_CHAMOMILE", "crop_commodity_71": "CROP_CHAMOMILE", "chickpea": "CROP_CHICKPEA", "crop_commodity_22": "CROP_CHICKPEA", "citronella_grass": "CROP_CITRONELLA_GRASS", "citronella grass": "CROP_CITRONELLA_GRASS", "crop_commodity_63": "CROP_CITRONELLA_GRASS", "coffee": "CROP_COFFEE", "crop_commodity_112": "CROP_COFFEE", "common_bean": "CROP_COMMON_BEAN", "common bean": "CROP_COMMON_BEAN", "crop_commodity_135": "CROP_COMMON_BEAN", "common_haricot_bean": "CROP_HARICOT_BEAN", "common/haricot/ bean": "CROP_HARICOT_BEAN", "crop_commodity_25": "CROP_HARICOT_BEAN", "coriander": "CROP_CORIANDER", "crop_commodity_57": "CROP_CORIANDER", "cotton": "CROP_COTTON", "crop_commodity_109": "CROP_COTTON", "cow_pea": "CROP_COWPEA", "cow pea": "CROP_COWPEA", "crop_commodity_94": "CROP_COWPEA", "cowpea": "CROP_COWPEA", "crop_commodity_23": "CROP_COWPEA", "cuccumber": "CROP_CUCUMBER", "crop_commodity_136": "CROP_CUCUMBER", "date_palm": "CROP_DATE_PALM", "date palm": "CROP_DATE_PALM", "crop_commodity_85": "CROP_DATE_PALM", "dekoko": "CROP_DEKOKO", "crop_commodity_21": "CROP_DEKOKO", "durum_wheat": "CROP_DURUM_WHEAT", "durum wheat": "CROP_DURUM_WHEAT", "crop_commodity_3": "CROP_DURUM_WHEAT", "eggplant": "CROP_EGGPLANT", "crop_commodity_137": "CROP_EGGPLANT", "emmer_wheat": "CROP_EMMER_WHEAT", "emmer wheat (aja)": "CROP_EMMER_WHEAT", "crop_commodity_13": "CROP_EMMER_WHEAT", "enset": "CROP_ENSET", "crop_commodity_44": "CROP_ENSET", "ethiopian_mustard": "CROP_ETHIOPIAN_MUSTARD", "ethiopian mustard": "CROP_ETHIOPIAN_MUSTARD", "crop_commodity_132": "CROP_ETHIOPIAN_MUSTARD", "faba_bean": "CROP_FABA_BEAN", "faba bean": "CROP_FABA_BEAN", "crop_commodity_19": "CROP_FABA_BEAN", "fenugreek": "CROP_FENUGREEK", "crop_commodity_29": "CROP_FENUGREEK", "field_pea": "CROP_FIELD_PEA", "field pea": "CROP_FIELD_PEA", "crop_commodity_20": "CROP_FIELD_PEA", "fig": "CROP_FIG", "crop_commodity_138": "CROP_FIG", "fine_bush": "CROP_FINE_BUSH_BEAN", "fine bush": "CROP_FINE_BUSH_BEAN", "crop_commodity_139": "CROP_FINE_BUSH_BEAN", "finger_millet": "CROP_FINGER_MILLET", "finger millet": "CROP_FINGER_MILLET", "crop_commodity_10": "CROP_FINGER_MILLET", "food_barley": "CROP_BARLEY", "food barley": "CROP_BARLEY", "crop_commodity_4": "CROP_BARLEY", "food_oat": "CROP_OAT", "food oat": "CROP_OAT", "crop_commodity_18": "CROP_OAT", "foxtail_millet": "CROP_FOXTAIL_MILLET", "foxtail millet": "CROP_FOXTAIL_MILLET", "crop_commodity_16": "CROP_FOXTAIL_MILLET", "garlic": "CROP_GARLIC", "crop_commodity_47": "CROP_GARLIC", "ginger": "CROP_GINGER", "crop_commodity_59": "CROP_GINGER", "grass_pea_guaya": "CROP_GRASS_PEA", "grass pea/ ''guaya''": "CROP_GRASS_PEA", "crop_commodity_27": "CROP_GRASS_PEA", "green_courgette": "CROP_GREEN_COURGETTE", "green courgette": "CROP_GREEN_COURGETTE", "crop_commodity_140": "CROP_GREEN_COURGETTE", "groundnut": "CROP_GROUNDNUT", "crop_commodity_34": "CROP_GROUNDNUT", "hibiscus": "CROP_HIBISCUS", "crop_commodity_74": "CROP_HIBISCUS", "irish_potato": "CROP_POTATO", "irish potato": "CROP_POTATO", "crop_commodity_40": "CROP_POTATO", "japanese_mint": "CROP_JAPANESE_MINT", "japanese mint": "CROP_JAPANESE_MINT", "crop_commodity_141": "CROP_JAPANESE_MINT", "kenaf": "CROP_KENAF", "crop_commodity_110": "CROP_KENAF", "kororima": "CROP_KORARIMA", "crop_commodity_124": "CROP_KORARIMA", "lavender": "CROP_LAVENDER", "crop_commodity_75": "CROP_LAVENDER", "lemmon_grass": "CROP_LEMONGRASS", "lemmon grass": "CROP_LEMONGRASS", "crop_commodity_66": "CROP_LEMONGRASS", "lemon_scented_eucalyptus": "CROP_LEMON_SCENTED_EUCALYPTUS", "lemon scented eucalyptus": "CROP_LEMON_SCENTED_EUCALYPTUS", "crop_commodity_142": "CROP_LEMON_SCENTED_EUCALYPTUS", "lemon_verbena": "CROP_LEMON_VERBENA", "lemon verbena": "CROP_LEMON_VERBENA", "crop_commodity_72": "CROP_LEMON_VERBENA", "lentil": "CROP_LENTIL", "crop_commodity_24": "CROP_LENTIL", "lettuce": "CROP_LETTUCE", "crop_commodity_116": "CROP_LETTUCE", "lima_bean": "CROP_LIMA_BEAN", "lima bean": "CROP_LIMA_BEAN", "crop_commodity_115": "CROP_LIMA_BEAN", "linseed": "CROP_LINSEED", "crop_commodity_31": "CROP_LINSEED", "maize": "CROP_MAIZE", "maize ( zea mays l.)": "CROP_MAIZE", "crop_commodity_1": "CROP_MAIZE", "majoram_oregano": "CROP_MARJORAM_OREGANO", "majoram/oregano": "CROP_MARJORAM_OREGANO", "crop_commodity_76": "CROP_MARJORAM_OREGANO", "malt_barley": "CROP_MALT_BARLEY", "malt barley": "CROP_MALT_BARLEY", "crop_commodity_5": "CROP_MALT_BARLEY", "mango": "CROP_MANGO", "crop_commodity_81": "CROP_MANGO", "mung_bean": "CROP_MUNG_BEAN", "mung bean": "CROP_MUNG_BEAN", "crop_commodity_28": "CROP_MUNG_BEAN", "musk_melon": "CROP_MUSKMELON", "musk melon": "CROP_MUSKMELON", "crop_commodity_118": "CROP_MUSKMELON", "noug": "CROP_NOUG", "crop_commodity_30": "CROP_NOUG", "oats": "CROP_OAT", "crop_commodity_97": "CROP_OAT", "okra": "CROP_OKRA", "crop_commodity_53": "CROP_OKRA", "onion": "CROP_ONION", "crop_commodity_48": "CROP_ONION", "pakchoi": "CROP_PAK_CHOI", "crop_commodity_143": "CROP_PAK_CHOI", "palmarosa": "CROP_PALMAROSA", "crop_commodity_144": "CROP_PALMAROSA", "papaya": "CROP_PAPAYA", "crop_commodity_145": "CROP_PAPAYA", "peach": "CROP_PEACH", "crop_commodity_146": "CROP_PEACH", "pearl_millet": "CROP_PEARL_MILLET", "pearl millet": "CROP_PEARL_MILLET", "crop_commodity_15": "CROP_PEARL_MILLET", "peppermint": "CROP_PEPPERMINT", "crop_commodity_147": "CROP_PEPPERMINT", "pigeon_pea": "CROP_PIGEON_PEA", "pigeon pea": "CROP_PIGEON_PEA", "crop_commodity_96": "CROP_PIGEON_PEA", "pineapple": "CROP_PINEAPPLE", "crop_commodity_82": "CROP_PINEAPPLE", "pyrethrum": "CROP_PYRETHRUM", "crop_commodity_64": "CROP_PYRETHRUM", "quinoa": "CROP_QUINOA", "crop_commodity_17": "CROP_QUINOA", "rapeseed": "CROP_RAPESEED", "crop_commodity_32": "CROP_RAPESEED", "red_beet": "CROP_RED_BEET", "red beet": "CROP_RED_BEET", "crop_commodity_148": "CROP_RED_BEET", "rice": "CROP_RICE", "crop_commodity_9": "CROP_RICE", "rose": "CROP_ROSE", "crop_commodity_125": "CROP_ROSE", "rosemary": "CROP_ROSEMARY", "crop_commodity_149": "CROP_ROSEMARY", "rose_scented_geranium": "CROP_GERANIUM", "rose scented geranium": "CROP_GERANIUM", "crop_commodity_70": "CROP_GERANIUM", "safflower": "CROP_SAFFLOWER", "crop_commodity_36": "CROP_SAFFLOWER", "sage": "CROP_SAGE", "crop_commodity_77": "CROP_SAGE", "sesame": "CROP_SESAME", "crop_commodity_33": "CROP_SESAME", "shallot": "CROP_SHALLOT", "crop_commodity_49": "CROP_SHALLOT", "snap_bean": "CROP_SNAP_BEAN", "snap bean": "CROP_SNAP_BEAN", "crop_commodity_150": "CROP_SNAP_BEAN", "snap_pea": "CROP_SNAP_PEA", "snap pea": "CROP_SNAP_PEA", "crop_commodity_121": "CROP_SNAP_PEA", "snow_pea": "CROP_SNOW_PEA", "snow pea": "CROP_SNOW_PEA", "crop_commodity_122": "CROP_SNOW_PEA", "sorghum": "CROP_SORGHUM", "sorghum (sorghum bicolor)": "CROP_SORGHUM", "crop_commodity_7": "CROP_SORGHUM", "soybean": "CROP_SOYBEAN", "crop_commodity_26": "CROP_SOYBEAN", "spanish_mint": "CROP_SPANISH_MINT", "spanish mint": "CROP_SPANISH_MINT", "crop_commodity_68": "CROP_SPANISH_MINT", "speare_mint": "CROP_SPEARMINT", "speare mint": "CROP_SPEARMINT", "crop_commodity_67": "CROP_SPEARMINT", "stevia": "CROP_STEVIA", "crop_commodity_73": "CROP_STEVIA", "sugarcane": "CROP_SUGARCANE", "crop_commodity_111": "CROP_SUGARCANE", "summarsquash": "CROP_SUMMER_SQUASH", "crop_commodity_56": "CROP_SUMMER_SQUASH", "summer_squash": "CROP_SUMMER_SQUASH", "summer squash": "CROP_SUMMER_SQUASH", "crop_commodity_55": "CROP_SUMMER_SQUASH", "sunflower": "CROP_SUNFLOWER", "crop_commodity_35": "CROP_SUNFLOWER", "sweet_annie": "CROP_SWEET_ANNIE", "sweet annie": "CROP_SWEET_ANNIE", "crop_commodity_62": "CROP_SWEET_ANNIE", "sweet_corn": "CROP_SWEET_CORN", "sweet corn": "CROP_SWEET_CORN", "crop_commodity_123": "CROP_SWEET_CORN", "sweet_hot_pepper": "CROP_PEPPER", "sweet/hot pepper": "CROP_PEPPER", "crop_commodity_50": "CROP_PEPPER", "sweet_potato": "CROP_SWEET_POTATO", "sweet potato": "CROP_SWEET_POTATO", "crop_commodity_41": "CROP_SWEET_POTATO", "taro": "CROP_TARO", "crop_commodity_42": "CROP_TARO", "tef": "CROP_TEFF", "tef ( eragrostis tef)": "CROP_TEFF", "crop_commodity_6": "CROP_TEFF", "tobaco": "CROP_TOBACCO", "crop_commodity_113": "CROP_TOBACCO", "tomato": "CROP_TOMATO", "crop_commodity_46": "CROP_TOMATO", "triticale": "CROP_TRITICALE", "crop_commodity_12": "CROP_TRITICALE", "turmeric": "CROP_TURMERIC", "crop_commodity_60": "CROP_TURMERIC", "vanilla": "CROP_VANILLA", "crop_commodity_78": "CROP_VANILLA", "vernonia": "CROP_VERNONIA", "crop_commodity_37": "CROP_VERNONIA", "water_melon": "CROP_WATERMELON", "water melon": "CROP_WATERMELON", "crop_commodity_117": "CROP_WATERMELON", "white_cumin": "CROP_WHITE_CUMIN", "white cumin": "CROP_WHITE_CUMIN", "crop_commodity_151": "CROP_WHITE_CUMIN", "wine_grape": "CROP_WINE_GRAPE", "wine grape": "CROP_WINE_GRAPE", "crop_commodity_83": "CROP_WINE_GRAPE", "yam": "CROP_YAM", "crop_commodity_45": "CROP_YAM", "yellow_courgette": "CROP_YELLOW_COURGETTE", "yellow courgette": "CROP_YELLOW_COURGETTE", "crop_commodity_152": "CROP_YELLOW_COURGETTE", "ziziphus": "CROP_ZIZIPHUS", "ziziphus (kurkura)": "CROP_ZIZIPHUS", "crop_commodity_153": "CROP_ZIZIPHUS"} %}
 
 {% set season_map = {
   "belg": "SEASON_BELG", "meher": "SEASON_MEHER", "irrigation": "SEASON_IRRIGATION",
@@ -17,151 +17,134 @@
 } %}
 
 {% set crop_cat_map = {
-  "cereals crops": "CROP_CATEGORY_1",
-  "cereal crops": "CROP_CATEGORY_1",
-  "pulse crops": "CROP_CATEGORY_2",
-  "oil crops": "CROP_CATEGORY_3",
-  "tubers, roots & vegetable crops": "CROP_CATEGORY_5",
-  "fruit crops": "CROP_CATEGORY_6",
-  "forage and pasture crops": "CROP_CATEGORY_7",
-  "other crops": "CROP_CATEGORY_10",
-  "crop_category_1": "CROP_CATEGORY_1",
-  "crop_category_2": "CROP_CATEGORY_2",
-  "crop_category_3": "CROP_CATEGORY_3",
-  "crop_category_5": "CROP_CATEGORY_5",
-  "crop_category_6": "CROP_CATEGORY_6",
-  "crop_category_7": "CROP_CATEGORY_7",
-  "crop_category_10": "CROP_CATEGORY_10"
+  "cereals crops": "CROPCAT_CEREAL",
+  "cereal crops": "CROPCAT_CEREAL",
+  "pulse crops": "CROPCAT_FOOD_LEGUME",
+  "oil crops": "CROPCAT_OILSEED",
+  "fruit crops": "CROPCAT_FRUIT_VEGETABLE",
+  "other crops": "CROPCAT_OTHER",
+  "crop_category_1": "CROPCAT_CEREAL",
+  "crop_category_2": "CROPCAT_FOOD_LEGUME",
+  "crop_category_3": "CROPCAT_OILSEED",
+  "crop_category_6": "CROPCAT_FRUIT_VEGETABLE",
+  "crop_category_10": "CROPCAT_OTHER"
 } %}
 
 {% set plot_cat_map = {
-  "perennial_crop": "PLOT_CATEGORY_PERENNIAL_CROP",
-  "annual_crop": "PLOT_CATEGORY_ANNUAL_CROP",
-  "biennial_crop": "PLOT_CATEGORY_BIENNIAL_CROP",
-  "plot_category_perennial_crop": "PLOT_CATEGORY_PERENNIAL_CROP",
-  "plot_category_annual_crop": "PLOT_CATEGORY_ANNUAL_CROP",
-  "plot_category_biennial_crop": "PLOT_CATEGORY_BIENNIAL_CROP"
+  "perennial_crop": "PERENNIAL_CROP",
+  "annual_crop": "ANNUAL_CROP",
+  "biennial_crop": "BIENNIAL_CROP",
+  "plot_category_perennial_crop": "PERENNIAL_CROP",
+  "plot_category_annual_crop": "ANNUAL_CROP",
+  "plot_category_biennial_crop": "BIENNIAL_CROP"
 } %}
 
 {% set ownership_map = {
-  "owner": "OWNERSHIP_TYPE_OWNER",
-  "tenant": "OWNERSHIP_TYPE_TENANT",
-  "crop_sharing": "OWNERSHIP_TYPE_CROP_SHARING",
-  "family_gift": "OWNERSHIP_TYPE_FAMILY_GIFT",
-  "ownership_type_owner": "OWNERSHIP_TYPE_OWNER",
-  "ownership_type_tenant": "OWNERSHIP_TYPE_TENANT",
-  "ownership_type_crop_sharing": "OWNERSHIP_TYPE_CROP_SHARING",
-  "ownership_type_family_gift": "OWNERSHIP_TYPE_FAMILY_GIFT"
+  "owner": "OWNER",
+  "tenant": "TENANT",
+  "crop_sharing": "CROP_SHARING",
+  "family_gift": "FAMILY_GIFT",
+  "ownership_type_owner": "OWNER",
+  "ownership_type_tenant": "TENANT",
+  "ownership_type_crop_sharing": "CROP_SHARING",
+  "ownership_type_family_gift": "FAMILY_GIFT"
 } %}
 
 {% set soil_map = {
-  "medium": "SOIL_FERTILITY_MEDIUM",
-  "high": "SOIL_FERTILITY_HIGH",
-  "low": "SOIL_FERTILITY_LOW",
-  "degraded": "SOIL_FERTILITY_DEGRADED",
-  "soil_fertility_medium": "SOIL_FERTILITY_MEDIUM",
-  "soil_fertility_high": "SOIL_FERTILITY_HIGH",
-  "soil_fertility_low": "SOIL_FERTILITY_LOW",
-  "soil_fertility_degraded": "SOIL_FERTILITY_DEGRADED"
+  "medium": "SF_MEDIUM",
+  "high": "SF_HIGH",
+  "low": "SF_LOW",
+  "soil_fertility_medium": "SF_MEDIUM",
+  "soil_fertility_high": "SF_HIGH",
+  "soil_fertility_low": "SF_LOW"
 } %}
 
 {% set seed_source_map = {
-  "private": "PRIVATE SEED ENTERPRISE",
-  "cooperative": "AGRICULTURE COOPERATIVE / UNION",
-  "government": "GOVERNMENT / WOREDS AGRICULTURE",
-  "farmer": "FARMER-TO-FARMER EXCHANGE / SAVED",
-  "saved": "FARMER-TO-FARMER EXCHANGE / SAVED",
-  "market": "PRIVATE SEED ENTERPRISE",
-  "ngo": "AGRICULTURE COOPERATIVE / UNION",
-  "own_saved": "FARMER-TO-FARMER EXCHANGE / SAVED"
+  "cooperative": "SEEDSRC_COOPERATIVE",
+  "government": "SEEDSRC_GOVERNMENT",
+  "farmer": "SEEDSRC_NEIGHBOUR",
+  "saved": "SEEDSRC_OWN_SAVED",
+  "market": "SEEDSRC_MARKET",
+  "ngo": "SEEDSRC_NGO",
+  "own_saved": "SEEDSRC_OWN_SAVED"
 } %}
 
 {% set fert_map = {
-  "dap": "FERTILIZER_TYPE_DAP",
-  "urea": "FERTILIZER_TYPE_UREA",
-  "nps": "FERTILIZER_TYPE_NPS",
-  "npsb": "FERTILIZER_TYPE_NPSB",
-  "compost": "FERTILIZER_TYPE_COMPOST",
-  "manure": "FERTILIZER_TYPE_MANURE",
-  "blended": "FERTILIZER_TYPE_BLENDED",
-  "bio_fertilizer": "FERTILIZER_TYPE_BIO_FERTILIZER",
-  "none": "FERTILIZER_TYPE_NONE",
-  "fertilizer_type_dap": "FERTILIZER_TYPE_DAP",
-  "fertilizer_type_urea": "FERTILIZER_TYPE_UREA",
-  "fertilizer_type_nps": "FERTILIZER_TYPE_NPS",
-  "fertilizer_type_npsb": "FERTILIZER_TYPE_NPSB",
-  "fertilizer_type_compost": "FERTILIZER_TYPE_COMPOST",
-  "fertilizer_type_manure": "FERTILIZER_TYPE_MANURE",
-  "fertilizer_type_blended": "FERTILIZER_TYPE_BLENDED",
-  "fertilizer_type_bio_fertilizer": "FERTILIZER_TYPE_BIO_FERTILIZER",
-  "fertilizer_type_none": "FERTILIZER_TYPE_NONE"
+  "dap": "FERT_DAP",
+  "urea": "FERT_UREA",
+  "nps": "FERT_NPS",
+  "npsb": "FERT_NPSB",
+  "compost": "FERT_COMPOST",
+  "manure": "FERT_MANURE",
+  "none": "",
+  "fertilizer_type_dap": "FERT_DAP",
+  "fertilizer_type_urea": "FERT_UREA",
+  "fertilizer_type_nps": "FERT_NPS",
+  "fertilizer_type_npsb": "FERT_NPSB",
+  "fertilizer_type_compost": "FERT_COMPOST",
+  "fertilizer_type_manure": "FERT_MANURE",
+  "fertilizer_type_none": ""
 } %}
 
 {% set water_src_map = {
-  "well": "WATER_SOURCE_WELL",
-  "borehole": "WATER_SOURCE_BOREHOLE",
-  "river": "WATER_SOURCE_RIVER",
-  "pond": "WATER_SOURCE_POND",
-  "spring": "WATER_SOURCE_SPRING",
-  "rainfed": "WATER_SOURCE_RAINFED",
-  "irrigation_scheme": "WATER_SOURCE_IRRIGATION_SCHEME",
-  "water_harvesting_structure": "WATER_SOURCE_WATER_HARVESTING_STRUCTURE",
-  "water_source_well": "WATER_SOURCE_WELL",
-  "water_source_borehole": "WATER_SOURCE_BOREHOLE",
-  "water_source_river": "WATER_SOURCE_RIVER",
-  "water_source_pond": "WATER_SOURCE_POND",
-  "water_source_spring": "WATER_SOURCE_SPRING",
-  "water_source_rainfed": "WATER_SOURCE_RAINFED",
-  "water_source_irrigation_scheme": "WATER_SOURCE_IRRIGATION_SCHEME",
-  "water_source_water_harvesting_structure": "WATER_SOURCE_WATER_HARVESTING_STRUCTURE"
+  "well": "WS_WELL_GROUND",
+  "borehole": "WS_WELL_GROUND",
+  "river": "WS_SURFACE_WATER",
+  "rainfed": "WS_RAINFED",
+  "water_harvesting_structure": "WS_WATER_HARVESTING",
+  "water_source_well": "WS_WELL_GROUND",
+  "water_source_borehole": "WS_WELL_GROUND",
+  "water_source_river": "WS_SURFACE_WATER",
+  "water_source_rainfed": "WS_RAINFED",
+  "water_source_water_harvesting_structure": "WS_WATER_HARVESTING"
 } %}
 
 {% set water_method_map = {
-  "surface_flood": "WATER_SOURCE_METHOD_SURFACE",
-  "surface": "WATER_SOURCE_METHOD_SURFACE",
-  "manual": "WATER_SOURCE_METHOD_MANUAL",
-  "drip": "WATER_SOURCE_METHOD_DRIP",
-  "sprinkler": "WATER_SOURCE_METHOD_SPRINKLER",
-  "other": "WATER_SOURCE_METHOD_OTHER",
-  "water_source_method_surface": "WATER_SOURCE_METHOD_SURFACE",
-  "water_source_method_manual": "WATER_SOURCE_METHOD_MANUAL",
-  "water_source_method_drip": "WATER_SOURCE_METHOD_DRIP",
-  "water_source_method_sprinkler": "WATER_SOURCE_METHOD_SPRINKLER",
-  "water_source_method_other": "WATER_SOURCE_METHOD_OTHER"
+  "surface_flood": "SURFACE",
+  "surface": "SURFACE",
+  "manual": "MANUAL",
+  "drip": "DRIP",
+  "sprinkler": "SPRINKLER",
+  "other": "OTHER",
+  "water_source_method_surface": "SURFACE",
+  "water_source_method_manual": "MANUAL",
+  "water_source_method_drip": "DRIP",
+  "water_source_method_sprinkler": "SPRINKLER",
+  "water_source_method_other": "OTHER"
 } %}
 
 {% set water_freq_map = {
-  "weekly": "WATER_SOURCE_FREQUENCY_WEEKLY",
-  "monthly": "WATER_SOURCE_FREQUENCY_MONTHLY",
-  "bi-weekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "biweekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "daily": "WATER_SOURCE_FREQUENCY_DAILY",
-  "as_needed": "WATER_SOURCE_FREQUENCY_AS_NEEDED",
-  "other": "WATER_SOURCE_FREQUENCY_OTHER",
-  "water_source_frequency_weekly": "WATER_SOURCE_FREQUENCY_WEEKLY",
-  "water_source_frequency_monthly": "WATER_SOURCE_FREQUENCY_MONTHLY",
-  "water_source_frequency_biweekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "water_source_frequency_daily": "WATER_SOURCE_FREQUENCY_DAILY",
-  "water_source_frequency_as_needed": "WATER_SOURCE_FREQUENCY_AS_NEEDED",
-  "water_source_frequency_other": "WATER_SOURCE_FREQUENCY_OTHER"
+  "weekly": "WEEKLY",
+  "monthly": "MONTHLY",
+  "bi-weekly": "BIWEEKLY",
+  "biweekly": "BIWEEKLY",
+  "daily": "DAILY",
+  "as_needed": "AS_NEEDED",
+  "other": "OTHER",
+  "water_source_frequency_weekly": "WEEKLY",
+  "water_source_frequency_monthly": "MONTHLY",
+  "water_source_frequency_biweekly": "BIWEEKLY",
+  "water_source_frequency_daily": "DAILY",
+  "water_source_frequency_as_needed": "AS_NEEDED",
+  "water_source_frequency_other": "OTHER"
 } %}
 
 {% set machinery_map = {
-  "power_tiller": "MACHINERY_POWER_TILLER",
-  "tractor_ploughing": "MACHINERY_TRACTOR_PLOUGHING",
-  "oxen_tillage": "MACHINERY_OXEN_TILLAGE",
-  "combine_harvester": "MACHINERY_COMBINE_HARVESTER",
-  "thrashing_machine": "MACHINERY_THRASHING_MACHINE",
-  "oxen_manual": "MACHINERY_OXEN_MANUAL",
-  "tractor_oxen": "MACHINERY_TRACTOR_OXEN",
-  "equine_other": "MACHINERY_EQUINE_OTHER",
-  "family_labor": "MACHINERY_FAMILY_LABOR",
-  "hired_labor": "MACHINERY_HIRED_LABOR",
-  "debo_jigi": "MACHINERY_DEBO_JIGI",
-  "machinery_power_tiller": "MACHINERY_POWER_TILLER",
-  "machinery_tractor_ploughing": "MACHINERY_TRACTOR_PLOUGHING",
-  "machinery_oxen_tillage": "MACHINERY_OXEN_TILLAGE",
-  "machinery_combine_harvester": "MACHINERY_COMBINE_HARVESTER"
+  "power_tiller": "POWER_TILLER",
+  "tractor_ploughing": "TRACTOR_PLOUGHING",
+  "oxen_tillage": "OXEN_TILLAGE",
+  "combine_harvester": "COMBINE_HARVESTER",
+  "thrashing_machine": "THRASHING_MACHINE",
+  "oxen_manual": "OXEN_MANUAL",
+  "tractor_oxen": "TRACTOR_OXEN",
+  "equine_other": "EQUINE_OTHER",
+  "family_labor": "FAMILY_LABOR",
+  "hired_labor": "HIRED_LABOR",
+  "debo_jigi": "DEBO_JIGI",
+  "machinery_power_tiller": "POWER_TILLER",
+  "machinery_tractor_ploughing": "TRACTOR_PLOUGHING",
+  "machinery_oxen_tillage": "OXEN_TILLAGE",
+  "machinery_combine_harvester": "COMBINE_HARVESTER"
 } %}
 
 {% set region_map = {
@@ -200,20 +183,16 @@
   "disease": "INFT_DISEASE",
   "pest": "INFT_PEST",
   "weed": "INFT_WEED",
-  "nutrient_deficiency": "INFESTATION_TYPE_NUTRIENT",
-  "climate_shock": "INFESTATION_TYPE_CLIMATE",
   "infestation_type_disease": "INFT_DISEASE",
   "infestation_type_pest": "INFT_PEST",
-  "infestation_type_weed": "INFT_WEED",
-  "infestation_type_nutrient": "INFESTATION_TYPE_NUTRIENT",
-  "infestation_type_climate": "INFESTATION_TYPE_CLIMATE"
+  "infestation_type_weed": "INFT_WEED"
 } %}
 
 {% set inf_cluster_map = {
-  "clustered": "CLUSTER_STATUS_CLUSTERED",
-  "independent": "CLUSTER_STATUS_INDEPENDENT",
-  "cluster_status_clustered": "CLUSTER_STATUS_CLUSTERED",
-  "cluster_status_independent": "CLUSTER_STATUS_INDEPENDENT"
+  "clustered": "CLUSTERED",
+  "independent": "INDEPENDENT",
+  "cluster_status_clustered": "CLUSTERED",
+  "cluster_status_independent": "INDEPENDENT"
 } %}
 
 {% set disease_type_map = {
@@ -759,13 +738,13 @@
     {% else %}
       {% set cs_json = '[]' %}
     {% endif %}
-    {% set raw_area = id_details.get('independent_area_sown') if id_details.get('independent_area_sown') is not none else (id_details.get('area_sown') if id_details.get('area_sown') is not none else (cl_details.get('cluster_area_sown') if cl_details.get('cluster_area_sown') is not none else cl_details.get('area_sown'))) %}
+    {% set raw_area = id_details.get('independent_area_sown') if id_details.get('independent_area_sown') is not none else (id_details.get('area_sown') if id_details.get('area_sown') is not none else cl_details.get('area_sown')) %}
     {% set s_area = (raw_area | float) if raw_area is not none and raw_area else 1.0 %}
     {% if s_area <= 0 %}{% set s_area = 1.0 %}{% endif %}
     {% set raw_sow_dt = id_details.get('sowing_date_gc') or sub_dt %}
     {% set sow_dt = sub_dt if raw_sow_dt > sub_dt else raw_sow_dt %}
     {% set has_pest = 'true' if (id_details.get('independent_has_pest_disease') == 'yes' or id_details.get('has_pest_disease') == 'yes') else 'false' %}
-    {% set cl_has_pest = 'true' if (cl_details.get('cluster_has_pest_disease') == 'yes' or cl_details.get('has_pest_disease') == 'yes' or cl_details.get('sowing_has_pest_disease') == 'yes') else 'false' %}
+    {% set cl_has_pest = 'true' if (cl_details.get('has_pest_disease') == 'yes' or cl_details.get('sowing_has_pest_disease') == 'yes') else 'false' %}
     {% set raw_crop = (id_details.get('crop_name_id') or s.get('commodity') or '') | lower %}
     {% set crop_val = crop_map.get(raw_crop, id_details.get('crop_name_id') or s.get('commodity') or '') %}
     {% set raw_fert = (id_details.get('actual_fertilizer_type') or '') | lower %}
@@ -780,7 +759,7 @@
       "cluster_season": "{{ cl_season }}",
       "agro_ecological_zone": "{{ (cl_details.get('cluster_agro_ecological_zone') or '') | upper }}",
       "cluster_area_hectare": {{ (cl_details.get('cluster_area_hectare') or 0) | float }},
-      "cluster_area_sown": {{ (cl_details.get('cluster_area_sown') or cl_details.get('area_sown') or 0) | float }},
+      "cluster_area_sown": {{ (cl_details.get('area_sown') or 0) | float }},
       "cluster_has_pest_disease": {{ cl_has_pest }},
       "season": "{{ sow_season }}",
       "commodity": "{{ crop_val }}",
@@ -839,7 +818,7 @@
       "pesticide_frequency": "{{ po.get('pest_frequency_of_application') or po.get('pest_pesticide_frequency') or '' }}",
       "weed_type": "{{ wo.get('weed_type') or '' }}",
       "weed_name": "{{ wo.get('weed_name_id') or '' }}",
-      "weed_control_method": "{{ wo.get('weed_control_method') or wo.get('pesticide_method') or '' }}",
+      "weed_control_method": "{{ wo.get('pesticide_method') or '' }}",
       "weedicide_type": "{{ wo.get('weedicide_type') or '' }}",
       "weedicide_name": "{{ wo.get('weedicide_name') or '' }}",
       "weedicide_frequency": "{{ wo.get('weed_frequency_of_application') or wo.get('weedicide_frequency') or '' }}",

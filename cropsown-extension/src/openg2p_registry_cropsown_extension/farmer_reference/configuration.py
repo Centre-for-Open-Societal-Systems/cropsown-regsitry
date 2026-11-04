@@ -1,14 +1,18 @@
 """Deployment configuration; private material is read only from mounted files."""
 from dataclasses import fields
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 
-from .lookup import FarmerLookup, LookupConfig, RecordContract
+from .lookup import FarmerLookup, LookupConfig, RecordContract, VerifiedFarmer
 from .profile import FarmerReferenceError, SOURCE_TO_LOCAL_FIELDS
 
 
 def configured_lookup():
+    if not os.environ.get("COSS_FARMER_DCI_URL"):
+        return LocalBypassFarmerLookup()
+
     def required(name):
         value = os.environ.get("COSS_FARMER_" + name, "").strip()
         if not value:

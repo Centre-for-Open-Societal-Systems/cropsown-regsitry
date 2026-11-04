@@ -481,7 +481,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
 
         val = (
-            payload.get("farmer_id")
+            payload.get("farmer_name")
+            or payload.get("farmer_id")
             or payload.get("fayda_fan_id")
             or payload.get("fayda_id")
         )

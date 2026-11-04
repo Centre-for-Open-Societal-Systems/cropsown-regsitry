@@ -59,6 +59,12 @@ class SeverityLevelEnum(StrEnum):
 
 
 class AgroEcologicalZoneEnum(StrEnum):
+    AEZ_KOLLA = "AEZ_KOLLA"
+    AEZ_WEYNA_DEGA = "AEZ_WEYNA_DEGA"
+    AEZ_WOINA_DEGA = "AEZ_WOINA_DEGA"
+    AEZ_DEGA = "AEZ_DEGA"
+    AEZ_WURCH = "AEZ_WURCH"
+    AEZ_BEREHA = "AEZ_BEREHA"
     KOLLA = "KOLLA"
     WOINA_DEGA = "WOINA_DEGA"
     DEGA = "DEGA"
