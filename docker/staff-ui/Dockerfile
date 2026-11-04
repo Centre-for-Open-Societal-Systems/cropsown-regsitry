@@ -18,7 +18,13 @@ COPY ui/staff-ui/scripts ./scripts
 COPY ui/staff-ui/overrides ./overrides
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm config set fetch-retries 10 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 180000 \
+ && npm config set fetch-timeout 1200000 \
+ && npm config set maxsockets 4 \
+ && npm install
 RUN npm run build \
  && mkdir -p /out \
  && cp -a .app/.next/standalone/. /out/ \
