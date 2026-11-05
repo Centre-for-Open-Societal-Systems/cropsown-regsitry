@@ -6,7 +6,6 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .domain_compute_utils import (
     compute_season_parts,
     is_date_in_season,
-    compute_ec_date
 )
 
 from .domain_validation_utils import as_float, parse_date, validation_error, field_label
@@ -56,7 +55,6 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             self._validate_actual_cultivation_date(record)
             if session:
                 await self._validate_date_after_planning(record, session)
-            compute_ec_date(record, "actual_cultivation_date", "actual_cultivation_date_ec")
         self._validate_no_duplicate_commodity_season(active_records)
         # Cross-section (on Next): Cultivation date >= matching Planning date.
         from .domain_validation_utils import run_previous_section_validation

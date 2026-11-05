@@ -37,8 +37,7 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
                         f"Season '{season}' in Cluster information details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
-            from .domain_compute_utils import compute_cluster_area, compute_season_parts, compute_ec_date
-            compute_ec_date(record, "establishing_date", "establishing_date_ec")
+            from .domain_compute_utils import compute_cluster_area, compute_season_parts
 
             compute_season_parts(record)
             compute_cluster_area(record)

@@ -73,7 +73,6 @@ class G2PInfestation:
 
     temporary_land_id: Mapped[str] = mapped_column(String, nullable=True)
     sync_id: Mapped[str] = mapped_column(String, nullable=True, index=True)
-    observation_date_ec: Mapped[str] = mapped_column(String, nullable=True)
 
 
 
