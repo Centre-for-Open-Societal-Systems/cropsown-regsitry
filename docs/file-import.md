@@ -279,5 +279,5 @@ The ODK connector keeps its own data model `odk_to_crop_intake`; file import doe
 ## Operating notes
 
 - The import worker sends rows as the sender `Staff Portal`. That sender must exist as an active partner in Partner Management, or the first row aborts the whole file.
-- The worker supplies the service token for the approval workflow itself (the Crop Sown extension requests one from the approval engine when a worker has no user token), so the worker needs the `COSS_FARMER_AWE_*` settings.
+- The worker supplies the service token for the approval workflow itself (the Crop Sown extension requests one from the approval engine when a worker has no user token), so the worker needs the `REGISTRY_FARMER_REFERENCE_AWE_*` settings.
 - Sample rows are not kept here. Sample import files belong in the openg2p-data repository.

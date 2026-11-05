@@ -36,7 +36,7 @@ An existing approved exact reference is reused without overwriting its approved
 profile. Later business intakes on an existing approved domain record reuse its
 stable approved reference. They do not onboard the Farmer again.
 
-The five extension-owned `coss_farmer_*` tables retain source provenance,
+The five extension-owned `g2p_farmer_*` tables retain source provenance,
 source ordering, submission dependencies, unresolved lookups and AWE delivery. PostgreSQL
 transaction locks cover the absent-reference case; uniqueness constraints cover
 source identity, local UUID, UID and request versions. A pending ADD does not
@@ -118,7 +118,7 @@ geographic assignments are never automatically deleted or rewritten.
 
 ## Deployment inputs and source gap
 
-All names below have the `COSS_FARMER_` environment prefix:
+All names below have the `REGISTRY_FARMER_REFERENCE_` environment prefix (the old `COSS_FARMER_` prefix is read for one release):
 
 | Input | Meaning |
 | --- | --- |
