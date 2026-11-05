@@ -52,7 +52,14 @@ class CropMaturityStatusEnum(StrEnum):
 
 
 
+# Growth stage and severity are Master Data lists (ETH-OAN pack: CROP_GROWTH_STAGE, INFESTATION_SEVERITY). The older
+# values stay so records saved before the forms read those lists can still be read.
 class GrowthStageEnum(StrEnum):
+    GS_EMERGENCE = "GS_EMERGENCE"
+    GS_VEGETATIVE = "GS_VEGETATIVE"
+    GS_FLOWERING = "GS_FLOWERING"
+    GS_GRAIN_FILLING = "GS_GRAIN_FILLING"
+    GS_MATURITY = "GS_MATURITY"
     EMERGENCE = "EMERGENCE"
     VEGETATIVE = "VEGETATIVE"
     FLOWERING = "FLOWERING"
@@ -60,6 +67,9 @@ class GrowthStageEnum(StrEnum):
 
 
 class SeverityLevelEnum(StrEnum):
+    SEV_LOW = "SEV_LOW"
+    SEV_MEDIUM = "SEV_MEDIUM"
+    SEV_HIGH = "SEV_HIGH"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
