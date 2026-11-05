@@ -41,6 +41,8 @@ pipeline {
         // The dashboard service follows the openg2p/<registry>/<image> convention.
         DASHBOARD_API_ECR = 'openg2p/cropsown-registry/dashboard-api'
         DASHBOARD_UI_ECR = 'openg2p/cropsown-registry/dashboard-ui'
+        // A maintainer's token for now; the GitHub App replaces this credential when it is configured.
+        OAN_HELM_CRED_ID = 'oan-helm-fork-token'
 
         HELM_NAMESPACE = 'crop'
 
@@ -229,6 +231,15 @@ pipeline {
                         aws ecr get-login-password --region "${AWS_REGION}" \
                             | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
+                        # The images of this build, for the stage 'Package chart':
+                        # values path, repository, tag@digest.
+                        : > chart-images.tsv
+                        record_image() {
+                            DIGEST=$(aws ecr describe-images --region "${AWS_REGION}" --repository-name "$2" \
+                                --image-ids imageTag="$3" --query 'imageDetails[0].imageDigest' --output text)
+                            printf '%s\\t%s\\t%s@%s\\n' "$1" "${ECR_REGISTRY}/$2" "$3" "$DIGEST" >> chart-images.tsv
+                        }
+
                         for SVC in ${SERVICES}; do
                             IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
@@ -248,6 +259,16 @@ pipeline {
 
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
+                            case "${SVC}" in
+                                staff-api) record_image registry.staffApi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                staff-ui) record_image registry.staffUi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                partner-api) record_image registry.partnerApi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                celery)
+                                    record_image registry.celeryWorker.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}"
+                                    record_image registry.celeryBeat.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                db-seed) record_image registry.dbSeed.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                sanity-tests) record_image registry.sanity.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                            esac
 
                             # The connector image carries the OAN extension:
                             # its tests run inside the pushed image.
@@ -267,6 +288,7 @@ pipeline {
                             docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
                               -f .build/dashboard-ui/Dockerfile -t "$UI_IMAGE" .build/dashboard-ui
                             docker push "$UI_IMAGE"
+                            record_image dashboardUi.image "${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"
                         fi
                         # Skipped when 'Checkout dashboard-api' did not run (staging).
                         if [ -n "${DASHBOARD_API_SHA:-}" ]; then
@@ -282,6 +304,7 @@ pipeline {
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
                             docker push "${IMAGE}:${IMAGE_TAG}"
                             docker push "${IMAGE}:${BRANCH_NAME}"
+                            record_image dashboardApi.image "${DASHBOARD_API_ECR}" "${IMAGE_TAG}"
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         fi
 
@@ -298,6 +321,7 @@ pipeline {
                         echo "${ECR_REGISTRY}" > .ecr-registry
                     '''
                 }
+                stash name: 'chart-images', includes: 'chart-images.tsv'
             }
         }
 
@@ -382,6 +406,25 @@ pipeline {
             }
         }
 
+        stage('Package chart') {
+            // helm/openg2p-cropsown-registry with this build's images. The deploy installs this archive
+            // and 'Publish chart' publishes the same one, so what runs on New Dev is what oan-helm lists.
+            // It needs the git history for the version, so it is not part of the deploy stash.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 15, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                unstash 'chart-images'
+                sh 'bash ci/deploy/package-chart.sh'
+                stash name: 'built-chart', includes: 'built-chart/**'
+            }
+        }
+
         stage('Deploy') {
             // develop only. Staging is never helm-upgraded by CI: its automatic
             // helm upgrade replaced staging's live release (chart, hosts, a
@@ -420,8 +463,9 @@ pipeline {
             steps {
                 // The workspace outlives builds, and nothing cleans a file this
                 // commit deleted out of a stash-only checkout.
-                sh 'rm -rf ci helm'
+                sh 'rm -rf ci helm built-chart'
                 unstash 'deploy'
+                unstash 'built-chart'
                 sh 'bash ci/dashboard/validate-deploy-files.sh cropsown'
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
@@ -440,10 +484,10 @@ pipeline {
                             if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
                                 // The database archive goes to the New Dev box over the existing backup key.
                                 withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
-                                    sh 'bash ci/deploy/fresh-install-crop-dev.sh "${IMAGE_TAG}"'
+                                    sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy/fresh-install-crop-dev.sh "${IMAGE_TAG}"'
                                 }
                             } else {
-                                sh 'bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
+                                sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }
                         }
                         sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
@@ -473,8 +517,9 @@ pipeline {
                 timeout(time: 60, unit: 'MINUTES')
             }
             steps {
-                sh 'rm -rf ci helm'
+                sh 'rm -rf ci helm built-chart'
                 unstash 'deploy'
+                unstash 'built-chart'
                 sh 'bash ci/dashboard/validate-deploy-files.sh cropsown'
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
@@ -485,6 +530,30 @@ pipeline {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         sh 'bash ci/staging-set-images.sh "${IMAGE_TAG}" --apply'
                         sh 'bash ci/staging-run-db-seed.sh "${IMAGE_TAG}" --apply'
+                    }
+                }
+            }
+        }
+
+        stage('Publish chart') {
+            // The last stage, after a successful deploy: add the archive of 'Package chart' to repository/develop/
+            // of oan-helm. Its workflow updates the index, changelog and rollback history. The Deploy stage
+            // catches its own failure, so the result is checked here. If publishing fails the stage is UNSTABLE
+            // and says why; New Dev already runs the build.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { params.NEW_DEV_DELIVERY_ACTION == 'deploy' && currentBuild.currentResult == 'SUCCESS' }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 15, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                sh 'rm -rf built-chart'
+                unstash 'built-chart'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        sh 'bash ci/deploy/publish-chart.sh'
                     }
                 }
             }

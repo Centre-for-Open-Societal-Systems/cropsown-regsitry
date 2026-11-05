@@ -33,7 +33,8 @@
 #   HELM_NAMESPACE   default crop
 #   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
 #                    (empty disables the check)
-#   Chart/profile: ci/deploy/oan-chart.json (immutable COSS oan-helm archive)
+#   BUILT_CHART_DIR  folder with the archive this build packaged (Jenkins sets it)
+#   Chart/profile: otherwise ci/deploy/oan-chart.json (immutable COSS oan-helm archive)
 #   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) â€” the
 #                    other hosts (idgenerator, awe, dashboard-api); not the
 #                    portal/API public hosts, Keycloak or MinIO below
@@ -120,7 +121,12 @@ trap cleanup EXIT
 say() { echo "=== $* ==="; }
 
 say "Verified central chart"
-HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
+# A develop build installs the chart it packaged; a deploy by hand uses the pinned archive.
+if [ -n "${BUILT_CHART_DIR:-}" ]; then
+  HELM_CHART_DIR="$(ls "$BUILT_CHART_DIR"/*.tgz)"
+else
+  HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
+fi
 CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
 
 
