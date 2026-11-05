@@ -15,7 +15,7 @@ PACKAGE = os.environ.get(
 )
 rename = importlib.import_module(PACKAGE + ".legacy_table_rename")
 ROOT = Path(rename.__file__).parent
-REPO = ROOT.parents[2].parent
+REPO = ROOT.parents[2]
 
 PAIRS = {
     "coss_farmer_references": "g2p_farmer_references",
