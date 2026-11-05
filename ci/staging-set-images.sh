@@ -52,7 +52,7 @@ RELEASE="${RELEASE:-cropsown-registry}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-420s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
-ECR="${ECR_HOST}/gen2/cropsown-registry"
+ECR="${ECR_HOST}/openg2p/cropsown-registry"
 
 # Deployment -> ECR image the Jenkinsfile builds.
 MAP="${RELEASE}-staff-portal-api=staff-api
@@ -78,7 +78,7 @@ fi
 # lookup there fails, though the build pushed the images moments before.
 check_image() {  # <repo suffix>
   local OUT
-  if OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "gen2/cropsown-registry/$1" \
+  if OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "openg2p/cropsown-registry/$1" \
         --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
     return 0
   fi

@@ -47,8 +47,8 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 | `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (set `ALLOW_NON_IMAGE_CHANGES=1` only for a deliberate chart change). |
 | `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker, beat and ui. Upgrade only, safe to rerun. |
 
-The service image (api, worker, beat) is `gen2/cropsown-registry/registry-connector` (built by this
-pipeline from `docker/registry-connector`) and the UI image is `gen2/cropsown-registry/registry-connector-ui`
+The service image (api, worker, beat) is `openg2p/cropsown-registry/registry-connector` (built by this
+pipeline from `docker/registry-connector`) and the UI image is `openg2p/cropsown-registry/registry-connector-ui`
 (from `docker/registry-connector-ui`). Both are taken from the tag `CONNECTOR_IMAGE_TAG` (default
 `develop`, or a build tag such as `develop-195`), each resolved to its own digest in ECR and pinned by
 digest, so the Helm release owns the images instead of a hand-run `kubectl set image`.
