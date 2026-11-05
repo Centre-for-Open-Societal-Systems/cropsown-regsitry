@@ -16,15 +16,15 @@
 -- Sorts after every earlier file that rewrites the section JSON (the base
 -- upsert, field rules, identity overlays); no later file touches these sections.
 -- Idempotent: it only sets flags to true, so every install and upgrade can re-run it.
-CREATE OR REPLACE FUNCTION pg_temp.coss_require_land_rows(node jsonb, table_id text, required_columns text[])
+CREATE OR REPLACE FUNCTION pg_temp.oan_require_land_rows(node jsonb, table_id text, required_columns text[])
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE result jsonb;
 BEGIN
   IF jsonb_typeof(node) = 'array' THEN
-    SELECT COALESCE(jsonb_agg(pg_temp.coss_require_land_rows(value, table_id, required_columns) ORDER BY position), '[]'::jsonb)
+    SELECT COALESCE(jsonb_agg(pg_temp.oan_require_land_rows(value, table_id, required_columns) ORDER BY position), '[]'::jsonb)
       INTO result FROM jsonb_array_elements(node) WITH ORDINALITY AS item(value, position);
   ELSIF jsonb_typeof(node) = 'object' THEN
-    SELECT COALESCE(jsonb_object_agg(key, pg_temp.coss_require_land_rows(value, table_id, required_columns)), '{}'::jsonb)
+    SELECT COALESCE(jsonb_object_agg(key, pg_temp.oan_require_land_rows(value, table_id, required_columns)), '{}'::jsonb)
       INTO result FROM jsonb_each(node);
     IF node->>'widget-id' = table_id AND node->>'widget' IN ('table', 'dialog-table')
        AND jsonb_typeof(node->'widget-data-columns') = 'array' THEN
@@ -43,20 +43,20 @@ BEGIN
 END $$;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_land_rows(section_ui_schema::jsonb, 'cs_planning_details_table', ARRAY[]::text[])
+SET section_ui_schema = pg_temp.oan_require_land_rows(section_ui_schema::jsonb, 'cs_planning_details_table', ARRAY[]::text[])
 WHERE section_id = 'cropsown_planning_details_section_01' AND section_ui_schema IS NOT NULL;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_land_rows(section_ui_schema::jsonb, 'cs_cultivation_details_table', ARRAY[]::text[])
+SET section_ui_schema = pg_temp.oan_require_land_rows(section_ui_schema::jsonb, 'cs_cultivation_details_table', ARRAY[]::text[])
 WHERE section_id = 'cropsown_cultivation_details_section_01' AND section_ui_schema IS NOT NULL;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_land_rows(section_ui_schema::jsonb, 'cs_sowing_details_table',
+SET section_ui_schema = pg_temp.oan_require_land_rows(section_ui_schema::jsonb, 'cs_sowing_details_table',
   ARRAY['sowing_date', 'area_sown', 'commodity'])
 WHERE section_id = 'cropsown_sowing_details_section_01' AND section_ui_schema IS NOT NULL;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_land_rows(section_ui_schema::jsonb, 'cs_harvest_details_table',
+SET section_ui_schema = pg_temp.oan_require_land_rows(section_ui_schema::jsonb, 'cs_harvest_details_table',
   ARRAY['harvest_date', 'qty_harvested', 'commodity'])
 WHERE section_id = 'cropsown_harvest_details_section_01' AND section_ui_schema IS NOT NULL;
 

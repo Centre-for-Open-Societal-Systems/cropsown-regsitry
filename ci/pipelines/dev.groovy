@@ -100,7 +100,7 @@ pipeline {
 
         stage('Validate native metadata and notification mapping') {
             steps {
-                sh 'COSS_REFACTOR_TEST_IMAGE=oan/cropsown-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py cropsown --pipeline'
+                sh 'OAN_REFACTOR_TEST_IMAGE=oan/cropsown-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py cropsown --pipeline'
                 sh 'python3 ci/refactor/compare_new_dev.py cropsown'
                 archiveArtifacts artifacts: 'ci-output/refactor/new-dev/seed-rehearsal.json,ci-output/refactor/new-dev/comparison.json,ci-output/refactor/NATIVE_NOTIFICATION_PIPELINE.json', allowEmptyArchive: false
             }

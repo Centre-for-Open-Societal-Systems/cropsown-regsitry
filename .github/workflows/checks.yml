@@ -24,13 +24,13 @@ jobs:
           docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src registry-reference-tests -m pytest -q -p no:cacheprovider cropsown-extension/tests
       - name: Native metadata and notification mapping
         run: |
-          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py cropsown --pipeline
+          OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py cropsown --pipeline
           python ci/refactor/compare_new_dev.py cropsown
       - name: Signed HTTP and native workflow dependency gate (19 executions, zero skips)
         run: |
           npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0
           export PATH="$RUNNER_TEMP/postman-cli/bin:$PATH"
-          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py cropsown --http-only
+          OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py cropsown --http-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
