@@ -41,6 +41,7 @@ class G2PSowing:
 
     temporary_land_id: Mapped[str] = mapped_column(String, nullable=True)
     sync_id: Mapped[str] = mapped_column(String, nullable=True, index=True)
+    sowing_date_ec: Mapped[str] = mapped_column(String, nullable=True)
     geo_tagged_photo_document_id: Mapped[str] = mapped_column(String, nullable=True)
 
 

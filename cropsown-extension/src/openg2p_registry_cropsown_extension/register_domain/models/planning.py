@@ -69,6 +69,7 @@ class G2PPlanning:
     end_gc: Mapped[date] = mapped_column(Date, nullable=True)
     end_month: Mapped[int] = mapped_column(Integer, nullable=True)
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
+    planned_date_ec: Mapped[str] = mapped_column(String, nullable=True)
 
     cluster_details: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
