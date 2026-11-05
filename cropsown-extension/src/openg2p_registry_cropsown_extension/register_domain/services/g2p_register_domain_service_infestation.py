@@ -3,7 +3,6 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
-from .domain_compute_utils import compute_ec_date
 from .domain_validation_utils import as_float, parse_date, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -55,7 +54,6 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
             self._validate_observation_date(record)
             self._validate_estimated_damage(record)
-            compute_ec_date(record, "observation_date", "observation_date_ec")
             from .domain_validation_utils import run_record_cross_validation
             await run_record_cross_validation(self._validate_infestation_after_sowing, record, session)
 

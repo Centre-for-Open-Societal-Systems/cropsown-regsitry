@@ -14,7 +14,6 @@ class G2PSchemaInfestation:
     infestation_id: Optional[str] = None
     temporary_land_id: Optional[str] = None
     sync_id: Optional[str] = None
-    observation_date_ec: Optional[str] = None
     land_id: Optional[str] = None
     commodity: Optional[str] = None
     growth_stage: Optional[GrowthStageEnum] = None

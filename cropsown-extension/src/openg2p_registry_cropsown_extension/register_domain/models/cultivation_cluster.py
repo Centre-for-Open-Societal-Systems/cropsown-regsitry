@@ -58,7 +58,6 @@ class G2PCultivationCluster:
 
     # ── Establishing Date ────────────────────────────────────────────────────────
     establishing_date: Mapped[date] = mapped_column(Date, nullable=True)
-    establishing_date_ec: Mapped[str] = mapped_column(String, nullable=True)
 
     # ── Reference & Commodity ──────────────────────────────────────────────────
     reference: Mapped[str] = mapped_column(String, nullable=True)

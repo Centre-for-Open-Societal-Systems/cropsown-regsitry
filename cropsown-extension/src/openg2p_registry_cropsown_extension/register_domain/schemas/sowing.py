@@ -35,7 +35,6 @@ class G2PSchemaSowing:
     sowing_id: Optional[str] = None
     temporary_land_id: Optional[str] = None
     sync_id: Optional[str] = None
-    sowing_date_ec: Optional[str] = None
     geo_tagged_photo_document_id: Optional[str] = None
     land_id: Optional[str] = None
     season: Optional[str] = None

@@ -22,7 +22,6 @@ class G2PSchemaPlanning:
     end_gc: Optional[date] = None
     end_month: Optional[int] = None
     end_day: Optional[int] = None
-    planned_date_ec: Optional[str] = None
     land_id: Optional[str] = None
     ownership_type: Optional[str] = None
     soil_fertility_type: Optional[str] = None
@@ -61,7 +60,6 @@ class G2PSchemaPlanning:
     end_gc: Optional[date] = None
     end_month: Optional[int] = None
     end_day: Optional[int] = None
-    planned_date_ec: Optional[str] = None
 
     cluster_details: Optional[List[Dict[str, Any]]] = None
 

@@ -60,7 +60,6 @@ class G2PCultivation:
     end_gc: Mapped[date] = mapped_column(Date, nullable=True)
     end_month: Mapped[int] = mapped_column(Integer, nullable=True)
     end_day: Mapped[int] = mapped_column(Integer, nullable=True)
-    actual_cultivation_date_ec: Mapped[str] = mapped_column(String, nullable=True)
     is_crop_changed: Mapped[bool] = mapped_column(Boolean, nullable=True)
 
 

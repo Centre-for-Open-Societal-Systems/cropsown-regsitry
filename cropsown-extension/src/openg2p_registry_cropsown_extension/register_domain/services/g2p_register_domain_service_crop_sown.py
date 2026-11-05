@@ -481,7 +481,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
 
         val = (
-            payload.get("farmer_id")
+            payload.get("farmer_name")
+            or payload.get("farmer_id")
             or payload.get("fayda_fan_id")
             or payload.get("fayda_id")
         )
@@ -1117,21 +1118,9 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     ) -> None:
         """Ensure all GC dates on active and intake records carry their computed EC date."""
         from .domain_compute_utils import compute_ec_date
-        from ..models import (
-            G2PRegisterPlanning, G2PIntakeFormPlanning,
-            G2PRegisterCluster, G2PIntakeFormCluster,
-            G2PRegisterCultivation, G2PIntakeFormCultivation,
-            G2PRegisterSowing, G2PIntakeFormSowing,
-            G2PRegisterInfestation, G2PIntakeFormInfestation,
-            G2PRegisterHarvest, G2PIntakeFormHarvest,
-        )
+        from ..models import G2PRegisterHarvest, G2PIntakeFormHarvest
 
         mappings = [
-            (G2PRegisterPlanning, G2PIntakeFormPlanning, "planned_date", "planned_date_ec"),
-            (G2PRegisterCluster, G2PIntakeFormCluster, "establishing_date", "establishing_date_ec"),
-            (G2PRegisterCultivation, G2PIntakeFormCultivation, "actual_cultivation_date", "actual_cultivation_date_ec"),
-            (G2PRegisterSowing, G2PIntakeFormSowing, "sowing_date", "sowing_date_ec"),
-            (G2PRegisterInfestation, G2PIntakeFormInfestation, "observation_date", "observation_date_ec"),
             (G2PRegisterHarvest, G2PIntakeFormHarvest, "harvest_date", "harvest_date_ec"),
         ]
 
