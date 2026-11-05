@@ -128,6 +128,17 @@ else
   HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
 fi
 CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
+# The dashboard-api is the one image whose chart values carry a digest, and a digest
+# wins over the tag. The release's saved values (current-values.yaml below) still hold
+# the digest of whatever was deployed before, so without this a new build keeps running
+# the old image. Take the digest from the chart being installed: the build packaged its
+# own image into it, and a deploy by hand gets the archive's pin (empty means the tag).
+DASHBOARD_API_DIGEST="$(helm show values "$HELM_CHART_DIR" | awk '
+  /^dashboardApi:/ { in_api = 1; next }
+  in_api && /^[^ #]/ { in_api = 0 }
+  in_api && /^  image:/ { in_image = 1; next }
+  in_image && /^  [^ ]/ { in_image = 0 }
+  in_image && /^    digest:/ { gsub(/["'"'"' ]/, "", $2); print $2; exit }')"
 
 
 # â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -316,7 +327,7 @@ reporting:
     enabled: ${DASHBOARD_API}
 dashboardApi:
   enabled: ${DASHBOARD_API}
-  image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}'}
+  image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}', digest: '${DASHBOARD_API_DIGEST}'}
   # Authentication is configured through dashboardApi.auth in the chart.
 EOF
 if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then
