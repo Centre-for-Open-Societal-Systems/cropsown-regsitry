@@ -32,10 +32,14 @@
 #   AWS_REGION       default ap-south-1
 #   NS               default crop
 #   RELEASE          default cropsown-registry
-#   CHART            default helm/openg2p-cropsown-registry
+#   Chart/profile: ci/deploy/oan-chart.json; staging requires separate acceptance
 #   PULL_SECRET      default cropsown-ecr
 #   SEED_TIMEOUT     wait for the Job, default 900s
 set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry staging
 
 TAG="${1:?usage: $0 <staging-N tag> [--apply]}"
 APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
@@ -44,17 +48,16 @@ APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 NS="${NS:-crop}"
 RELEASE="${RELEASE:-cropsown-registry}"
-CHART="${CHART:-helm/openg2p-cropsown-registry}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 SEED_TIMEOUT="${SEED_TIMEOUT:-900s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
-IMAGE_REPO="${ECR_HOST}/gen2/cropsown-registry/db-seed"
+IMAGE_REPO="${ECR_HOST}/openg2p/cropsown-registry/db-seed"
 JOB="${RELEASE}-db-seed"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
 say() { echo "=== $* ==="; }
 
-[ -f "${CHART}/Chart.yaml" ] || { echo "ERROR: run from the repo root (no ${CHART}/Chart.yaml)" >&2; exit 1; }
+CHART="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
 
 say "Staging db-seed"
 echo "cluster:   $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
@@ -67,7 +70,7 @@ fi
 # Only a definite "not found" stops the run: the deploy node has the aws CLI but
 # no AWS credentials, and every lookup there fails.
 if command -v aws >/dev/null 2>&1; then
-  if ! OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name gen2/cropsown-registry/db-seed \
+  if ! OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name openg2p/cropsown-registry/db-seed \
         --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
     case "$OUT" in
       *ImageNotFoundException*|*RepositoryNotFoundException*)
@@ -79,10 +82,7 @@ if command -v aws >/dev/null 2>&1; then
 fi
 
 # Staging's own values: the same DBs, secrets and hosts as the running release.
-helm get values "$RELEASE" -n "$NS" -o yaml > "$WORK/values.yaml"
-helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
-helm repo update openg2p >/dev/null
-helm dependency build "$CHART" >/dev/null
+helm get values "$RELEASE" -n "$NS" --all -o yaml > "$WORK/values.yaml"
 
 helm template "$RELEASE" "$CHART" -n "$NS" -f "$WORK/values.yaml" \
   --set registry.dbSeed.enabled=true \

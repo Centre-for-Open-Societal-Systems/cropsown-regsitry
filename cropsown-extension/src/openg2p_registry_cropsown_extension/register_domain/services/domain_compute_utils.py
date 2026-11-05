@@ -113,7 +113,7 @@ def compute_ec_date(record: dict | object, gc_field: str, ec_field: str) -> None
         gc_val = record.get(gc_field)
     else:
         gc_val = getattr(record, gc_field, None)
-    
+
     # Only calculate if GC date exists
     if gc_val:
         gc_date = parse_date(gc_val)

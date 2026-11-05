@@ -12,18 +12,20 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         from .domain_validation_utils import is_record_deleted
         active_records = [r for r in records if not is_record_deleted(r)]
         for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            validate_alphabetical_name(record.get("da_name"), "DA Name")
-            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             if not str(record.get("land_id") or "").strip():
-                validation_error("Land ID is required in Harvest Details.")
+                validation_error("Land ID is required in Harvest details.")
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
             if prod_season and not record.get("production_season"):
@@ -35,7 +37,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Harvest Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Harvest details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
             compute_harvest_yield(record)
@@ -54,7 +56,14 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 # rows and has no season window, so this only affects cluster rows; if no
                 # season window is found the check is skipped (no block).
                 await self._validate_date_in_season_enhanced(record, "cluster_harvest_date", session=session)
+            # Area cross-check on Next: Area Harvested <= matching Sowing's Area Sown.
+            from .domain_validation_utils import run_record_cross_validation
+            await run_record_cross_validation(self._validate_harvest_area_after_sowing, record, session)
         self._validate_no_duplicate_commodity_season(active_records)
+        # Cross-section (on Next): Harvest date >= matching Sowing date.
+        from .domain_validation_utils import run_previous_section_validation
+        from .cropsown_intake_validation_service import validate_harvest_against_sowing
+        await run_previous_section_validation(validate_harvest_against_sowing, active_records, session)
 
     def _validate_no_duplicate_commodity_season(self, records: list[dict]) -> None:
         seen: set[tuple[str, str, str, str]] = set()
@@ -148,8 +157,8 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
             year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
             season_str = f" and Season '{prod_season}'" if prod_season else ""
             validation_error(
-                f"No existing Crop Sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
-                f"Harvesting cannot create a new Crop Sown record. Please ensure a Cultivation/Sowing/Crop Sown record already exists for this Farmer Identity."
+                f"No existing crop sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
+                f"Harvesting cannot create a new crop sown record. Please ensure a Cultivation/Sowing/crop sown record already exists for this Farmer identity."
             )
 
     async def _validate_harvest_area_after_sowing(self, record: dict, session) -> None:
@@ -249,7 +258,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         # 5. Compare area_harvested against max_allowed_area
         if max_allowed_area is not None and area_harvested > max_allowed_area:
             validation_error(
-                f"Area Harvested ({area_harvested} ha) cannot exceed {stage_name} ({max_allowed_area} ha)."
+                f"Area harvested ({area_harvested} hectares) cannot exceed {stage_name} ({max_allowed_area} hectares)."
             )
 
     async def _validate_harvest_after_sowing(self, record: dict, session) -> None:
@@ -419,13 +428,13 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
             crop_name = record.get("commodity") or ""
             crop_str = f" for Crop '{crop_name}'" if crop_name else ""
             validation_error(
-                f"No Sowing record found{crop_str} on Land ID '{land_id}'. "
-                f"A Sowing record is required before a harvest can be recorded."
+                f"No sowing record found{crop_str} on Land ID '{land_id}'. "
+                f"A sowing record is required before a harvest can be recorded."
             )
         if harvest_date and prior_date and harvest_date <= prior_date:
             validation_error(
-                f"Harvest Date ({harvest_date.strftime('%Y-%m-%d')}) must be after the "
-                f"{prior_stage or 'Sowing Date'} ({prior_date.strftime('%Y-%m-%d')})."
+                f"Harvest date ({harvest_date.strftime('%Y-%m-%d')}) must be after the "
+                f"{prior_stage or 'Sowing date'} ({prior_date.strftime('%Y-%m-%d')})."
             )
 
     async def _validate_date_in_season_enhanced(self, record: dict, field: str, session) -> None:
@@ -441,11 +450,11 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
         if start_gc and value < start_gc:
             validation_error(
-                f"Cluster Harvest Date ({value.strftime('%Y-%m-%d')}) is before the Season Start Date ({start_gc.strftime('%Y-%m-%d')})."
+                f"Cluster harvest date ({value.strftime('%Y-%m-%d')}) is before the Season start date ({start_gc.strftime('%Y-%m-%d')})."
             )
         if end_gc and value > end_gc:
             validation_error(
-                f"Cluster Harvest Date ({value.strftime('%Y-%m-%d')}) is after the Season End Date ({end_gc.strftime('%Y-%m-%d')})."
+                f"Cluster harvest date ({value.strftime('%Y-%m-%d')}) is after the Season end date ({end_gc.strftime('%Y-%m-%d')})."
             )
 
     async def _resolve_season_bounds(self, record: dict, session) -> tuple[date | None, date | None]:
@@ -599,7 +608,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                     matched = True
                     break
             if not matched:
-                validation_error(f"No active Sowing record found for FPC Name '{cluster_name}' and Land ID '{land_id}'{msg_fayda}.")
+                validation_error(f"No active sowing record found for Farmer production cluster name '{cluster_name}' and Land ID '{land_id}'{msg_fayda}.")
         else:
             commodity = str(record.get("commodity") or "").strip()
             commodity_vars = get_attribute_variants(commodity, "CROP_COMMODITY") if commodity else []
@@ -616,12 +625,12 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
             if not land_matched:
                 validation_error(f"Land ID '{land_id}' in Harvest does not match any Land ID specified in Sowing{msg_fayda}.")
             if not crop_matched:
-                validation_error(f"No active Sowing record found for Land ID '{land_id}' and Crop '{commodity}'{msg_fayda}.")
+                validation_error(f"No active sowing record found for Land ID '{land_id}' and Crop '{commodity}'{msg_fayda}.")
 
     def _validate_post_harvest_loss(self, record: dict) -> None:
         loss_pct = as_float(record.get("post_harvest_loss_pct"))
         if loss_pct is not None and not 0 <= loss_pct <= 100:
-            validation_error("post_harvest_loss_pct must be between 0 and 100")
+            validation_error("Post-harvest loss (%) must be between 0 and 100")
 
     def _validate_disposal_quantities(self, record: dict) -> None:
         qty_harvested = as_float(record.get("qty_harvested"))
@@ -637,7 +646,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         )
         if disposed > qty_harvested:
             validation_error(
-                "qty_stored and qty_sold together must not exceed qty_harvested"
+                "Quantity stored plus quantity sold must not be more than the quantity harvested"
             )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

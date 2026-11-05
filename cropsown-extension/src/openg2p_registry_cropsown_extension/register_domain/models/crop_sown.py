@@ -29,6 +29,14 @@ from ..services import G2PRegisterDomainServiceCropSown
 
 
 class G2PCropSown:
+    # Popup FIN evidence, distinct from the approved reference UID/FAN16.
+    fayda_fin: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_reference_status: Mapped[str] = mapped_column(String, nullable=True)
+    identity_verification_id: Mapped[str] = mapped_column(String, nullable=True)
+    last_authentication_status: Mapped[str] = mapped_column(String, nullable=True)
+    last_authenticated_on: Mapped[str] = mapped_column(String, nullable=True)
+    authentication_expiry_date: Mapped[str] = mapped_column(String, nullable=True)
+
 
     # ── Farmer (identified, held in the farmer registry) ──────────────────────
     farmer_uuid: Mapped[str] = mapped_column(String, nullable=True)
@@ -39,16 +47,16 @@ class G2PCropSown:
     # farmer_photo_upload: Mapped[str] = mapped_column(String, nullable=True)
     record_image_document_id: Mapped[str] = mapped_column(String, nullable=True)
     # ── Address: the admin hierarchy, from the master-data catalog ────────────
-    region: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (REGION)
-    zone: Mapped[str] = mapped_column(String, nullable=True)                  # Attribute lookup (ZONE)
-    woreda: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (WOREDA)
-    kebele: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (KEBELE)
+    region: Mapped[str] = mapped_column(String, nullable=True)  # Master Data geo unit id (P-code), from geo_code_hierarchy_json
+    zone: Mapped[str] = mapped_column(String, nullable=True)
+    woreda: Mapped[str] = mapped_column(String, nullable=True)
+    kebele: Mapped[str] = mapped_column(String, nullable=True)
     latitude: Mapped[str] = mapped_column(String, nullable=True)
     longitude: Mapped[str] = mapped_column(String, nullable=True)
     altitude: Mapped[str] = mapped_column(String, nullable=True)
     # Denormalised admin names. The register search returns stored values as-is —
     # it does not join g2p_attribute_values — so a tree column bound to `region`
-    # would print REGION_ET11. These carry the display name for those columns and
+    # would print ET11. These carry the display name for those columns and
     # are refreshed from the lookup whenever the record is approved.
     region_name: Mapped[str] = mapped_column(String, nullable=True)
     zone_name: Mapped[str] = mapped_column(String, nullable=True)

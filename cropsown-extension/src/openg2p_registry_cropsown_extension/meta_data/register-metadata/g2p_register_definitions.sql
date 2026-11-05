@@ -7,4 +7,5 @@ INSERT INTO "public"."g2p_register_definitions" ("register_id","register_mnemoni
 ('c40d0a7c-9f31-5c89-9743-e83d6d6c7683','Harvest','Crop Harvesting Lines','Harvest Register','6b06a95a-9a6c-5a33-a33d-c1625716c59c',60,'FALSE','TABLE',NULL,NULL,NULL,'FALSE','FALSE',0,'FALSE','FALSE','FALSE',730,30),
 ('c9ee1d48-93b5-52d5-a8fc-280266a39c10','Cultivation','Crop Cultivation Lines','Cultivation / Land Preparation Register','6b06a95a-9a6c-5a33-a33d-c1625716c59c',30,'FALSE','TABLE',NULL,NULL,NULL,'FALSE','FALSE',0,'FALSE','FALSE','FALSE',730,30),
 ('ee41a5f0-a5b6-5a9c-a853-f5c728e4d4b2','Sowing','Crop Sowing Lines','Sowing Register','6b06a95a-9a6c-5a33-a33d-c1625716c59c',40,'FALSE','TABLE',NULL,NULL,NULL,'FALSE','FALSE',0,'FALSE','FALSE','FALSE',730,30),
-('3392fa94-39fa-5eb7-891d-e593ab973e21','CultivationCluster','Cultivation Cluster Lines','Cultivation Cluster Information Register','6b06a95a-9a6c-5a33-a33d-c1625716c59c',80,'FALSE','TABLE',NULL,NULL,NULL,'FALSE','FALSE',0,'FALSE','FALSE','FALSE',730,30);
+('3392fa94-39fa-5eb7-891d-e593ab973e21','CultivationCluster','Cultivation Cluster Lines','Cultivation Cluster Information Register','6b06a95a-9a6c-5a33-a33d-c1625716c59c',80,'FALSE','TABLE',NULL,NULL,NULL,'FALSE','FALSE',0,'FALSE','FALSE','FALSE',730,30)
+ON CONFLICT DO NOTHING;

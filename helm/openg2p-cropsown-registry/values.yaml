@@ -1,133 +1,159 @@
-# Crop Sown Registry — values overlay for the openg2p-registry chart.
-#
-# This chart has no templates; it deploys the openg2p-registry subchart (pinned
-# in Chart.yaml, aliased `registry`) with the overrides below. Install:
-#
-#     helm repo add openg2p https://openg2p.github.io/openg2p-helm
-#     helm dependency build ./helm/openg2p-cropsown-registry
-#     helm install cropsown-registry ./helm/openg2p-cropsown-registry
-#
-# Two kinds of override:
-#   * global.*    — Helm propagates these to the subchart (and its subcharts).
-#   * registry.*  — values for the openg2p-registry subchart itself.
-# Everything not listed (keycloak/iam wiring, id-generator, demo users) is
-# inherited from the subchart defaults.
-
-# ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
 global:
-  registryVariant: 'cropsown-registry'
-  # The staff portal's public host, on oanstaging.com like farmer's
-  # (farmer-registry-development.oanstaging.com). The subchart derives the
-  # staff UI's VirtualService host, APP_URL/REDIRECT_URL, the Keycloak redirect
-  # URI and the VC did:web from it. The staff and partner API hosts are set
-  # explicitly under registry.staffApi / registry.partnerApi below, because the
-  # subchart's default (staff-/partner-<registryHostname>) is not their name.
-  registryHostname: 'crop-registry-development.oanstaging.com'
-  # Other hosts, on <namespace>.openg2p.test (crop.openg2p.test). The subchart
-  # defaults them to <namespace>.openg2p.org, a placeholder that resolves nowhere
-  # here, which broke Keycloak, MinIO and IAM.
-  keycloakBaseUrl: 'https://keycloak.{{ .Release.Namespace }}.openg2p.test'
-  minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.test'
-  idGeneratorHostname: 'idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.test'
-  aweHostname: 'awe.{{ .Release.Namespace }}.openg2p.test'
-  # AWE and the staff API talk to each other inside the cluster. The subchart
-  # defaults both to the public https hosts, which use the self-signed Local CA:
-  # AWE's webhook to the staff API failed with CERTIFICATE_VERIFY_FAILED, so
-  # approved intake forms never reached the registry (44 failed deliveries,
-  # 2026-10-07..09). aweDefaultCallbackUrl also becomes caller_service of this
-  # release's callback_secret row (awe_meta_data/40_callback_secret.sql.tpl
-  # upserts it on every db-seed). AWE runs in <aweReleaseName>, commons-services.
-  aweBaseUrl: 'http://{{ .Values.global.aweReleaseName }}-awe.{{ .Release.Namespace }}.svc.cluster.local'
-  aweDefaultCallbackUrl: 'http://{{ .Release.Name }}-staff-portal-api.{{ .Release.Namespace }}.svc.cluster.local/awe/webhooks/decision'
-
-# ── openg2p-registry subchart overrides ───────────────────────────────────────
+  registryVariant: cropsown-registry
+  registryHostname: crop-registry.development.oanstaging.com
+  keycloakBaseUrl: https://keycloak.development.oanstaging.com
+  minioHost: minio-farmer.development.oanstaging.com
+  idGeneratorHostname: '{{ .Release.Name }}-id-generator.{{ .Release.Namespace }}.svc.cluster.local'
+  aweHostname: awe.development.oanstaging.com
+  aweBaseUrl: http://commons-services-awe.commons.svc.cluster.local
+  aweDefaultCallbackUrl: http://{{ .Release.Name }}-staff-portal-api.{{ .Release.Namespace
+    }}.svc.cluster.local/awe/webhooks/decision
+  baseDomain: development.oanstaging.com
+  keycloakRealm: staff
+  keycloakIssuerUrl: https://keycloak.development.oanstaging.com/realms/staff
+  keycloakInternalUrl: http://commons-keycloak.commons.svc.cluster.local:80
+  keycloakExternalIssuerUrl: https://keycloak.development.oanstaging.com/realms/staff
+  masterDataTokenUrl: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  minioSecure: true
+  iamServiceUrl: http://commons-services-iam-staff-portal-api.commons.svc.cluster.local
+  masterDataApiUrl: http://commons-services-master-data-api.commons.svc.cluster.local
+  partnerManagementApiUrl: http://commons-services-pm-partner-api.commons.svc.cluster.local
+  partnerManagementAdminApiUrl: http://commons-services-pm-staff-portal-api.commons.svc.cluster.local
+  consentManagerUrl: http://commons-services-cm-partner-api.commons.svc.cluster.local
+  consentManagerStaffUrl: http://commons-services-cm-api.commons.svc.cluster.local
+  auditManagerUrl: http://commons-services-auditmanager.commons.svc.cluster.local:80
+  idGeneratorInternalUrl: http://{{ .Release.Name }}-id-generator.{{ .Release.Namespace
+    }}.svc.cluster.local/v1
+  idGeneratorApiUrl: http://{{ .Release.Name }}-id-generator.{{ .Release.Namespace
+    }}.svc.cluster.local/v1
+  notificationEnabled: false
+  notificationApiHostname: ''
+  notificationWsHostname: ''
+  notificationBackendUrl: ''
+  notificationWebsocketUrl: ''
+  notificationProviderUrl: ''
+  staffPortalBaseUrl: https://crop-registry.development.oanstaging.com
 registry:
-  # Crop-sown-built images (each FROM the matching openg2p-registry base image).
-  # Only the tag is CI-rewritten in lockstep with the chart version; the base
-  # image they extend is pinned by the openg2p-registry dependency version.
   staffApi:
     image:
-      repository: openg2p/openg2p-cropsown-registry-staff-api
-      tag: 0.0.0-develop
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/staff-api
+      tag: develop-88@sha256:4132c53e98e1082ec38e2694efb8aa6f4c1a1abd76011842e60d797254773f83
     envVars:
-      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
-      KEYCLOAK_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      APPROVER_RESOLVER_SECRET: cropsown-approver-resolver-secret
+      KEYCLOAK_BASE_URL: https://keycloak.development.oanstaging.com
       KEYCLOAK_REALM: '{{ tpl (default "staff" .Values.global.keycloakRealm) $ }}'
-      AUTH_CLIENT_ID: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientId) $ }}'
+      AUTH_CLIENT_ID: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientId)
+        $ }}'
+      REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://commons-redis-master.commons.svc.cluster.local:6379/0
+      REGISTRY_CORE_REGISTRANT_AUTH_REDIS_URL: redis://commons-redis-master.commons.svc.cluster.local:6379/0
+      REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_API_URL: http://commons-services-master-data-api.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_STAFF_PORTAL_API_PARTNER_MGMT_API_URL: http://commons-services-pm-partner-api.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_PARTNER_MGMT_ADMIN_API_URL: http://commons-services-pm-staff-portal-api.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_PARTNER_MGMT_ADMIN_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_STAFF_PORTAL_API_AWE_BASE_URL: http://commons-services-awe.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_AWE_DEFAULT_CALLBACK_URL: http://{{ .Release.Name
+        }}-staff-portal-api.{{ .Release.Namespace }}.svc.cluster.local/awe/webhooks/decision
+      REGISTRY_STAFF_PORTAL_API_AUDIT_MANAGER_URL: http://commons-services-auditmanager.commons.svc.cluster.local:80
+      COMMON_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      NOTIFICATION_ENABLED: 'false'
+      NOTIFICATION_PROVIDER_URL: ''
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CORE_VALIDATE_ATTRIBUTE_VALUES: 'true'
+      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: 'true'
     envVarsFrom:
       AUTH_CLIENT_SECRET:
         secretKeyRef:
-          name: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientSecret) $ }}'
-          key: '{{ tpl (default "client_secret" .Values.global.authClientSecretKey) $ }}'
-    # Public API host, like farmer's staff-farmer-development.oanstaging.com.
-    hostname: 'staff-crop-development.oanstaging.com'
+          name: '{{ tpl (default (printf "%s-staff-portal" .Release.Name) .Values.global.authClientSecret)
+            $ }}'
+          key: '{{ tpl (default "client_secret" .Values.global.authClientSecretKey)
+            $ }}'
+    hostname: staff-crop.development.oanstaging.com
     istio:
       virtualservice:
-        host: 'staff-crop-development.oanstaging.com'
+        host: staff-crop.development.oanstaging.com
+        gateway: istio-system/development
+      gateway:
+        host: staff-crop.development.oanstaging.com
   partnerApi:
     image:
-      repository: openg2p/openg2p-cropsown-registry-partner-api
-      tag: 0.0.0-develop
-    # Like farmer's partner-farmer-development.oanstaging.com.
-    hostname: 'partner-crop-development.oanstaging.com'
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/partner-api
+      tag: develop-88@sha256:36f3bd02e1d7f7160791b0a8fe1a3290ae4d85c5cc613f69b857b2301eb99662
+    hostname: partner-crop.development.oanstaging.com
     istio:
       virtualservice:
-        host: 'partner-crop-development.oanstaging.com'
+        host: partner-crop.development.oanstaging.com
+        gateway: istio-system/development
+      gateway:
+        host: partner-crop.development.oanstaging.com
+    envVars:
+      REGISTRY_PARTNER_API_KEYMANAGER_API_BASE_URL: http://commons-services-keymanager.commons.svc.cluster.local/v1/keymanager
+      REGISTRY_PARTNER_API_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_PARTNER_API_MASTER_DATA_API_URL: http://commons-services-master-data-api.commons.svc.cluster.local
+      REGISTRY_PARTNER_API_MASTER_DATA_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_PARTNER_API_PARTNER_MGMT_API_URL: http://commons-services-pm-partner-api.commons.svc.cluster.local
+      REGISTRY_PARTNER_API_PARTNER_MGMT_ADMIN_API_URL: http://commons-services-pm-staff-portal-api.commons.svc.cluster.local
+      REGISTRY_PARTNER_API_PARTNER_MGMT_ADMIN_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_PARTNER_API_AUDIT_MANAGER_URL: http://commons-services-auditmanager.commons.svc.cluster.local:80
+      COMMON_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      NOTIFICATION_ENABLED: 'false'
+      NOTIFICATION_PROVIDER_URL: ''
+      KEYCLOAK_BASE_URL: https://keycloak.development.oanstaging.com
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CORE_VALIDATE_ATTRIBUTE_VALUES: 'true'
   celeryWorker:
     image:
-      repository: openg2p/openg2p-cropsown-registry-celery
-      tag: 0.0.0-develop
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/celery
+      tag: develop-88@sha256:dab5d392746d1580402a1ff02c61af7ed8e2dcfd317bcae166705d81e4cf625b
     envVars:
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
-      # The subchart sets no --concurrency, so prefork starts one process per
-      # CPU (48 on the dev node), each loading the whole app: the worker sat at
-      # 3.5Gi of its 4Gi limit. 8 is a throughput choice with memory headroom.
-      CELERY_OPTS: "worker -Q registry_worker_queue --concurrency=8 --loglevel=info"
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      CELERY_OPTS: worker -Q registry_worker_queue --concurrency=8 --loglevel=info
+      REGISTRY_CELERY_WORKERS_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_API_URL: http://commons-services-master-data-api.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_PARTNER_MGMT_API_URL: http://commons-services-pm-partner-api.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_PARTNER_MGMT_ADMIN_API_URL: http://commons-services-pm-staff-portal-api.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_PARTNER_MGMT_ADMIN_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: http://commons-services-awe.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: http://{{ .Release.Name }}-staff-portal-api.{{
+        .Release.Namespace }}.svc.cluster.local/awe/webhooks/decision
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL: https://keycloak.development.oanstaging.com
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+      COMMON_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      NOTIFICATION_ENABLED: 'false'
+      NOTIFICATION_PROVIDER_URL: ''
+      KEYCLOAK_BASE_URL: https://keycloak.development.oanstaging.com
+      REGISTRY_CORE_VALIDATE_ATTRIBUTE_VALUES: 'true'
   celeryBeat:
     image:
-      repository: openg2p/openg2p-cropsown-registry-celery
-      tag: 0.0.0-develop
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/celery
+      tag: develop-88@sha256:dab5d392746d1580402a1ff02c61af7ed8e2dcfd317bcae166705d81e4cf625b
     envVars:
-      # The beat producer only schedules and enqueues; with 48 processes it went
-      # over its 3Gi limit ~17s after start (OOMKilled, CrashLoopBackOff).
-      CELERY_OPTS: "worker --beat --concurrency=2 --loglevel=info --schedule=/tmp/celery-beat-schedule.db"
+      CELERY_OPTS: worker --beat --concurrency=2 --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+      COMMON_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      NOTIFICATION_ENABLED: 'false'
+      NOTIFICATION_PROVIDER_URL: ''
+      REGISTRY_CELERY_BEAT_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CORE_VALIDATE_ATTRIBUTE_VALUES: 'true'
   dbSeed:
     image:
-      repository: openg2p/openg2p-cropsown-registry-db-seed
-      tag: 0.0.0-develop
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/db-seed
+      tag: develop-88@sha256:2c05fd28022a844e00f93e4c7b14470315c62fe5ea25f29d4f9f93bce88b05c5
     envVars:
-      APPROVER_RESOLVER_SECRET: "cropsown-approver-resolver-secret"
-    # The images/templates loaders are generic and safe to enable. Sample data is
-    # NOT: the platform's load_sample_data.py is hardcoded to the reference
-    # (farmer) registry's tables, so it cannot load crop sown records. The crop
-    # sown sample set ships as SQL at /seed/sample-data in the db-seed image and
-    # is applied explicitly (see local/docker-compose.yml), never by this flag.
-    #
-    # loadGeoData is off because this registry is Ethiopia-only: the db-seed
-    # image now applies the real region/zone/woreda/kebele hierarchy itself
-    # (docker/db-seed/entrypoint-cropsown.sh). Leaving the platform's generic
-    # loader on as well would put a second, unrelated hierarchy in the same
-    # master data tables, which the geo dropdowns then mix together.
+      APPROVER_RESOLVER_SECRET: cropsown-approver-resolver-secret
     loadGeoData: false
     loadSampleData: false
     loadImages: true
     loadTemplates: true
-
-  # Name of this registry's tile in IAM. The roles/permissions catalog itself is
-  # registry-agnostic and comes from the subchart.
   iamRegister:
-    applicationDescription: "Crop Sown Registry"
-
-  # Functional-ID pools, one per register that generates ids. The subchart
-  # defaults to the REFERENCE registry's registers (individual + household), so
-  # the crop sown registers must be declared here. NB Helm merges maps, so the
-  # defaults are inherited too and unused pools are provisioned — harmless, and a
-  # parent `null` cannot remove a subchart default.
+    applicationDescription: Crop Sown Registry
   idgenerator:
     idGenerator:
       appConfig:
-        # padding 5, matching the ATI ir.sequence definitions
-        # (REG/S1/2026/00012 — the S1-S4 segment is the cropping season).
         idTypes:
           cropsown:
             idLength: 5
@@ -137,71 +163,80 @@ registry:
             idLength: 5
           infestation:
             idLength: 5
-
-  # staffUi's image is set by the pipeline (docker/staff-ui). Browsers reach it
-  # on global.registryHostname (APP_URL follows it); its IAM URL and cookie
-  # domain are on .oanstaging.com too, the same pattern farmer uses
-  # (staff-iam-development). The partner ingest URL names the partner API host
-  # set above rather than the subchart's partner-<registryHostname>.
-  # beneApi is consumed as-is from the openg2p-registry base image.
+      hostname: '{{ tpl .Values.global.idGeneratorHostname $ }}'
+      istio:
+        virtualservice:
+          host: '{{ tpl .Values.global.idGeneratorHostname $ }}'
+          gateway: istio-system/development
+        gateway:
+          host: '{{ tpl .Values.global.idGeneratorHostname $ }}'
+    postgres-init:
+      postgresql:
+        host: commons-postgresql.commons.svc.cluster.local
   staffUi:
-    iamPublicUrl: 'https://staff-iam-development.oanstaging.com'
-    partnerIngestUrl: 'https://partner-crop-development.oanstaging.com/partner/ingest_data?data_model=dcivc'
+    iamPublicUrl: https://staff-iam.development.oanstaging.com
+    partnerIngestUrl: https://partner-crop.development.oanstaging.com/partner/ingest_data?data_model=dcivc
     envVars:
-      COOKIE_DOMAIN: '.oanstaging.com'
-
-  # ── Crop sown e2e sanity suite (image built here; Set 2 field tests) ────────
-  # The subchart ships the reference (Individual) sanity values; override them
-  # for the CropSown register. Behaviour toggles (runE2e/failOnError) keep the
-  # subchart defaults.
+      COOKIE_DOMAIN: .development.oanstaging.com
+      IAM_URL: https://staff-iam.development.oanstaging.com
+      KEYCLOAK_LOGOUT_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/logout
+      APP_URL: https://crop-registry.development.oanstaging.com
+      REDIRECT_URL: https://crop-registry.development.oanstaging.com
+      VERIFY_SERVICE_URL: https://crop-registry.development.oanstaging.com/v1/verify
+      CSP_SRC_IMG: 'self blob: data: https://minio-farmer.development.oanstaging.com
+        https://tile.openstreetmap.org'
+      MASTERDATA_BACKEND_API_URL: http://commons-services-master-data-api.commons.svc.cluster.local
+      PARTNER_INGEST_URL: https://partner-crop.development.oanstaging.com/partner/ingest_data?data_model=dcivc
+      NOTIFICATION_BACKEND_URL: ''
+      NOTIFICATION_WEBSOCKET_URL: ''
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/staff-ui
+      tag: develop-88@sha256:c9c2ddd36b9679d5abc16c90a989c0bcbef4c844892bf779d89f0e129a18b5e8
+    hostname: crop-registry.development.oanstaging.com
+    istio:
+      virtualservice:
+        host: crop-registry.development.oanstaging.com
+        gateway: istio-system/development
+      gateway:
+        host: crop-registry.development.oanstaging.com
   sanity:
     enabled: true
     image:
-      repository: openg2p/openg2p-cropsown-registry-sanity-tests
-      tag: 0.0.0-develop
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/sanity-tests
+      tag: develop-88@sha256:82a90a27d571712cf8f8aa92e851c847f871ff8b1246112f499b4e6827e5a7b3
     regType: CropSown
-    regRecordType: 'spdci-extensions-dci:CropSown'
-    # crop sown functional_record_id of the injected sanity record (see
-    # test/sanity/sanity/fixtures.py).
+    regRecordType: spdci-extensions-dci:CropSown
     searchText: SANITY-CROPSOWN-0001
-    # Consented scope + scopes asserted absent — top-level keys of the crop sown
-    # outgoing DCI template (openg2p_cropsown_to_dci.json.j2).
-    dataScopes: "crop_sown_details"
-    deniedScopes: "farm_details,crop_production_details,infestation_details,cluster_details"
-    # The CropSown register + the UI coordinates the change-request test edits
-    # (must match the cropsown-extension seed metadata).
+    dataScopes: crop_sown_details
+    deniedScopes: farm_details,crop_production_details,infestation_details,cluster_details
     farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
-    crTabId: "cropsown_cropsown_tab"
-    crSectionId: "cropsown_cropsown_record_section_01"
-
-# ── Reporting layer and dashboard service (this chart's own templates) ────────
-# The cs_rpt_* views the dashboard service reads (templates/reporting-views.yaml,
-# templates/reporting-views-refresh.yaml) and the service itself
-# (templates/dashboard-api.yaml). Both are off by default.
+    crTabId: cropsown_cropsown_tab
+    crSectionId: cropsown_cropsown_record_section_01
+  keycloak-init:
+    keycloak:
+      url: http://commons-keycloak.commons.svc.cluster.local:80
+  postgres-init:
+    postgresql:
+      host: commons-postgresql.commons.svc.cluster.local
+  beneApi:
+    istio:
+      virtualservice:
+        gateway: istio-system/development
 reporting:
-  # Registry database. The subchart's globals are not visible to this chart's
-  # templates, so the coordinates are repeated here, following the subchart's
-  # convention (database and user from the release name, password in the
-  # Secret named after the release). host empty = global.postgresqlHost,
-  # else commons-postgresql.
   db:
-    host: ""
+    host: ''
     port: 5432
     name: '{{ .Release.Name | replace "-" "_" }}'
     user: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
     secret: '{{ .Release.Name }}'
     passwordKey: '{{ .Release.Name }}-db-user'
-  # Empty: the jobs run in the registry's db-seed image (registry.dbSeed.image),
-  # which ships reporting_views.sql and whose tag CI rewrites.
   image:
-    repository: ""
-    tag: ""
+    repository: ''
+    tag: ''
   views:
     enabled: false
-    # How long the create job waits for staff-api's migrations on a fresh install.
     waitForSchemaSeconds: 600
-    # How often the materialized views are rebuilt. Empty disables the CronJob.
-    refreshSchedule: "*/30 * * * *"
+    refreshSchedule: '*/30 * * * *'
     refreshLog:
       enabled: true
       retentionDays: 90
@@ -211,36 +246,176 @@ reporting:
       memory: 128Mi
     limits:
       memory: 512Mi
-
 dashboardApi:
   enabled: false
   image:
-    repository: ""
-    tag: ""
+    digest: sha256:397cef051fa9e4dc67262986363edbc91844ef23b85dceefd1024b3f4d15a782
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/dashboard-api
+    tag: develop-88
   replicas: 1
-  # gunicorn workers. Each holds its own database pool (below), so a replica
-  # uses up to workers x dbPool.maxSize connections.
   workers: 2
-  # Connections per worker: minSize kept open, maxSize under load. The
-  # dashboards cache responses, so a few are plenty.
   dbPool:
     minSize: 1
     maxSize: 5
-  # CORS origins. Browsers are not expected to call the service directly.
   allowedOrigins: []
-  # Extra environment variables, as NAME: value. Values may use templates.
   env: {}
-  # Optional hostname route for developers and tools, on a PRIVATE Istio
-  # gateway only (the service has no authentication), e.g.
-  #   host: dashboard-api.crop.openg2p.test
-  #   gateway: internal
   virtualService:
     enabled: false
-    host: ""
-    gateway: ""
+    host: ''
+    gateway: ''
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
       memory: 512Mi
+  imagePullSecrets: []
+  envFrom: []
+  auth:
+    enabled: true
+    issuer: '{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ .Values.global.keycloakRealm
+      | default "staff" }}'
+    iamUrl: ''
+    audience: cropsown-registry-dashboard-api
+    role: charts:read
+dashboardUi:
+  enabled: false
+  nameOverride: ''
+  image:
+    repository: ''
+    tag: ''
+    digest: ''
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  replicas: 1
+  containerPort: 3000
+  servicePort: 80
+  env: []
+  envFrom: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+odkGeoSync:
+  enabled: false
+  schedule: 17 1 * * *
+  runOnInstall: false
+  image:
+    repository: ''
+    tag: ''
+    digest: ''
+  masterData:
+    apiUrl: '{{ .Values.global.masterDataApiUrl }}'
+    tokenUrl: '{{ .Values.global.masterDataTokenUrl }}'
+    clientId: ''
+    clientSecret:
+      name: ''
+      key: client_secret
+  odk:
+    url: ''
+    projectId: ''
+    credentialsSecret:
+      name: ''
+      emailKey: email
+      passwordKey: password
+  levels:
+  - region
+  - zone
+  - woreda
+  - kebele
+  dryRun: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      memory: 256Mi
+
+# Disabled legacy staff-provisioning hook; see docs/registry-staff-access.md.
+staffAccess:
+  enabled: false
+  existingSecret: ''
+  imagePullSecrets: []
+  clientId: ''
+  dashboardClientId: ''
+  twoStages: false
+  policyKeys: []
+
+# Farmer reference: signed DCI lookup of the source Farmer, Farmer updates through
+# outgestion (Kafka/WebSub) and the Crop connector, AWE delivery. Enabled per
+# environment; see README "Farmer reference" for the Secrets and the env/mounts.
+farmerReference:
+  enabled: false
+  # PEM public key the Farmer partner API signs its DCI responses with. The
+  # openg2p-farmer-registry chart's dciSigning hook publishes it in ConfigMap
+  # <farmer release>-dci-signing-public (key public-key.pem) and in its log.
+  sourcePublicKey: ''
+  # Server-owned mapping of the signed Farmer record onto Crop's local fields
+  # (RecordContract in the extension). Not a client trust setting.
+  recordContract:
+    source_id: farmer_reference.farmer_id
+    farmer_id: farmer_reference.farmer_id
+    uid: farmer_reference.fan
+    fin: farmer_reference.fin
+    approved_at: farmer_reference.approved_at
+    status: farmer_reference.record_status
+    source_query_field: functional_record_id
+    uid_query_field: foundational_id
+    fin_query_field: foundational_id
+    # The farmer's photo as bytes with its SHA-256; stored in this registry's
+    # own document store.
+    photo: farmer_reference.photo
+    profile_paths:
+      first_name: farmer_reference.first_name
+      middle_name: farmer_reference.middle_name
+      last_name: farmer_reference.last_name
+      first_name_amh: farmer_reference.first_name_amh
+      middle_name_amh: farmer_reference.middle_name_amh
+      last_name_amh: farmer_reference.last_name_amh
+      gender: farmer_reference.gender
+      birth_date: farmer_reference.birth_date
+      mobile_number: farmer_reference.mobile_number
+      address_line_1: farmer_reference.address_line_1
+      address_line_2: farmer_reference.address_line_2
+      postal_code: farmer_reference.postal_code
+      country_code: farmer_reference.country_code
+      geo_lowest_level_value_id: farmer_reference.geo_lowest_level_value_id
+      geo_code_hierarchy_json: farmer_reference.geo_code_hierarchy_json
+      region_id: farmer_reference.region_id
+      zone_id: farmer_reference.zone_id
+      woreda_id: farmer_reference.woreda_id
+      kebele_id: farmer_reference.kebele_id
+      region_name: farmer_reference.region_name
+      zone_name: farmer_reference.zone_name
+      woreda_name: farmer_reference.woreda_name
+      kebele_name: farmer_reference.kebele_name
+      # The rest of the Farmer tab (not the Fayda verification, documents or staff names).
+      first_name_other: farmer_reference.first_name_other
+      middle_name_other: farmer_reference.middle_name_other
+      last_name_other: farmer_reference.last_name_other
+      language_spoken: farmer_reference.language_spoken
+      has_national_id: farmer_reference.has_national_id
+      rid: farmer_reference.rid
+      odk_farmer_id: farmer_reference.odk_farmer_id
+      pula_id: farmer_reference.pula_id
+      birth_date_ec: farmer_reference.birth_date_ec
+      estimated_age: farmer_reference.estimated_age
+      marital_status: farmer_reference.marital_status
+      education_level: farmer_reference.education_level
+      disabled: farmer_reference.disabled
+      disability_type: farmer_reference.disability_type
+      disability_severity: farmer_reference.disability_severity
+      source_of_income: farmer_reference.source_of_income
+      source_of_income_other: farmer_reference.source_of_income_other
+      income_sources: farmer_reference.income_sources
+      is_psnp_user: farmer_reference.is_psnp_user
+      is_farmer: farmer_reference.is_farmer
+      farming_type: farmer_reference.farming_type
+      phones: farmer_reference.phones
+      email: farmer_reference.email
+      plus_code: farmer_reference.plus_code
+      latitude: farmer_reference.latitude
+      longitude: farmer_reference.longitude
+      altitude: farmer_reference.altitude

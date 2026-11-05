@@ -30,8 +30,13 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
     }
 
     # Ethiopian cropping calendar order: the main rains first, then the short
-    # rains, then irrigated and perennial cropping.
+    # rains, then irrigated and perennial cropping. Records hold the Master Data
+    # CROP_SEASON codes (SEASON_MEHER, SEASON_BELG, SEASON_IRRIGATION); the other
+    # spellings are kept for older submissions.
     SEASON_NUMBERS = {
+        "SEASON_MEHER": 1,
+        "SEASON_BELG": 2,
+        "SEASON_IRRIGATION": 3,
         "CROP_SEASON_MEHER": 1,
         "MEHER": 1,
         "CROP_SEASON_BELG": 2,
@@ -42,7 +47,7 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
 
     @classmethod
     def season_segment(cls, season: str | None) -> str:
-        """`CROP_SEASON_MEHER` / `MEHER` -> `S1/`, unknown or missing -> `` (no segment)."""
+        """`SEASON_MEHER` / `MEHER` -> `S1/`, unknown or missing -> `` (no segment)."""
         number = cls.SEASON_NUMBERS.get(str(season or "").strip().upper())
         return f"S{number}/" if number else ""
 

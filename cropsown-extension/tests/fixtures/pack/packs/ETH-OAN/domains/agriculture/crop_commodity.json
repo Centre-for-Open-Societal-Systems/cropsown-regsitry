@@ -1,0 +1,30 @@
+{
+  "attribute_code": "CROP_COMMODITY",
+  "values": [
+    {
+      "value_id": "CROP_TEFF",
+      "value_code": "CROP_TEFF",
+      "value_display": "Teff"
+    },
+    {
+      "value_id": "CROP_MAIZE",
+      "value_code": "CROP_MAIZE",
+      "value_display": "Maize"
+    },
+    {
+      "value_id": "CROP_MARJORAM_OREGANO",
+      "value_code": "CROP_MARJORAM_OREGANO",
+      "value_display": "Marjoram / oregano"
+    },
+    {
+      "value_id": "CROP_LEMON_SCENTED_EUCALYPTUS",
+      "value_code": "CROP_LEMON_SCENTED_EUCALYPTUS",
+      "value_display": "Lemon-scented eucalyptus"
+    },
+    {
+      "value_id": "CROP_BLACK_CUMIN",
+      "value_code": "CROP_BLACK_CUMIN",
+      "value_display": "Black cumin"
+    }
+  ]
+}

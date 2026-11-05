@@ -11,7 +11,7 @@
 # What it does, in order:
 #   1. Preflight: print the API server and identity; stop at once if the server
 #      cannot be reached or the account cannot deploy the namespace.
-#   2. helm dependency build.
+#   2. Verify the exact central chart archive and public values.
 #   3. Write the values this build owns: image tags, and every public host on
 #      <namespace>.openg2p.test (the subchart defaults them to .openg2p.org
 #      placeholders, which broke Keycloak, MinIO and IAM).
@@ -27,29 +27,30 @@
 #   AWS_ACCOUNT_ID   owner of the ECR registry                      required
 #   KUBECONFIG       kubeconfig for the dev cluster                 required
 #   AWS_REGION       default ap-south-1
-#   ECR_BASE         default gen2/cropsown-registry
+#   ECR_BASE         default openg2p/cropsown-registry
 #   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
-#   EXPECTED_SERVER  default https://10.0.1.58:6443 — refuse any other API server
+#   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
 #                    (empty disables the check)
-#   HELM_CHART_DIR   default helm/openg2p-cropsown-registry
-#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) — the
+#   BUILT_CHART_DIR  folder with the archive this build packaged (Jenkins sets it)
+#   Chart/profile: otherwise ci/deploy/oan-chart.json (immutable COSS oan-helm archive)
+#   BASE_DOMAIN      default <namespace>.openg2p.test (as a helm template) â€” the
 #                    other hosts (idgenerator, awe, dashboard-api); not the
 #                    portal/API public hosts, Keycloak or MinIO below
-#   KEYCLOAK_URL     default https://keycloak-development.oanstaging.com — the
+#   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com â€” the
 #                    Keycloak the APIs call (staff API's AWE token, approvers)
-#   MINIO_HOST       default minio-api.commons-dev.oanstaging.com — the shared
+#   MINIO_HOST       default minio-farmer.development.oanstaging.com â€” the shared
 #                    MinIO (templates bucket, documents, browser pre-signed URLs)
-#   REGISTRY_HOST    default crop-registry-development.oanstaging.com (staff UI)
-#   STAFF_API_HOST   default staff-crop-development.oanstaging.com
-#   PARTNER_API_HOST default partner-crop-development.oanstaging.com
-#   STAFF_IAM_URL    default https://staff-iam-development.oanstaging.com
-#   COOKIE_DOMAIN    default .oanstaging.com
+#   REGISTRY_HOST    default crop-registry.development.oanstaging.com (staff UI)
+#   STAFF_API_HOST   default staff-crop.development.oanstaging.com
+#   PARTNER_API_HOST default partner-crop.development.oanstaging.com
+#   STAFF_IAM_URL    default https://staff-iam.development.oanstaging.com
+#   COOKIE_DOMAIN    default .development.oanstaging.com
 #   RUN_DB_SEED      true|false, default true   run the db-seed hook Job
 #   RUN_SANITY       true|false, default false  run the sanity seed + e2e hook Jobs
 #   RUN_IAM_REGISTER true|false, default false  run the IAM registration hook Job
-#   SEED_MINIO_ASSETS true|false, default false db-seed also uploads images/templates to MinIO
+#   SEED_MINIO_ASSETS true|false, default true  db-seed also uploads the transform templates to MinIO
 #   DASHBOARD_API    true|false, default true   deploy the cs_rpt_* reporting views and
 #                                               cropsown-registry-dashboard-api (image
 #                                               ${DASHBOARD_API_ECR}:<tag>)
@@ -57,49 +58,51 @@
 #   ROLLOUT_TIMEOUT  per-Deployment rollout wait, default 420s
 #   PULL_SECRET      ECR imagePullSecret to write/use, default cropsown-ecr
 #   OUTSIDE_CHART    true|false, default true   also move the Deployments helm does
-#                                               not manage (connector, public staff UI)
+#                                               not manage (public staff UI)
 #                                               to this build's images
 set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry dev
 
 TAG="${1:-${TAG:-}}"
 [ -n "$TAG" ] || { echo "usage: $0 <image-tag>" >&2; exit 2; }
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
 : "${KUBECONFIG:?set KUBECONFIG}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-ECR_BASE="${ECR_BASE:-gen2/cropsown-registry}"
+ECR_BASE="${ECR_BASE:-openg2p/cropsown-registry}"
 DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
-HELM_CHART_DIR="${HELM_CHART_DIR:-helm/openg2p-cropsown-registry}"
 # Unset means the dev default; set but EMPTY means "do not touch the release's
 # hosts" (staging, whose hosts are not <namespace>.openg2p.test).
 BASE_DOMAIN="${BASE_DOMAIN-{{ .Release.Namespace \}\}.openg2p.test}"
-# The public oanstaging.com names, the same pattern as farmer's
-# (farmer-registry-development, staff-farmer-development, partner-farmer-development).
-REGISTRY_HOST="${REGISTRY_HOST:-crop-registry-development.oanstaging.com}"
-STAFF_API_HOST="${STAFF_API_HOST:-staff-crop-development.oanstaging.com}"
-PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop-development.oanstaging.com}"
-STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam-development.oanstaging.com}"
-COOKIE_DOMAIN="${COOKIE_DOMAIN:-.oanstaging.com}"
+# Canonical public hosts use the shared development wildcard and Istio Gateway.
+REGISTRY_HOST="${REGISTRY_HOST:-crop-registry.development.oanstaging.com}"
+STAFF_API_HOST="${STAFF_API_HOST:-staff-crop.development.oanstaging.com}"
+PARTNER_API_HOST="${PARTNER_API_HOST:-partner-crop.development.oanstaging.com}"
+STAFF_IAM_URL="${STAFF_IAM_URL:-https://staff-iam.development.oanstaging.com}"
+COOKIE_DOMAIN="${COOKIE_DOMAIN:-.development.oanstaging.com}"
 # Keycloak and MinIO are commons' public names. The <namespace>.openg2p.test ones
 # resolve nowhere in the cluster: finalize failed on keycloak.crop.openg2p.test
 # ("Name does not resolve") and ingestion could not load its templates from
 # minio-api.crop.openg2p.test.
-KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak-development.oanstaging.com}"
-MINIO_HOST="${MINIO_HOST:-minio-api.commons-dev.oanstaging.com}"
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
+MINIO_HOST="${MINIO_HOST:-minio-farmer.development.oanstaging.com}"
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
 # iam-register takes its token from the PUBLIC Keycloak URL
 # (https://keycloak.<namespace>.openg2p.test), which pods cannot reach here, so
 # it retries 30 times and holds the deploy. The app is registered already.
 RUN_IAM_REGISTER="${RUN_IAM_REGISTER:-false}"
-# db-seed's image and template loaders upload to MinIO at global.minioHost, the
-# PUBLIC host (minio-api.<namespace>.openg2p.test, https), which pods cannot
-# reach here either — locally the same loaders use minio:9000. The host has to
-# stay public for the APIs' browser pre-signed URLs, so db-seed skips those two
-# loaders by default and loads only SQL metadata, geo data and AWE config.
-SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-false}"
+# db-seed's image and template loaders upload to MinIO at global.minioHost.
+# The ODK and DCI transform templates are read from MinIO, not from the image,
+# so a deploy that skips the upload keeps running the old templates (crop ran
+# its 15 October ODK template until this was turned back on). Livestock uploads
+# to the same MinIO host on every deploy.
+SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-true}"
 # The reporting views the dashboard service reads, and the service itself
 # (templates/reporting-views*.yaml, templates/dashboard-api.yaml).
 DASHBOARD_API="${DASHBOARD_API:-true}"
@@ -117,7 +120,17 @@ trap cleanup EXIT
 
 say() { echo "=== $* ==="; }
 
-# ── 1. Preflight ───────────────────────────────────────────────────────────────
+say "Verified central chart"
+# A develop build installs the chart it packaged; a deploy by hand uses the pinned archive.
+if [ -n "${BUILT_CHART_DIR:-}" ]; then
+  HELM_CHART_DIR="$(ls "$BUILT_CHART_DIR"/*.tgz)"
+else
+  HELM_CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")"
+fi
+CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")"
+
+
+# â”€â”€ 1. Preflight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "Deploy target"
 SERVER="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 echo "server:    ${SERVER}"
@@ -127,7 +140,7 @@ echo "server:    ${SERVER}"
 if [ -n "$EXPECTED_SERVER" ] && [ "${SERVER%/}" != "${EXPECTED_SERVER%/}" ]; then
   echo "ERROR: KUBECONFIG points at ${SERVER:-<none>}, expected ${EXPECTED_SERVER}." >&2
   echo "  Replace the Jenkins credential (crop-dev-kubeconfig) with the crop-ci kubeconfig" >&2
-  echo "  for ${EXPECTED_SERVER} — see ci/k8s/make-crop-ci-kubeconfig.sh." >&2
+  echo "  for ${EXPECTED_SERVER} â€” see ci/k8s/make-crop-ci-kubeconfig.sh." >&2
   exit 1
 fi
 echo "namespace: ${HELM_NAMESPACE}"
@@ -144,7 +157,7 @@ kubectl auth whoami 2>/dev/null || true
 
 MISSING=""
 # Every kind the chart and this script touch. A hand-written Role that covers
-# only some of them fails deep inside helm instead — the crop namespace's role
+# only some of them fails deep inside helm instead â€” the crop namespace's role
 # allowed secrets and deployments but not jobs, then not networkpolicies
 # ("cannot get resource networkpolicies", four minutes into an upgrade). A
 # namespace-scoped bind to the built-in `admin` ClusterRole covers the lot; see
@@ -165,10 +178,10 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
-# ── 1b. ECR pull secret ────────────────────────────────────────────────────────
+# â”€â”€ 1b. ECR pull secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # ECR tokens last 12 hours. The cluster refreshes its own with an ecr-refresh
 # CronJob, and when that broke (its ecr-refresh-aws secret was missing) the token
-# expired and every pod in the release went ImagePullBackOff — including db-seed,
+# expired and every pod in the release went ImagePullBackOff â€” including db-seed,
 # which helm then reported as BackoffLimitExceeded. So each deploy writes a fresh
 # one: the build agent mints the token (only it has AWS credentials) and stashes
 # it as .ecr-token, and the chart is pointed at the secret through
@@ -193,18 +206,9 @@ else
   USE_PULL_SECRET=false
 fi
 
-# ── 2. Chart dependencies ──────────────────────────────────────────────────────
-say "helm dependency build"
-helm repo add openg2p https://openg2p.github.io/openg2p-helm >/dev/null 2>&1 || true
-helm repo update openg2p >/dev/null
-# Chart.lock and charts/ are gitignored, so neither checkout nor unstash clears
-# them: a lock left in the agent's workspace by an older build still pins the
-# previous openg2p-registry version, and `helm dependency build` then fails with
-# "the lock file (Chart.lock) is out of sync". Resolve fresh from Chart.yaml.
-rm -f "$HELM_CHART_DIR/Chart.lock" "$HELM_CHART_DIR"/charts/*.tgz
-helm dependency build "$HELM_CHART_DIR"
+# â”€â”€ 2. Chart dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# ── 3. Values this build owns ──────────────────────────────────────────────────
+# â”€â”€ 3. Values this build owns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 VALUE_FILES=()
 if [ -n "$BASE_DOMAIN" ]; then
   cat > "$WORK/ci-hosts.yaml" <<EOF
@@ -221,7 +225,7 @@ fi
 # The portal and its APIs are served on the public oanstaging.com names, not
 # BASE_DOMAIN. Written on every deploy, after the live release's values: an
 # earlier deploy stored the .openg2p.test ones on the release, and layering
-# current-values.yaml would otherwise keep putting them back — the VirtualService
+# current-values.yaml would otherwise keep putting them back â€” the VirtualService
 # hosts edited by hand in Rancher were reverted the same way.
 cat > "$WORK/ci-public.yaml" <<EOF
 global:
@@ -231,10 +235,10 @@ global:
 registry:
   staffApi:
     hostname: '${STAFF_API_HOST}'
-    istio: {virtualservice: {host: '${STAFF_API_HOST}'}}
+    istio: {virtualservice: {host: '${STAFF_API_HOST}', gateway: istio-system/development}}
   partnerApi:
     hostname: '${PARTNER_API_HOST}'
-    istio: {virtualservice: {host: '${PARTNER_API_HOST}'}}
+    istio: {virtualservice: {host: '${PARTNER_API_HOST}', gateway: istio-system/development}}
     # The cropsown extension rebuilds the DB settings from COMMON_DB_* (or the
     # staff API's) and otherwise falls back to host "postgres", so without these
     # every /partner/ingest_data failed with "Name does not resolve". Staff API
@@ -260,6 +264,8 @@ registry:
       REGISTRY_CELERY_WORKERS_AWE_CALLBACK_HMAC_SECRET:
         secretKeyRef: {name: ${HELM_RELEASE}-awe-callback-hmac, key: hmac-secret}
   staffUi:
+    hostname: '${REGISTRY_HOST}'
+    istio: {virtualservice: {host: '${REGISTRY_HOST}', gateway: istio-system/development}}
     iamPublicUrl: '${STAFF_IAM_URL}'
     partnerIngestUrl: 'https://${PARTNER_API_HOST}/partner/ingest_data?data_model=dcivc'
     envVars:
@@ -296,7 +302,8 @@ registry:
     image: {repository: '${ECR}/celery', tag: '${TAG}'}
   dbSeed:
     enabled: ${RUN_DB_SEED}
-    loadImages: ${SEED_MINIO_ASSETS}
+    # The crop db-seed image carries configuration only (no /seed/upload_images.py).
+    loadImages: false
     loadTemplates: ${SEED_MINIO_ASSETS}
     image: {repository: '${ECR}/db-seed', tag: '${TAG}'}
   sanity:
@@ -310,10 +317,11 @@ reporting:
 dashboardApi:
   enabled: ${DASHBOARD_API}
   image: {repository: '${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_API_ECR}', tag: '${TAG}'}
+  # Authentication is configured through dashboardApi.auth in the chart.
 EOF
 if [ "$DASHBOARD_API" = "true" ] && [ -n "$BASE_DOMAIN" ]; then
   # A private route for developers and tools, on the namespace's internal
-  # gateway (the service has no authentication; never a public gateway).
+  # gateway (callers need a token; never a public gateway).
   cat >> "$WORK/ci-values.yaml" <<EOF
   virtualService:
     enabled: true
@@ -324,7 +332,7 @@ fi
 echo "hooks: db-seed=${RUN_DB_SEED} (images/templates=${SEED_MINIO_ASSETS})  sanity=${RUN_SANITY}  iam-register=${RUN_IAM_REGISTER}  reporting-views/dashboard-api=${DASHBOARD_API}"
 
 # The live release's values (hostnames, Keycloak/IAM wiring set on the release).
-# Only a missing release — a first install — may go ahead without them.
+# Only a missing release â€” a first install â€” may go ahead without them.
 if ! helm get values "$HELM_RELEASE" "${NS[@]}" -o yaml > "$WORK/current-values.yaml" 2> "$WORK/current.err"; then
   grep -q 'release: not found' "$WORK/current.err" || { cat "$WORK/current.err" >&2; exit 1; }
   echo "No ${HELM_RELEASE} release yet: installing with chart defaults."
@@ -341,7 +349,7 @@ case "$STATUS" in
     exit 1 ;;
 esac
 
-# ── 5. Watchers while helm runs ────────────────────────────────────────────────
+# â”€â”€ 5. Watchers while helm runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Hook pods are deleted as soon as their Job fails, so save their logs as we go.
 # Only this release's own hook pods: <release>-<job>-<5 chars>.
 HOOK_POD_RE="^pod/${HELM_RELEASE}-(db-seed|keycloak-init-[0-9]+|sanity(-[a-z]+)*|iam-register|cs-reporting-views)-[a-z0-9]{5}$"
@@ -372,14 +380,20 @@ BG_PIDS+=("$!")
 ) &
 BG_PIDS+=("$!")
 
-# ── 4. Upgrade ─────────────────────────────────────────────────────────────────
+# â”€â”€ 4. Upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 say "helm upgrade started $(date -u +%H:%M:%S) UTC (timeout ${HELM_TIMEOUT})"
-VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} "-f" "$WORK/ci-values.yaml")
+VALUES=("-f" "$WORK/current-values.yaml" ${VALUE_FILES[@]+"${VALUE_FILES[@]}"} \
+  "-f" "$CENTRAL_VALUES" "-f" "$WORK/ci-values.yaml")
 
 # Render exactly what the upgrade applies, as farmer-registry's pipeline does: a
 # chart or values mistake then fails here, before anything is changed.
 helm template "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" "${VALUES[@]}" > "$WORK/rendered.yaml"
 echo "rendered $(wc -l < "$WORK/rendered.yaml") lines of manifests"
+# Client dry-run converts YAML to JSON without applying resources or logging Secrets.
+kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
+  python3 ci/check-new-dev-routes.py crop --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"
+kubectl create --dry-run=client --validate=false "${NS[@]}" -f "$WORK/rendered.yaml" -o json | \
+  python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" --check-live-secret
 
 if ! helm upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" "${NS[@]}" \
       "${VALUES[@]}" --timeout "$HELM_TIMEOUT"; then
@@ -404,7 +418,7 @@ kill "${BG_PIDS[@]}" 2>/dev/null || true
 BG_PIDS=()
 say "helm upgrade finished $(date -u +%H:%M:%S) UTC"
 
-# ── 6. Rollout ─────────────────────────────────────────────────────────────────
+# â”€â”€ 6. Rollout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 180s was not enough for staff-portal-api: its pod runs `migrate` before it
 # serves, and the old pod has to finish terminating first ("1 old replicas are
 # pending termination" until `timed out waiting for the condition`). On a
@@ -423,18 +437,16 @@ for D in $DEPLOYMENTS; do
   fi
 done
 
-# ── 6b. Deployments outside the chart ─────────────────────────────────────────
-# The connector (api, worker, beat, ui) and the public staff portal
-# (<release>-staff-portal-ui-pub) are not in this chart, so helm never moves
-# them: they stayed on develop-69 while the release went to develop-74. This
-# build pushes their images (connector-service, connector-ui, staff-ui), so point
-# them at the same tag. Only the image changes; a Deployment that does not exist
-# in this namespace is skipped.
+# â”€â”€ 6b. Deployments outside the chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+kubectl get deployment "$HELM_RELEASE-staff-portal-api" "$HELM_RELEASE-celery-worker" "$HELM_RELEASE-celery-beat-producer" "${NS[@]}" -o json | \
+  python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$HELM_NAMESPACE" \
+    --check-live-secret
+
+# The public staff portal remains registry-owned. External connector workloads,
+# images, releases and checkpoints are deliberately outside this delivery path.
 if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
   say "Deployments outside the chart"
-  for PAIR in "cropsown-connector-api:connector-service" "cropsown-connector-worker:connector-service" \
-              "cropsown-connector-beat:connector-service" "cropsown-connector-ui:connector-ui" \
-              "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
+  for PAIR in "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
     D="${PAIR%%:*}"
     IMG="${ECR}/${PAIR#*:}:${TAG}"
     if ! kubectl get deploy "$D" "${NS[@]}" >/dev/null 2>&1; then
@@ -451,25 +463,23 @@ if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
   done
 fi
 
-# ── 7. Schema drift gate ───────────────────────────────────────────────────────
-# The API pods run `migrate` on start, which now adds model columns an existing
-# table lacks (schema_sync). Check from inside the new staff API pod that every
-# model column is really in the database. A green deploy with a missing column
-# otherwise shows up days later as a blank page and a SQL error in the pod log.
+# â”€â”€ 7. Schema drift gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Native migration plus registered add-only extension migration owns schema writes.
+# This separate read-only check refuses a rollout whose mapped columns are absent.
 say "Schema drift check"
 if ! kubectl exec "deploy/${HELM_RELEASE}-staff-portal-api" -c staff-portal-api "${NS[@]}" -- \
-      python -m openg2p_registry_cropsown_extension.schema_sync --check; then
+      python -m openg2p_registry_cropsown_extension.schema_check --check; then
   echo "ERROR: the database is missing columns the deployed models use (listed above)." >&2
   echo "  The staff-portal-api pod log shows why migrate did not add them." >&2
   exit 1
 fi
 
-# ── 8. Dashboard service smoke test ────────────────────────────────────────────
+# â”€â”€ 8. Dashboard service smoke test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # The reporting hook created the views and the service answers: a 500 from a
 # missing cs_rpt_* view fails this deploy, not the dashboards.
 if [ "$DASHBOARD_API" = "true" ]; then
   say "dashboard-api smoke test"
-  kubectl exec "deploy/${HELM_RELEASE}-dashboard-api" "${NS[@]}" -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/cropKpis', '/api/v1/charts/cropAreaByCrop', '/api/v1/charts/cropAreaByRegion')]"
+  kubectl exec "deploy/${HELM_RELEASE}-dashboard-api" "${NS[@]}" -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health',)]"
 fi
 
 say "Deployed ${TAG} to ${HELM_NAMESPACE}"

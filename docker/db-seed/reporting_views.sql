@@ -85,8 +85,8 @@ LEFT JOIN g2p_attribute_values gz ON gz.value_id = cs.zone
 LEFT JOIN g2p_attribute_values gw ON gw.value_id = cs.woreda
 LEFT JOIN g2p_attribute_values gk ON gk.value_id = cs.kebele;
 
-CREATE UNIQUE INDEX cs_rpt_crop_sown_pk ON cs_rpt_crop_sown (crop_sown_id);
-CREATE INDEX cs_rpt_crop_sown_geo_idx ON cs_rpt_crop_sown (region_code, zone_code, woreda_code, kebele_code);
+CREATE UNIQUE INDEX IF NOT EXISTS cs_rpt_crop_sown_pk ON cs_rpt_crop_sown (crop_sown_id);
+CREATE INDEX IF NOT EXISTS cs_rpt_crop_sown_geo_idx ON cs_rpt_crop_sown (region_code, zone_code, woreda_code, kebele_code);
 
 -- ---------------------------------------------------------------------------
 -- Sowing lines
@@ -132,7 +132,7 @@ LEFT JOIN g2p_attribute_values cm ON cm.value_id = sw.commodity
 LEFT JOIN g2p_attribute_values se ON se.value_id = sw.season
 LEFT JOIN g2p_attribute_values ow ON ow.value_id = o.ownership_type;
 
-CREATE UNIQUE INDEX cs_rpt_sowing_pk ON cs_rpt_sowing (sowing_id);
-CREATE INDEX cs_rpt_sowing_crop_sown_idx ON cs_rpt_sowing (crop_sown_id);
-CREATE INDEX cs_rpt_sowing_commodity_idx ON cs_rpt_sowing (commodity);
-CREATE INDEX cs_rpt_sowing_geo_idx ON cs_rpt_sowing (region_code, zone_code, woreda_code, kebele_code);
+CREATE UNIQUE INDEX IF NOT EXISTS cs_rpt_sowing_pk ON cs_rpt_sowing (sowing_id);
+CREATE INDEX IF NOT EXISTS cs_rpt_sowing_crop_sown_idx ON cs_rpt_sowing (crop_sown_id);
+CREATE INDEX IF NOT EXISTS cs_rpt_sowing_commodity_idx ON cs_rpt_sowing (commodity);
+CREATE INDEX IF NOT EXISTS cs_rpt_sowing_geo_idx ON cs_rpt_sowing (region_code, zone_code, woreda_code, kebele_code);

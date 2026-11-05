@@ -174,7 +174,7 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
         return [], "", "", ""
 
     res_hdr = await session.execute(
-        text("SELECT fayda_fan_id, crop_year, production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid AND fayda_fan_id IS NOT NULL LIMIT 1"),
+        text("SELECT fayda_fan_id, crop_year, production_season, farmer_id FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid AND fayda_fan_id IS NOT NULL LIMIT 1"),
         {"sid": submission_id}
     )
     hdr_row = res_hdr.fetchone()
@@ -185,11 +185,15 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
     fayda_nospaces = fayda.replace(" ", "")
     crop_year = str(hdr_row[1] or "").strip()
     prod_season = str(hdr_row[2] or "").strip()
+    farmer_id = str(hdr_row[3] or "").strip()
     season_clean = clean_season(prod_season)
 
+    # Parent key = 4 values (Farmer ID + Fayda ID + Crop Year + Production Season).
+    # A record is the same parent only when ALL four match; any one mismatch means
+    # a different parent (so a new one may be created downstream).
     query_master = text("""
-        SELECT internal_record_id, crop_year, production_season 
-        FROM g2p_register_crop_sowns 
+        SELECT internal_record_id, crop_year, production_season, farmer_id
+        FROM g2p_register_crop_sowns
         WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
           AND record_status = 'ACTIVE'
     """)
@@ -197,16 +201,17 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
     master_rows = res_m.fetchall()
 
     matched_master_ids = []
-    for r_id, r_year, r_season in master_rows:
+    for r_id, r_year, r_season, r_farmer in master_rows:
+        farmer_matches = not farmer_id or str(r_farmer or "").strip() == farmer_id
         year_matches = not crop_year or str(r_year or "").strip() == crop_year
         season_matches = not season_clean or clean_season(r_season) == season_clean
-        if year_matches and season_matches:
+        if farmer_matches and year_matches and season_matches:
             matched_master_ids.append(str(r_id))
 
     return matched_master_ids, fayda, crop_year, prod_season
 
 
-_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{10}$")
+_FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 
 
 def validate_farmer_identity_required_fields(section_id: str, section_payload: list[dict]):
@@ -239,7 +244,7 @@ def validate_farmer_identity_required_fields(section_id: str, section_payload: l
             if not farmer_id:
                 validation_error("Farmer ID is required in Farmer Identity.")
             if not _FARMER_ID_PATTERN.match(str(farmer_id).strip()):
-                validation_error(f"farmer_id must be FR- followed by 10 digits (got '{farmer_id}')")
+                validation_error(f"Farmer ID must be FR- followed by 12 digits (got '{farmer_id}')")
 
         # 2. Fayda ID (FAN)
         if not fayda_fan_id:
@@ -294,8 +299,8 @@ async def validate_farmer_identity_prerequisite(session, section_payload: list[d
         season_clean = clean_season(prod_season)
 
         query = text("""
-            SELECT internal_record_id, crop_year, production_season 
-            FROM g2p_register_crop_sowns 
+            SELECT internal_record_id, crop_year, production_season
+            FROM g2p_register_crop_sowns
             WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
               AND record_status = 'ACTIVE'
         """)
@@ -510,12 +515,14 @@ async def validate_change_request_season_and_year(payload, session):
 
     is_farmer_identity = section_id in (
         "cropsown_cropsown_record_section_01",
+        "crop_farmer_lookup",
         "cropsown_common_intake_record_section_01",
         "cropsown_intake_record_section_01",
     )
 
     section_names = {
         "cropsown_cropsown_record_section_01": "Farmer Identity",
+        "crop_farmer_lookup": "Farmer lookup",
         "cropsown_common_intake_record_section_01": "Farmer Identity",
         "cropsown_intake_record_section_01": "Farmer Identity",
         "cropsown_planning_details_section_01": "Crop Planning Details",
@@ -568,8 +575,8 @@ async def validate_cultivation_against_planning(session, section_payload: list[d
     if master_ids:
         res_p = await session.execute(
             text("""
-                SELECT land_id, commodity, season, planned_date, start_gc 
-                FROM g2p_register_plannings 
+                SELECT land_id, commodity, season, planned_date, start_gc
+                FROM g2p_register_plannings
                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
             """),
             {"m_ids": master_ids}
@@ -579,8 +586,8 @@ async def validate_cultivation_against_planning(session, section_payload: list[d
     if submission_id:
         res_ip = await session.execute(
             text("""
-                SELECT land_id, commodity, season, planned_date, start_gc 
-                FROM g2p_intake_form_plannings 
+                SELECT land_id, commodity, season, planned_date, start_gc
+                FROM g2p_intake_form_plannings
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -629,8 +636,8 @@ async def validate_cultivation_cluster_against_planning(session, section_payload
     if master_ids:
         res_c = await session.execute(
             text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date 
-                FROM g2p_register_clusters 
+                SELECT land_id, cluster_name, start_gc, establishing_date
+                FROM g2p_register_clusters
                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
             """),
             {"m_ids": master_ids}
@@ -640,8 +647,8 @@ async def validate_cultivation_cluster_against_planning(session, section_payload
     if submission_id:
         res_ic = await session.execute(
             text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date 
-                FROM g2p_intake_form_clusters 
+                SELECT land_id, cluster_name, start_gc, establishing_date
+                FROM g2p_intake_form_clusters
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -670,7 +677,7 @@ async def validate_cultivation_cluster_against_planning(session, section_payload
         if matching_plan_date is not None and cult_date < matching_plan_date:
             validation_error(
                 f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
             )
 
 
@@ -683,16 +690,19 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
     """
     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    if not master_ids:
-        validation_error(
-            f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add sowing details."
-        )
+    # Sowing may be submitted WITHOUT a prior record (parent / cultivation). When a
+    # matching previous-section record exists we still validate the date; when it does
+    # not, we bypass instead of blocking.
+    # if not master_ids:
+    #     validation_error(
+    #         f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add sowing details."
+    #     )
 
     # 1. Independent Cultivations
     res_ind = await session.execute(
         text("""
-            SELECT land_id, commodity, season, actual_cultivation_date, start_gc 
-            FROM g2p_register_cultivations 
+            SELECT land_id, commodity, season, actual_cultivation_date, start_gc
+            FROM g2p_register_cultivations
             WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
         """),
         {"m_ids": master_ids}
@@ -702,8 +712,8 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
     if submission_id:
         res_iind = await session.execute(
             text("""
-                SELECT land_id, commodity, season, actual_cultivation_date, start_gc 
-                FROM g2p_intake_form_cultivations 
+                SELECT land_id, commodity, season, actual_cultivation_date, start_gc
+                FROM g2p_intake_form_cultivations
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -713,8 +723,8 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
     # 2. Clustered Cultivations
     res_cls = await session.execute(
         text("""
-            SELECT land_id, cluster_name, start_gc, establishing_date 
-            FROM g2p_register_cultivation_clusters 
+            SELECT land_id, cluster_name, start_gc, establishing_date
+            FROM g2p_register_cultivation_clusters
             WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
         """),
         {"m_ids": master_ids}
@@ -724,8 +734,8 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
     if submission_id:
         res_icls = await session.execute(
             text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date 
-                FROM g2p_intake_form_cultivation_clusters 
+                SELECT land_id, cluster_name, start_gc, establishing_date
+                FROM g2p_intake_form_cultivation_clusters
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -746,7 +756,7 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
         if is_cluster:
             cluster_name = str(row.get("cluster_name") or "").strip()
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Sowing.")
+                validation_error("Farmers Production Cluster Name is required for clustered Sowing.")
 
             matched_cluster = None
             for c_land, c_cname, c_start, c_est in cult_cls_rows:
@@ -754,18 +764,14 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
                     matched_cluster = (c_start, c_est)
                     break
 
-            if not matched_cluster:
-                validation_error(
-                    f"No active Cultivation Cluster record found for FPC Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
-                    f"Sowing can only be created for an existing cultivation cluster record."
-                )
-
-            cult_date = parse_date_flexible(matched_cluster[0] or matched_cluster[1])
-            if sow_date and cult_date and sow_date < cult_date:
-                validation_error(
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                    f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
-                )
+            # Validate date only when a matching Cultivation Cluster exists; otherwise bypass.
+            if matched_cluster:
+                cult_date = parse_date_flexible(matched_cluster[0] or matched_cluster[1])
+                if sow_date and cult_date and sow_date < cult_date:
+                    validation_error(
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+                        f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+                    )
         else:
             commodity = str(row.get("commodity") or "").strip()
             season = str(row.get("season") or row.get("cluster_season") or prod_season or "").strip()
@@ -780,23 +786,15 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
                         full_matched_row = (c_act_date, c_start)
                         break
 
-            if not land_matched:
-                validation_error(
-                    f"Land ID '{land_id}' in Sowing does not match any Land ID specified in Cultivation for this record."
-                )
-
-            if not full_matched_row:
-                validation_error(
-                    f"No active Cultivation record found for Land ID '{land_id}', Crop '{commodity}', and Season '{season}' under this Crop Sown record. "
-                    f"Sowing can only be created for an existing cultivation record."
-                )
-
-            cult_date = parse_date_flexible(full_matched_row[0] or full_matched_row[1])
-            if sow_date and cult_date and sow_date < cult_date:
-                validation_error(
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                    f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
-                )
+            # Validate date only when a matching Cultivation exists (Land ID + Crop +
+            # Season); otherwise bypass — Sowing may be submitted without a prior record.
+            if full_matched_row:
+                cult_date = parse_date_flexible(full_matched_row[0] or full_matched_row[1])
+                if sow_date and cult_date and sow_date < cult_date:
+                    validation_error(
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+                        f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
+                    )
 
 
 async def validate_infestation_against_sowing(session, section_payload: list[dict], submission_id: str | None):
@@ -817,8 +815,8 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
     if master_ids:
         res_s = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status 
-                FROM g2p_register_sowings 
+                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
+                FROM g2p_register_sowings
                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
             """),
             {"m_ids": master_ids}
@@ -828,8 +826,8 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
     if submission_id:
         res_is = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status 
-                FROM g2p_intake_form_sowings 
+                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
+                FROM g2p_intake_form_sowings
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -850,7 +848,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
         if is_cluster:
             cluster_name = str(row.get("cluster_name") or "").strip()
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Infestation.")
+                validation_error("Farmers Production Cluster Name is required for clustered Infestation.")
 
             cluster_matched = False
             matched_sowing = None
@@ -862,7 +860,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
 
             if not cluster_matched:
                 validation_error(
-                    f"No active Sowing record found for FPC Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
+                    f"No active Sowing record found for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
                     f"Infestation incident can only be reported for a sown cluster."
                 )
 
@@ -870,7 +868,7 @@ async def validate_infestation_against_sowing(session, section_payload: list[dic
             if obs_date and sow_date and obs_date <= sow_date:
                 validation_error(
                     f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
+                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
                 )
         else:
             commodity = str(row.get("commodity") or row.get("crop_type_affected") or "").strip()
@@ -914,17 +912,19 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
     """
     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    if not master_ids:
-        validation_error(
-            f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add harvest details."
-        )
+    # Harvest may be submitted WITHOUT a prior record (parent / sowing). When a matching
+    # Sowing exists we still validate the date; when it does not, we bypass.
+    # if not master_ids:
+    #     validation_error(
+    #         f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add harvest details."
+    #     )
 
     sowings = []
     if master_ids:
         res_s = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status 
-                FROM g2p_register_sowings 
+                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status
+                FROM g2p_register_sowings
                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
             """),
             {"m_ids": master_ids}
@@ -934,8 +934,8 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
     if submission_id:
         res_is = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status 
-                FROM g2p_intake_form_sowings 
+                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status
+                FROM g2p_intake_form_sowings
                 WHERE submission_id = :sid
             """),
             {"sid": submission_id}
@@ -957,7 +957,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
             harvest_date = parse_date_flexible(row.get("cluster_harvest_date") or row.get("harvest_date"))
 
             if not cluster_name:
-                validation_error("FPC Name (cluster_name) is required for clustered Harvest.")
+                validation_error("Farmers Production Cluster Name is required for clustered Harvest.")
 
             cluster_matched = False
             matched_sowing_date = None
@@ -967,18 +967,14 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
                     matched_sowing_date = s_date
                     break
 
-            if not cluster_matched:
-                validation_error(
-                    f"No active Sowing record found for FPC Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
-                    f"Harvest can only be created for an existing Sowing cluster record."
-                )
-
-            sow_date = parse_date_flexible(matched_sowing_date)
-            if harvest_date and sow_date and harvest_date <= sow_date:
-                validation_error(
-                    f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for FPC Name '{cluster_name}' and Land ID '{land_id}'."
-                )
+            # Validate date only when a matching Sowing cluster exists; otherwise bypass.
+            if cluster_matched:
+                sow_date = parse_date_flexible(matched_sowing_date)
+                if harvest_date and sow_date and harvest_date <= sow_date:
+                    validation_error(
+                        f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+                    )
         else:
             commodity = str(row.get("commodity") or "").strip()
             harvest_date = parse_date_flexible(row.get("harvest_date"))
@@ -997,213 +993,12 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
                         matched_sowing_date = s_date
                         break
 
-            if not land_matched:
-                validation_error(
-                    f"Land ID '{land_id}' in Harvest does not match any Land ID specified in Sowing for this record."
-                )
-
-            if not sowing_matched:
-                validation_error(
-                    f"No active Sowing record found for Land ID '{land_id}', Crop '{commodity}', and Season '{season}' under this Crop Sown record. "
-                    f"Harvest can only be created for an existing Sowing record."
-                )
-
-            sow_date = parse_date_flexible(matched_sowing_date)
-            if harvest_date and sow_date and harvest_date <= sow_date:
-                validation_error(
-                    f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
-                )
-
-
-def setup_intake_hooks():
-    """
-    Hook G2PIntakeFormDataService methods to enforce:
-    1. Sowing & Harvesting Farmer Identity pre-requisite validation (cannot create new master record).
-    2. Date validations:
-       - Cultivation Date >= Planning Date (only if planning record exists for land/crop/season).
-       - Sowing Date >= Cultivation Date.
-       - Infestation Date >= Sowing Date.
-       - Harvest Date >= Sowing Date.
-    3. Cross-stage prerequisite validations:
-       - Sowing requires Cultivation (Land ID, Crop, Season for Independent; FPC Name + Land ID for Cluster).
-       - Infestation requires Sowing (Land ID + Crop for Independent; FPC Name + Land ID for Cluster).
-       - Harvest requires Sowing (Land ID, Crop, Season for Independent; FPC Name + Land ID for Cluster).
-    4. Merging into existing master record during ingest, and rejecting creation of new master for Sowing/Harvest.
-    """
-    try:
-        from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
-    except ImportError:
-        _logger.warning("Could not import G2PIntakeFormDataService to apply hooks")
-        return
-
-    orig_save_with_session = G2PIntakeFormDataService.save_intake_form_submission_with_session
-    orig_insert_live_row = G2PIntakeFormDataService._insert_live_register_row
-
-    async def hooked_save_intake_form_submission_with_session(
-        self,
-        submission_id: str | None,
-        section_id: str,
-        section_payload: list[dict],
-        section_register_id: str,
-        form_id: str,
-        register_id: str,
-        created_by: str,
-        session,
-        documents=None,
-    ):
-        form_type = await get_form_type(form_id, session)
-
-        # Stamp section_id onto all payload records so downstream validators can identify the section
-        for r in (section_payload or []):
-            if isinstance(r, dict):
-                r["section_id"] = section_id
-
-        # Mandatory fields and season validation on Farmer Identity section
-        if section_id in ("cropsown_common_intake_record_section_01", "cropsown_intake_record_section_01", "cropsown_cropsown_record_section_01"):
-            validate_farmer_identity_required_fields(section_id, section_payload)
-            await validate_farmer_identity_season_change(session, section_payload, submission_id)
-        elif section_id in (
-            "cropsown_planning_details_section_01",
-            "cropsown_cluster_details_section_01",
-            "cropsown_cultivation_details_section_01",
-            "cropsown_cultivation_cluster_details_section_01",
-            "cropsown_sowing_details_section_01",
-            "cropsown_harvest_details_section_01",
-            "cropsown_production_details_section_01",
-        ):
-            await validate_section_season_matches_production_season(session, section_id, section_payload, submission_id)
-
-        # 1. Farmer Identity section
-        if section_id in ("cropsown_common_intake_record_section_01", "cropsown_intake_record_section_01"):
-            if form_type in ("sowing", "harvesting"):
-                await validate_farmer_identity_prerequisite(session, section_payload, submission_id, form_type)
-
-        # 2. Cultivation section
-        elif section_id == "cropsown_cultivation_details_section_01":
-            await validate_cultivation_against_planning(session, section_payload, submission_id)
-
-        # 3. Cultivation Cluster section
-        elif section_id == "cropsown_cultivation_cluster_details_section_01":
-            await validate_cultivation_cluster_against_planning(session, section_payload, submission_id)
-
-        # 4. Sowing section
-        elif section_id == "cropsown_sowing_details_section_01":
-            await validate_sowing_against_cultivation(session, section_payload, submission_id)
-
-        # 5. Infestation Incident section
-        elif section_id == "cropsown_infestation_details_section_01":
-            await validate_infestation_against_sowing(session, section_payload, submission_id)
-
-        # 6. Harvest section
-        elif section_id == "cropsown_harvest_details_section_01":
-            await validate_harvest_against_sowing(session, section_payload, submission_id)
-
-        return await orig_save_with_session(
-            self,
-            submission_id=submission_id,
-            section_id=section_id,
-            section_payload=section_payload,
-            section_register_id=section_register_id,
-            form_id=form_id,
-            register_id=register_id,
-            created_by=created_by,
-            session=session,
-            documents=documents,
-        )
-
-    async def hooked_insert_live_register_row(
-        self,
-        submission,
-        section,
-        register_definition,
-        schema_class,
-        register_class,
-        intake_row,
-        session,
-    ):
-        # For master REGISTER table
-        if register_definition.register_purpose == RegisterPurposeEnum.REGISTER.value:
-            form_type = await get_form_type(getattr(submission, "form_id", None), session)
-            fayda = getattr(intake_row, "fayda_fan_id", None) or getattr(intake_row, "fayda_id", None)
-            crop_year = getattr(intake_row, "crop_year", None)
-            prod_season = getattr(intake_row, "production_season", None)
-
-            existing_id = None
-            if fayda:
-                fayda_str = str(fayda).strip()
-                fayda_nospaces = fayda_str.replace(" ", "")
-                season_clean = clean_season(prod_season)
-
-                query = text("""
-                    SELECT internal_record_id 
-                    FROM g2p_register_crop_sowns 
-                    WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
-                      AND record_status = 'ACTIVE'
-                    ORDER BY created_at ASC LIMIT 1
-                """)
-                res = await session.execute(query, {"fayda": fayda_str, "fayda_nospaces": fayda_nospaces})
-                m_row = res.fetchone()
-                if m_row and m_row[0]:
-                    existing_id = str(m_row[0])
-                    _logger.info("Ingest Hook: Merging intake row into existing master record %s", existing_id)
-                    intake_row.internal_record_id = existing_id
-
-            # Rule 4: Sowing and Harvesting are NOT allowed to create a new master record!
-            if form_type in ("sowing", "harvesting") and not existing_id:
-                validation_error(
-                    f"Sowing and Harvesting forms are not allowed to create a new Crop Sown record. "
-                    f"No active Crop Sown record found for Fayda ID '{fayda}'."
-                )
-
-        return await orig_insert_live_row(
-            self,
-            submission,
-            section,
-            register_definition,
-            schema_class,
-            register_class,
-            intake_row,
-            session,
-        )
-
-    G2PIntakeFormDataService.save_intake_form_submission_with_session = hooked_save_intake_form_submission_with_session
-    G2PIntakeFormDataService._insert_live_register_row = hooked_insert_live_register_row
-    _logger.info("Successfully installed Cropsown Intake validation & ingest hooks onto G2PIntakeFormDataService")
-
-    try:
-        from openg2p_registry_core.services.g2p_register_change_request_service import G2PRegisterChangeRequestService
-        orig_create_change_request = G2PRegisterChangeRequestService.create_change_request
-
-        async def hooked_create_change_request(
-            self,
-            change_request_request_payload,
-            source_partner_id=None,
-            created_by=None,
-            change_request_source=None,
-            bearer_token=None,
-            requester_sub=None,
-        ):
-            from openg2p_fastapi_common.context import dbengine
-            from sqlalchemy.ext.asyncio import async_sessionmaker
-            from openg2p_registry_cropsown_extension.odk_ingest_hooks import _ensure_dbengine_initialized
-
-            _ensure_dbengine_initialized()
-            session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-            async with session_maker() as session:
-                await validate_change_request_season_and_year(change_request_request_payload, session)
-
-            return await orig_create_change_request(
-                self,
-                change_request_request_payload,
-                source_partner_id=source_partner_id,
-                created_by=created_by,
-                change_request_source=change_request_source,
-                bearer_token=bearer_token,
-                requester_sub=requester_sub,
-            )
-
-        G2PRegisterChangeRequestService.create_change_request = hooked_create_change_request
-        _logger.info("Successfully installed Cropsown Change Request validation hook onto G2PRegisterChangeRequestService")
-    except Exception as exc:
-        _logger.warning("Could not hook G2PRegisterChangeRequestService: %s", exc)
+            # Validate date only when a matching Sowing exists (Land ID + Crop + Season);
+            # otherwise bypass — Harvest may be submitted without a prior Sowing record.
+            if sowing_matched:
+                sow_date = parse_date_flexible(matched_sowing_date)
+                if harvest_date and sow_date and harvest_date <= sow_date:
+                    validation_error(
+                        f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
+                    )

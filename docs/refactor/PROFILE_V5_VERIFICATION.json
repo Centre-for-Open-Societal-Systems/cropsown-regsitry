@@ -1,0 +1,343 @@
+{
+  "registry": "cropsown",
+  "governing_confluence_version": 5,
+  "credential_file_read": false,
+  "registry_stacks_started": 0,
+  "database_migrations_run": false,
+  "runtime_acceptance": "NOT RUN",
+  "steps": [
+    {
+      "check": "shared-rule-parity",
+      "result": "PASS",
+      "hashes": {
+        "__init__.py": "a15e6ba67ef74eaf8a022a9d09c2e0e467cf2f42fde5bb734d82787ede36d0aa",
+        "profile.py": "8e0ab773c3a6f45102f5469ed7b14ff2fdcfb655a6d31ae8240edb05cc282527",
+        "geography.py": "b4c0e3d8ea55c75394bed1740325550c1b893551c0ec432a93c493e9812e6072",
+        "projection.py": "9afd447feb56907f52e5f517e555168bb092cf9572abe0c259b2f0634cc8b1c4"
+      }
+    },
+    {
+      "check": "source-check",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "python_files_parsed": 56,
+        "platform_pins": [
+          "1.2.2-rc.557"
+        ],
+        "promotion_ready": false,
+        "source_checks": "PASS"
+      }
+    },
+    {
+      "check": "build-test-runtime",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "contract-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "projection-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "source-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "source-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:c333c591772cc2f1a6a9379d3da22e4fad54c88cc0967dfc8e6b52a7f6623705"
+    },
+    {
+      "check": "installed-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:2acceda6759c2c6f210ad013419ea42b1237a434b8f1aaad25dfa81c0348368a"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:db717dc555a5ceef84ebdde3048f7fb888876091a41aaa150f73c99a8bcfe3da"
+    },
+    {
+      "check": "installed-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:4150d2c053e26d91715e64236f112bfc65cdb82b51146700c2fc37d98196bc86"
+    },
+    {
+      "check": "seed-preflight",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
+    }
+  ]
+}

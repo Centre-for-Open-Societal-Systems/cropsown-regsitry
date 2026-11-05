@@ -35,19 +35,19 @@ class G2PInfestation:
     disease_type: Mapped[str] = mapped_column(String, nullable=True)
     disease_control_method: Mapped[str] = mapped_column(String, nullable=True)
     disease_frequency_of_application: Mapped[str] = mapped_column(String, nullable=True)
-    
+
     pest_type: Mapped[str] = mapped_column(String, nullable=True)
     pesticide_name: Mapped[str] = mapped_column(String, nullable=True)
     pesticide_type: Mapped[str] = mapped_column(String, nullable=True)
     pesticide_method: Mapped[str] = mapped_column(String, nullable=True)
     pesticide_frequency: Mapped[str] = mapped_column(String, nullable=True)
-    
+
     weed_type: Mapped[str] = mapped_column(String, nullable=True)
     weed_control_method: Mapped[str] = mapped_column(String, nullable=True)
     weedicide_name: Mapped[str] = mapped_column(String, nullable=True)
     weedicide_type: Mapped[str] = mapped_column(String, nullable=True)
     weedicide_frequency: Mapped[str] = mapped_column(String, nullable=True)
-    
+
     fungicide_name: Mapped[str] = mapped_column(String, nullable=True)
     fungicide_type: Mapped[str] = mapped_column(String, nullable=True)
 
@@ -127,10 +127,10 @@ def generate_infestation_id(mapper, connection, target):
     if not getattr(target, 'infestation_id', None):
         current_year = datetime.date.today().year
         prefix = f"PI/{current_year}/"
-        
+
         table = target.__table__
         stmt = select(func.max(table.c.infestation_id)).where(table.c.infestation_id.like(f"{prefix}%"))
-        
+
         result = connection.execute(stmt).scalar()
         if result:
             try:
@@ -140,7 +140,7 @@ def generate_infestation_id(mapper, connection, target):
                 new_seq = 1
         else:
             new_seq = 1
-            
+
         target.infestation_id = f"{prefix}{new_seq:05d}"
 
 event.listen(G2PRegisterInfestation, 'before_insert', generate_infestation_id)

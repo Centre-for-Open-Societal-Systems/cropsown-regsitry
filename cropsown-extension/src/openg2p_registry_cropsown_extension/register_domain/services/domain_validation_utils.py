@@ -78,10 +78,16 @@ def is_blank(value) -> bool:
 def validate_alphabetical_name(value, field_name: str) -> None:
     if is_blank(value):
         return
+    if field_name in {"Farmer name", "Development agent name", "Supervisor name"}:
+        from .field_rules import explain, name_issue
+        problem=name_issue(value,"farmer_name")
+        if problem:
+            validation_error(explain(problem).replace("Farmer name",field_name,1))
+        return
     import re
-    # Allow alphanumeric characters, spaces, hyphens, and dots for DA/Supervisor/Farmer names
+    # Non-person botanical/local names retain their separate legacy contract.
     if not re.match(r"^[a-zA-Z0-9\s\.\-_]+$", str(value).strip()):
-        validation_error(f"{field_name} must contain only alphabetical characters, numbers, and spaces")
+        validation_error(f"{field_name} can contain only letters, numbers and spaces")
 
 
 def validate_mobile_number(value, field_name: str) -> None:
@@ -127,7 +133,7 @@ def get_attribute_variants(value, prefix: str = "") -> list[str]:
         return []
     v_str = str(value).strip()
     clean = v_str
-    for p in ("CROP_SEASON_", "CROP_COMMODITY_", "CROP_VARIETY_", "CROP_CATEGORY_"):
+    for p in ("CROP_SEASON_", "CROP_COMMODITY_", "CROP_CATEGORY_"):
         clean = clean.replace(p, "")
     clean = clean.strip().upper()
     variants = {v_str, clean, v_str.upper(), v_str.lower(), clean.capitalize()}
@@ -150,6 +156,30 @@ async def resolve_production_season(record: dict, session) -> str | None:
     for k, v in record.items():
         if isinstance(k, str) and k.endswith("production_season") and v:
             return v
+
+    # The platform calls validate_domain_attributes (and thus this) WITHOUT a DB
+    # session during the intake "Next" / CR save, and child-section payloads carry
+    # no submission/record id. Supply the submission_id from the intake-save
+    # ContextVar (set by CropIntakeService) and open our own session, then reuse
+    # the DB resolution below.
+    if session is None:
+        enriched = record
+        if not record.get("submission_id"):
+            try:
+                from .crop_intake_service import submission_ctx
+
+                ctx_submission = submission_ctx.get()
+            except Exception:
+                ctx_submission = None
+            if ctx_submission:
+                enriched = {**record, "submission_id": ctx_submission}
+        try:
+            from openg2p_fastapi_common.context import get_async_session_maker
+
+            async with get_async_session_maker()() as own_session:
+                return await resolve_production_season(enriched, own_session)
+        except Exception:
+            return None
 
     submission_id = record.get("submission_id")
     if session and submission_id:
@@ -252,6 +282,74 @@ async def resolve_production_season(record: dict, session) -> str | None:
     return None
 
 
+async def run_previous_section_validation(validator, records: list[dict], session) -> None:
+    """Bridge the on-"Next" section save to the cross-section date validators.
+
+    On the Next button the platform calls ``validate_domain_attributes`` WITHOUT a
+    DB session, and the child payload carries no ``submission_id`` — so the
+    cross-section validators (which need both) never run. Resolve ``submission_id``
+    (payload first, then the intake-save ContextVar set by ``CropIntakeService``)
+    and open our own session when none was supplied. Validation errors propagate
+    (to block Next); infrastructure errors are swallowed so plumbing never blocks
+    a save.
+    """
+    rows = [r for r in (records or []) if isinstance(r, dict)]
+    submission_id = next((str(r.get("submission_id")) for r in rows if r.get("submission_id")), None)
+    if not submission_id:
+        try:
+            from .crop_intake_service import submission_ctx
+
+            submission_id = submission_ctx.get()
+        except Exception:
+            submission_id = None
+    if not submission_id:
+        return
+    try:
+        if session is not None:
+            await validator(session, rows, submission_id)
+        else:
+            from openg2p_fastapi_common.context import get_async_session_maker
+
+            async with get_async_session_maker()() as own_session:
+                await validator(own_session, rows, submission_id)
+    except G2PRegistryException:
+        raise
+    except Exception:
+        return
+
+
+async def run_record_cross_validation(check, record: dict, session) -> None:
+    """Bridge a per-record section cross-check (signature ``check(record, session)``)
+    so it runs on the Next button. When the platform supplies no session, enrich the
+    record with submission_id from the intake-save ContextVar and self-open a session.
+    These checks match the previous section by land_id + season against the register,
+    so they resolve even without submission/link context. Validation errors propagate
+    (to block Next); infrastructure errors are swallowed.
+    """
+    if session is not None:
+        await check(record, session)
+        return
+    enriched = record
+    if not record.get("submission_id"):
+        try:
+            from .crop_intake_service import submission_ctx
+
+            sid = submission_ctx.get()
+        except Exception:
+            sid = None
+        if sid:
+            enriched = {**record, "submission_id": sid}
+    try:
+        from openg2p_fastapi_common.context import get_async_session_maker
+
+        async with get_async_session_maker()() as own_session:
+            await check(enriched, own_session)
+    except G2PRegistryException:
+        raise
+    except Exception:
+        return
+
+
 def is_record_deleted(record: dict) -> bool:
     if not isinstance(record, dict):
         return False
@@ -268,3 +366,24 @@ def is_record_deleted(record: dict) -> bool:
         return True
     return False
 
+
+FIELD_LABELS = {
+    "planned_date": "Planned date",
+    "actual_cultivation_date": "Actual cultivation date",
+    "cluster_harvest_date": "Cluster harvest date",
+    "sowing_date": "Sowing date",
+    "number_of_smallholders": "Number of smallholders",
+    "expected_yield": "Expected yield",
+    "actual_yield": "Actual yield",
+    "yield_per_ha": "Yield per hectare",
+    "da_mobile_number": "Development agent mobile number",
+    "supervisor_mobile_number": "Supervisor mobile number",
+}
+
+
+def field_label(key: str) -> str:
+    """The name staff see for a stored field, never its column name."""
+    if key in FIELD_LABELS:
+        return FIELD_LABELS[key]
+    text = " ".join(str(key or "").replace("_", " ").split())
+    return text[:1].upper() + text[1:]

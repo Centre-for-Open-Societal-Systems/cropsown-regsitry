@@ -30,10 +30,12 @@
 #   AWS_ACCOUNT_ID  account that owns the ECR registry (or set ECR_REGISTRY)
 #   ECR_REGISTRY    full registry host; overrides AWS_ACCOUNT_ID + AWS_REGION
 #   AWS_REGION      default ap-south-1
-#   ECR_BASE        default gen2/cropsown-registry
+#   ECR_BASE        default openg2p/cropsown-registry
 #   NAMESPACE       default crop
 #   RELEASE_NAME    default cropsown-registry
-#   CHART_DIR       default helm/openg2p-cropsown-registry
+#   Chart/profile: ci/deploy/oan-chart.json (immutable central archive)
+#   PRESERVE_RELEASE_VALUES true to require an existing release and layer its
+#                   complete current values before image overrides (default false)
 #   KUBECONFIG      the cluster to deploy to
 #   CREATE_NAMESPACE false to deploy without helm's --create-namespace, for an
 #                   account that may not manage namespaces (default true)
@@ -56,13 +58,16 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+python3 ci/deploy/oan_chart.py require-deployable registry "${COSS_DEPLOY_ENVIRONMENT:-dev}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
 TAG="${1:-${TAG:-}}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-ECR_BASE="${ECR_BASE:-gen2/cropsown-registry}"
+ECR_BASE="${ECR_BASE:-openg2p/cropsown-registry}"
 NAMESPACE="${NAMESPACE:-crop}"
 RELEASE_NAME="${RELEASE_NAME:-cropsown-registry}"
-CHART_DIR="${CHART_DIR:-helm/openg2p-cropsown-registry}"
 HELM_VERSION="${HELM_VERSION:-v4.2.4}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.36.1}"
 TOOLS_DIR="${TOOLS_DIR:-$REPO_ROOT/.tools}"
@@ -144,7 +149,10 @@ fi
 # Settle the tools before touching the cluster, not halfway through.
 ensure_helm
 ensure_kubectl
-[ -f "$CHART_DIR/Chart.yaml" ] || die "no chart at $CHART_DIR"
+CENTRAL_WORK="$(mktemp -d)"
+trap 'rm -rf "$CENTRAL_WORK"' EXIT
+CHART_DIR="$(python3 ci/deploy/oan_chart.py fetch registry "$CENTRAL_WORK")"
+CENTRAL_VALUES="$(python3 ci/deploy/oan_chart.py values registry "$CENTRAL_WORK/public-values.yaml")"
 
 note "Deploying ${RELEASE_NAME} to namespace ${NAMESPACE}"
 echo "helm:     $(helm version --short 2>/dev/null || echo '?') ($(command -v helm))"
@@ -177,15 +185,22 @@ if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; 
   die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"
 fi
 
-# The wrapper chart owns no templates; every manifest comes from the pinned
-# openg2p-registry subchart, so the dependency must be present before install.
-helm repo add openg2p https://openg2p.github.io/openg2p-helm || true
-helm repo update openg2p || true
-# Chart.lock and charts/ are gitignored, so a lock left in the workspace by an
-# older build survives checkout and still pins the previous openg2p-registry
-# version — `helm dependency build` then fails "out of sync" with Chart.yaml.
-rm -f "./${CHART_DIR}/Chart.lock" "./${CHART_DIR}"/charts/*.tgz
-helm dependency build "./${CHART_DIR}"
+# Preserve inherited settings too: chart defaults can change between releases.
+# The staging wrapper requires this mode and refuses a missing release rather
+# than installing with a different environment's defaults. Never print values.
+RELEASE_VALUES=()
+if [ "${PRESERVE_RELEASE_VALUES:-false}" = "true" ]; then
+  VALUES_SNAPSHOT="$(umask 077; mktemp)"
+  trap 'rm -f "$VALUES_SNAPSHOT"; rm -rf "$CENTRAL_WORK"' EXIT
+  if ! helm get values "$RELEASE_NAME" --namespace "$NAMESPACE" --all -o yaml > "$VALUES_SNAPSHOT"; then
+    die "cannot preserve existing release values; refusing the upgrade"
+  fi
+  [ -s "$VALUES_SNAPSHOT" ] || die "empty release values; refusing the upgrade"
+  RELEASE_VALUES=(-f "$VALUES_SNAPSHOT")
+fi
+
+# The central archive already includes its locked native platform dependency.
+# Never resolve a moving chart repository or rewrite its packaged version here.
 
 # Point one chart component at an image built by this pipeline.
 #
@@ -196,7 +211,7 @@ helm dependency build "./${CHART_DIR}"
 SETS=()
 set_image() {
   SETS+=(--set "registry.$1.image.repository=${ECR_REGISTRY}/${ECR_BASE}/$2"
-         --set "registry.$1.image.tag=${TAG}")
+         --set-string "registry.$1.image.tag=${TAG}")
 }
 set_image staffApi     staff-api
 set_image partnerApi   partner-api
@@ -211,10 +226,12 @@ set_image sanity       sanity-tests
 NS_FLAG=()
 [ "${CREATE_NAMESPACE:-true}" = "false" ] || NS_FLAG=(--create-namespace)
 
-helm upgrade --install "${RELEASE_NAME}" "./${CHART_DIR}" \
+helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
   --namespace "${NAMESPACE}" \
   ${NS_FLAG[@]+"${NS_FLAG[@]}"} \
   --timeout 10m \
+  ${RELEASE_VALUES[@]+"${RELEASE_VALUES[@]}"} \
+  -f "$CENTRAL_VALUES" \
   "${SETS[@]}"
 
 note "Waiting for rollout"

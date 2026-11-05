@@ -9,13 +9,16 @@ from .domain_compute_utils import (
     compute_ec_date
 )
 
-from .domain_validation_utils import as_float, parse_date, validation_error
+from .domain_validation_utils import as_float, parse_date, validation_error, field_label
+from .plain_text import planning_record_name
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
 
 class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         _logger.warning("VALIDATION RECORDS PAYLOAD: %s", records)
         from .domain_validation_utils import is_record_deleted
         active_records = [r for r in records if not is_record_deleted(r)]
@@ -23,19 +26,19 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
         for record in active_records:
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
-            validate_alphabetical_name(record.get("farmer_name"), "Farmer Name")
-            validate_alphabetical_name(record.get("da_name"), "DA Name")
-            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor Name")
-            validate_alphabetical_name(record.get("local_name"), "Local Name")
-            validate_alphabetical_name(record.get("scientific_name"), "Scientific Name")
-            validate_mobile_number(record.get("da_mobile_number"), "DA Mobile Number")
-            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor Mobile Number")
+            validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
+            validate_alphabetical_name(record.get("da_name"), "Development agent name")
+            validate_alphabetical_name(record.get("supervisor_name"), "Supervisor name")
+            validate_alphabetical_name(record.get("local_name"), "Local name")
+            validate_alphabetical_name(record.get("scientific_name"), "Scientific name")
+            validate_mobile_number(record.get("da_mobile_number"), "Development agent mobile number")
+            validate_mobile_number(record.get("supervisor_mobile_number"), "Supervisor mobile number")
             if not str(record.get("land_id") or "").strip():
-                validation_error("Land ID is required in Crop Planning.")
+                validation_error("Land ID is required in Crop planning.")
             if not str(record.get("season") or "").strip():
-                validation_error("Season is required in Crop Planning.")
+                validation_error("Season is required in Crop planning.")
             if not str(record.get("commodity") or "").strip():
-                validation_error("Crop is required in Crop Planning.")
+                validation_error("Crop is required in Crop planning.")
 
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
@@ -46,7 +49,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
                 s_clean = str(season).replace("CROP_SEASON_", "").strip().upper()
                 if p_clean != s_clean:
                     validation_error(
-                        f"Season '{season}' in Crop Planning Details does not match the Production Season '{prod_season}' specified in Farmer Identity."
+                        f"Season '{season}' in Crop planning details does not match the Production season '{prod_season}' specified in Farmer identity."
                     )
 
 
@@ -61,12 +64,12 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     def _validate_planned_area(self, record: dict) -> None:
         planned_area = as_float(record.get("planned_area"))
         if planned_area is not None and planned_area <= 0:
-            validation_error("planned_area must be greater than zero when provided")
-            
+            validation_error("Planned crop area must be greater than zero")
+
         land_area = as_float(record.get("land_area"))
         if planned_area is not None and land_area is not None and land_area > 0:
             if planned_area > land_area:
-                validation_error(f"Planned Crop Area ({planned_area} ha) cannot be greater than Total Land Area ({land_area} ha).")
+                validation_error(f"Planned crop area ({planned_area} hectares) cannot be greater than Total land area ({land_area} hectares).")
 
     def _validate_cumulative_planned_area(self, records: list[dict]) -> None:
         by_land: dict[str, list[dict]] = {}
@@ -80,14 +83,14 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             land_area = next((as_float(r.get("land_area")) for r in land_records if as_float(r.get("land_area")) is not None and as_float(r.get("land_area")) > 0), None)
             if land_area is not None and land_area > 0 and total_planned > land_area + 1e-6:
                 validation_error(
-                    f"Total Planned Crop Area ({total_planned:g} ha) across all records for Land ID '{land_id}' "
-                    f"exceeds Total Land Area ({land_area:g} ha)."
+                    f"Total planned crop area ({total_planned:g} hectares) across all records for Land ID '{land_id}' "
+                    f"exceeds Total land area ({land_area:g} hectares)."
                 )
 
     def _validate_planned_date(self, record: dict) -> None:
         planned_date = parse_date(record.get("planned_date"))
         if planned_date is not None and planned_date.year > date.today().year + 1:
-            validation_error("planned_date must not be more than one season ahead")
+            validation_error("Planned date must not be more than one season ahead")
 
     def _validate_no_duplicate_commodity_season(self, records: list[dict]) -> None:
         seen: set[tuple[str, str, str]] = set()
@@ -112,7 +115,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             return
         if not is_date_in_season(value, record.get("start_month"), record.get("start_day"),
                                  record.get("end_month"), record.get("end_day")):
-            validation_error(f"{field} falls outside the season window on this record")
+            validation_error(f"{field_label(field)} is outside the season dates of this record")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for planning")
@@ -122,7 +125,6 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             "land_id",
             "season",
             "commodity",
-            "crop_variety",
             "crop_category",
             "local_name",
             "scientific_name",
@@ -152,14 +154,4 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
     def construct_record_name(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing record name for planning")
 
-        keys = ["commodity", "season", "planned_area"]
-        record_name = []
-        if extra:
-            record_name.extend(str(item).strip() for item in extra if str(item).strip())
-        record_name.extend(
-            str(payload.get(key) or "").strip()
-            for key in keys
-            if str(payload.get(key) or "").strip()
-        )
-
-        return " ".join(record_name).strip()
+        return planning_record_name(payload, extra)

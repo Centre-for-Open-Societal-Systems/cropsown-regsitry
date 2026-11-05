@@ -1,0 +1,11 @@
+{
+  "registry": "cropsown",
+  "staff_ui_build": "PASS",
+  "local_image_id": "sha256:6e24ec66e16a6590fa622863b34f5b85e54b5c51723b4757403d94772fb14fb1",
+  "upstream_ui_source": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "platform_version": "1.2.2-rc.557",
+  "native_master_data_required": "0.0.0-develop.118",
+  "geometry_tests": 4,
+  "deployment": false,
+  "checks": "TypeScript/Next source build and polygon holes/islands/reversed TopoJSON/authenticated retry tests. Full authenticated portal interaction remains NOT RUN."
+}

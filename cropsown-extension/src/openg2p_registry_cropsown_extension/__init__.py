@@ -1,53 +1,56 @@
-import os
-
-if "COMMON_AUTH_REDIS_URL" not in os.environ and "REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL" in os.environ:
-    os.environ["COMMON_AUTH_REDIS_URL"] = os.environ["REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL"]
-if "COMMON_AUTH_PROVIDER_API_URL" not in os.environ and "REGISTRY_STAFF_PORTAL_API_AUTH_PROVIDER_API_URL" in os.environ:
-    os.environ["COMMON_AUTH_PROVIDER_API_URL"] = os.environ["REGISTRY_STAFF_PORTAL_API_AUTH_PROVIDER_API_URL"]
-if "COMMON_KEYCLOAK_CLIENT_ID" not in os.environ and "AUTH_CLIENT_ID" in os.environ:
-    os.environ["COMMON_KEYCLOAK_CLIENT_ID"] = os.environ["AUTH_CLIENT_ID"]
-if "COMMON_DB_HOSTNAME" not in os.environ and "REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME" in os.environ:
-    os.environ["COMMON_DB_HOSTNAME"] = os.environ["REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME"]
-if "COMMON_DB_PORT" not in os.environ and "REGISTRY_STAFF_PORTAL_API_DB_PORT" in os.environ:
-    os.environ["COMMON_DB_PORT"] = str(os.environ["REGISTRY_STAFF_PORTAL_API_DB_PORT"])
-if "COMMON_DB_DBNAME" not in os.environ and "REGISTRY_STAFF_PORTAL_API_DB_DBNAME" in os.environ:
-    os.environ["COMMON_DB_DBNAME"] = os.environ["REGISTRY_STAFF_PORTAL_API_DB_DBNAME"]
-if "COMMON_DB_USERNAME" not in os.environ and "REGISTRY_STAFF_PORTAL_API_DB_USERNAME" in os.environ:
-    os.environ["COMMON_DB_USERNAME"] = os.environ["REGISTRY_STAFF_PORTAL_API_DB_USERNAME"]
-if "COMMON_DB_PASSWORD" not in os.environ and "REGISTRY_STAFF_PORTAL_API_DB_PASSWORD" in os.environ:
-    os.environ["COMMON_DB_PASSWORD"] = os.environ["REGISTRY_STAFF_PORTAL_API_DB_PASSWORD"]
-if "COMMON_DB_DRIVER" not in os.environ:
-    os.environ["COMMON_DB_DRIVER"] = "postgresql+asyncpg"
-
-try:
-    from openg2p_fastapi_common.config import Settings as CommonSettings
-    _common_conf = CommonSettings.get_config(strict=False)
-    if getattr(_common_conf, "db_hostname", None) in (None, "localhost", "127.0.0.1"):
-        _common_conf.db_hostname = os.environ.get("COMMON_DB_HOSTNAME", os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME", "postgres"))
-        _common_conf.db_port = int(os.environ.get("COMMON_DB_PORT", os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PORT", 5432)))
-        _common_conf.db_dbname = os.environ.get("COMMON_DB_DBNAME", os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_DBNAME", "cropsown"))
-        _common_conf.db_username = os.environ.get("COMMON_DB_USERNAME", os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_USERNAME", "postgres"))
-        _common_conf.db_password = os.environ.get("COMMON_DB_PASSWORD", os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PASSWORD", "postgres"))
-        _common_conf.db_driver = "postgresql+asyncpg"
-        _common_conf.db_datasource = f"{_common_conf.db_driver}://{_common_conf.db_username}:{_common_conf.db_password}@{_common_conf.db_hostname}:{_common_conf.db_port}/{_common_conf.db_dbname}"
-except Exception:
-    pass
-
-try:
-    from iam_core.user_auth.config import Settings as IamSettings
-    _iam_conf = IamSettings.get_config(strict=False)
-    if getattr(_iam_conf, "auth_redis_url", None) in (None, "redis://localhost:6379/0"):
-        _iam_conf.auth_redis_url = os.environ.get("REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL", "redis://redis:6379/0")
-    if not getattr(_iam_conf, "auth_provider_api_url", None):
-        _iam_conf.auth_provider_api_url = os.environ.get("REGISTRY_STAFF_PORTAL_API_AUTH_PROVIDER_API_URL", "http://iam:8000")
-except Exception:
-    pass
-
 __version__ = "1.0.0"
 __variant__ = "cropsown"
 
-try:
-    from . import odk_ingest_hooks  # noqa: F401
-except ImportError:
-    pass
+# The platform selects this package through REGISTRY_EXTENSION_MODULE and publishes
+# it as ``openg2p_registry_extensions`` by assigning the package object in
+# sys.modules. That aliases the package only. An import of an alias-name
+# submodule such as ``openg2p_registry_extensions.register_domain.models`` finds
+# no sys.modules entry, so Python executes the module file a second time and the
+# mapped classes declare their tables twice on the shared MetaData ("Table
+# 'g2p_register_farmers' is already defined for this MetaData instance"). The
+# platform's ingestion classifier imports the models by the alias name inside the
+# celery worker, which had loaded them under this real name at startup.
+#
+# The finder below resolves every alias-name submodule to the module already
+# loaded (or loaded on demand) under this package's real name, so both names
+# share one module object. It only acts while the alias points at this package.
+import sys as _sys
+from importlib import import_module as _import_module
+from importlib.abc import Loader as _Loader
+from importlib.abc import MetaPathFinder as _MetaPathFinder
+from importlib.machinery import ModuleSpec as _ModuleSpec
 
+PLATFORM_ALIAS = "openg2p_registry_extensions"
+_REAL_NAME = __name__
+
+
+class _SharedModuleLoader(_Loader):
+    """Hands importlib the module object already loaded under the real name."""
+
+    def __init__(self, module):
+        self._module = module
+        self._spec = module.__spec__
+
+    def create_module(self, spec):
+        return self._module
+
+    def exec_module(self, module):
+        # importlib stamps the alias spec onto the shared module; keep its own.
+        module.__spec__ = self._spec
+
+
+class _PlatformAliasFinder(_MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if not fullname.startswith(PLATFORM_ALIAS + "."):
+            return None
+        if _sys.modules.get(PLATFORM_ALIAS) is not _sys.modules.get(_REAL_NAME):
+            return None
+        module = _import_module(_REAL_NAME + fullname[len(PLATFORM_ALIAS):])
+        spec = _ModuleSpec(fullname, _SharedModuleLoader(module), origin=getattr(module, "__file__", None))
+        if hasattr(module, "__path__"):
+            spec.submodule_search_locations = list(module.__path__)
+        return spec
+
+
+if not any(isinstance(finder, _PlatformAliasFinder) for finder in _sys.meta_path):
+    _sys.meta_path.insert(0, _PlatformAliasFinder())

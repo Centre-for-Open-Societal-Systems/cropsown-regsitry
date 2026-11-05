@@ -1,0 +1,340 @@
+{
+  "domain": "cropsown",
+  "runtime_acceptance": "NOT RUN",
+  "registry_stacks_started": 0,
+  "steps": [
+    {
+      "check": "source-check",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "python_files_parsed": 52,
+        "platform_pins": [
+          "1.2.2-rc.557"
+        ],
+        "promotion_ready": false,
+        "source_checks": "PASS"
+      }
+    },
+    {
+      "check": "staff-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 38,
+          "G2PRegisterHistoryFarmer": 45,
+          "G2PIntakeFormFarmer": 40,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "worker-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 38,
+          "G2PRegisterHistoryFarmer": 45,
+          "G2PIntakeFormFarmer": 40,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "platform-contract",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "worker_initializer": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/app.py",
+          "sha256": "6456481a7ffd30ff291b0d047df9cbb26711abf1c18c92f9de06bf41456a442b",
+          "matches": [
+            {
+              "line": 44,
+              "symbol": "Initializer"
+            }
+          ]
+        },
+        "worker_cr_creator": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/g2p_change_request_worker_service.py",
+          "sha256": "4ad2bfbfe5ad319abc20d9e1655180cc640dc220337389ebb4a950ede80a14fe",
+          "matches": [
+            {
+              "line": 16,
+              "symbol": "create_change_request"
+            }
+          ]
+        },
+        "worker_awe_calls": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/g2p_change_request_worker_service.py",
+          "sha256": "4ad2bfbfe5ad319abc20d9e1655180cc640dc220337389ebb4a950ede80a14fe",
+          "matches": []
+        },
+        "beat_extension_initializer_imports": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_beat/app.py",
+          "sha256": "f35a40a155f67ddf70f2818da2c7875ead4a26082f0bdc4720c1ac42b00840b8",
+          "matches": []
+        },
+        "worker_extension_initializer_imports": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_celery_worker/app.py",
+          "sha256": "6456481a7ffd30ff291b0d047df9cbb26711abf1c18c92f9de06bf41456a442b",
+          "matches": []
+        },
+        "session_aware_intake_validation": {
+          "path": "/usr/local/lib/python3.12/site-packages/openg2p_registry_core/services/intake_form_data_service.py",
+          "sha256": "407410ed6588c73688a0b5c7a568d3f94d18f3f33a8c42d581cc403e28098f8d",
+          "matches": []
+        }
+      }
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:801a65d2685711808d296202ee3a318647cba01f98050c5159a6a7c0c74f0a8a"
+    },
+    {
+      "check": "installed-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 38,
+          "G2PRegisterHistoryFarmer": 45,
+          "G2PIntakeFormFarmer": 40,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:1806413fba3610426f8dbc69b817db4c74ca346054520928018021f3c5ee89a1"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:bb771ffe68b69ff2cda7475055b2ab092139a6e7092abfdd25f6a36cd01e574d"
+    },
+    {
+      "check": "installed-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "cropsown",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 38,
+          "G2PRegisterHistoryFarmer": 45,
+          "G2PIntakeFormFarmer": 40,
+          "G2PRegisterCropSown": 43,
+          "G2PRegisterHistoryCropSown": 50,
+          "G2PIntakeFormCropSown": 45,
+          "G2PRegisterPlanning": 59,
+          "G2PRegisterHistoryPlanning": 66,
+          "G2PIntakeFormPlanning": 61,
+          "G2PRegisterCultivation": 55,
+          "G2PRegisterHistoryCultivation": 62,
+          "G2PIntakeFormCultivation": 57,
+          "G2PRegisterSowing": 37,
+          "G2PRegisterHistorySowing": 44,
+          "G2PIntakeFormSowing": 39,
+          "G2PRegisterProduction": 18,
+          "G2PRegisterHistoryProduction": 25,
+          "G2PIntakeFormProduction": 20,
+          "G2PRegisterHarvest": 44,
+          "G2PRegisterHistoryHarvest": 51,
+          "G2PIntakeFormHarvest": 46,
+          "G2PRegisterInfestation": 58,
+          "G2PRegisterHistoryInfestation": 65,
+          "G2PIntakeFormInfestation": 60,
+          "G2PRegisterCluster": 65,
+          "G2PRegisterHistoryCluster": 72,
+          "G2PIntakeFormCluster": 67,
+          "G2PRegisterCultivationCluster": 65,
+          "G2PRegisterHistoryCultivationCluster": 72,
+          "G2PIntakeFormCultivationCluster": 67
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "production unit conversions and ratios",
+          "zero denominators",
+          "timad to hectare",
+          "season across year boundary",
+          "negative yield",
+          "zero production area",
+          "canonical geography and no draft-to-live writes"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:c6f1123f969472f5f936ee2b2b4e966b3f44befe8b8815a6527ec4717c8d19eb"
+    },
+    {
+      "check": "seed-preflight",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
+    }
+  ]
+}

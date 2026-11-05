@@ -1,0 +1,32 @@
+{
+  "registry": {
+    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/aea4d05225e6d65eef7d7c307bbba8e5a478900a/repository/",
+    "name": "openg2p-cropsown-registry",
+    "version": "1.0.0-dev.20",
+    "sha256": "ca90d0c35dde61923953488a7d149fadd8d6ae5bc77401bc7ab48e848bb9a726",
+    "environment": "dev",
+    "namespace": "crop",
+    "release": "cropsown-registry",
+    "promotionReady": true,
+    "values": {
+      "path": "environments/dev/values/cropsown.yaml",
+      "sha256": "f1ce2b7aef3909f5c3049fda9f09e11118eeaa8e844e5161b123aec7a05059d9",
+      "url": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/aea4d05225e6d65eef7d7c307bbba8e5a478900a/environments/dev/values/cropsown.yaml"
+    },
+    "platformVersion": "1.2.2-rc.614"
+  },
+  "dashboard": {
+    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/0b25fcc12b89019d06cc4a050030f4b9d3e73ef6/repository/",
+    "name": "cropsown-registry-dashboard",
+    "version": "0.1.2",
+    "sha256": "3126720aef8d5ce9314195c8b253a4886d5c6c7e757a104af0303a0c617de064",
+    "environment": "dev",
+    "namespace": "crop",
+    "release": "cropsown-registry-dashboard",
+    "promotionReady": false,
+    "values": {
+      "path": "environments/dev/values/cropsown-dashboard.yaml",
+      "sha256": "b7882002d3de4c9c6b803bdf756535716933f9801d5f33f62ccc769f3c7b8cfc"
+    }
+  }
+}

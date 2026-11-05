@@ -64,6 +64,3 @@ class AgroEcologicalZoneEnum(StrEnum):
     DEGA = "DEGA"
     WURCH = "WURCH"
     BEREHA = "BEREHA"
-
-
-

@@ -1,0 +1,126 @@
+name,label,category,category_label
+CROP_TEFF,Teff,CROPCAT_CEREAL,Cereals
+CROP_QUINOA,Quinoa,CROPCAT_CEREAL,Cereals
+CROP_BREAD_WHEAT,Bread wheat,CROPCAT_CEREAL,Cereals
+CROP_DURUM_WHEAT,Durum wheat,CROPCAT_CEREAL,Cereals
+CROP_TRITICALE,Triticale,CROPCAT_CEREAL,Cereals
+CROP_EMMER_WHEAT,Emmer wheat,CROPCAT_CEREAL,Cereals
+CROP_BUCKWHEAT,Buckwheat,CROPCAT_CEREAL,Cereals
+CROP_BARLEY,Barley,CROPCAT_CEREAL,Cereals
+CROP_MALT_BARLEY,Malt barley,CROPCAT_CEREAL,Cereals
+CROP_SORGHUM,Sorghum,CROPCAT_CEREAL,Cereals
+CROP_FINGER_MILLET,Finger millet,CROPCAT_CEREAL,Cereals
+CROP_PEARL_MILLET,Pearl millet,CROPCAT_CEREAL,Cereals
+CROP_FOXTAIL_MILLET,Foxtail millet,CROPCAT_CEREAL,Cereals
+CROP_MAIZE,Maize,CROPCAT_CEREAL,Cereals
+CROP_RICE,Rice,CROPCAT_CEREAL,Cereals
+CROP_FABA_BEAN,Faba bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_CHICKPEA,Chickpea,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_LENTIL,Lentil,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_FIELD_PEA,Field pea,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_DEKOKO,Dekoko,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_COWPEA,Cowpea,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_HARICOT_BEAN,Haricot bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_GRASS_PEA,Grass pea,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_MUNG_BEAN,Mung bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_ADZUKI_BEAN,Adzuki bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_LIMA_BEAN,Lima bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_COMMON_BEAN,Common bean,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_NOUG,Noug,CROPCAT_OILSEED,Oilseeds
+CROP_LINSEED,Linseed,CROPCAT_OILSEED,Oilseeds
+CROP_RAPESEED,Rapeseed,CROPCAT_OILSEED,Oilseeds
+CROP_ETHIOPIAN_MUSTARD,Ethiopian mustard,CROPCAT_OILSEED,Oilseeds
+CROP_SUNFLOWER,Sunflower,CROPCAT_OILSEED,Oilseeds
+CROP_SAFFLOWER,Safflower,CROPCAT_OILSEED,Oilseeds
+CROP_SOYBEAN,Soybean,CROPCAT_OILSEED,Oilseeds
+CROP_SESAME,Sesame,CROPCAT_OILSEED,Oilseeds
+CROP_GROUNDNUT,Groundnut,CROPCAT_OILSEED,Oilseeds
+CROP_WINE_GRAPE,Wine grape,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_PEACH,Peach,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_BANANA,Banana,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_MANGO,Mango,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_PINEAPPLE,Pineapple,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_AVOCADO,Avocado,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_ZIZIPHUS,Ziziphus,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_FIG,Fig,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_PAPAYA,Papaya,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_DATE_PALM,Date palm,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_GARLIC,Garlic,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SHALLOT,Shallot,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_CARROT,Carrot,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_LETTUCE,Lettuce,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SNAP_BEAN,Snap bean,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_CAULIFLOWER,Cauliflower,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SNOW_PEA,Snow pea,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_PEPPER,Pepper,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_TOMATO,Tomato,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_ONION,Onion,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_CABBAGE,Cabbage,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_WATERMELON,Watermelon,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_MUSKMELON,Muskmelon,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_GREEN_COURGETTE,Green courgette,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_YELLOW_COURGETTE,Yellow courgette,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_BROCCOLI,Broccoli,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SNAP_PEA,Snap pea,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SWEET_CORN,Sweet corn,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_FINE_BUSH_BEAN,Fine bush bean,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_OKRA,Okra,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_ANCHOTE,Anchote,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_AMARANTH,Amaranth,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_PAK_CHOI,Pak choi,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_EGGPLANT,Eggplant,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_CUCUMBER,Cucumber,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_SUMMER_SQUASH,Summer squash,CROPCAT_FRUIT_VEGETABLE,Fruits and vegetables
+CROP_POTATO,Potato,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_SWEET_POTATO,Sweet potato,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_RED_BEET,Red beet,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_TARO,Taro,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_CASSAVA,Cassava,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_ENSET,Enset,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_YAM,Yam,CROPCAT_ROOT_TUBER,Roots and tubers
+CROP_COFFEE,Coffee,CROPCAT_STIMULANT,Stimulant crops
+CROP_COTTON,Cotton,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_KENAF,Kenaf,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_VERNONIA,Vernonia,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_CASTOR,Castor,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_CAMELINA,Camelina,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_SUGARCANE,Sugarcane,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_TOBACCO,Tobacco,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_CACAO,Cacao,CROPCAT_INDUSTRIAL,Industrial crops
+CROP_SWEET_ANNIE,Sweet annie,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_PYRETHRUM,Pyrethrum,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_AFRICAN_MARIGOLD,African marigold,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_CHAMOMILE,Chamomile,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_STEVIA,Stevia,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_HIBISCUS,Hibiscus,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_CITRONELLA_GRASS,Citronella grass,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_LEMONGRASS,Lemongrass,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_PEPPERMINT,Peppermint,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_SPEARMINT,Spearmint,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_JAPANESE_MINT,Japanese mint,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_SPANISH_MINT,Spanish mint,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_GERANIUM,Geranium,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_LEMON_VERBENA,Lemon verbena,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_LAVENDER,Lavender,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_MARJORAM_OREGANO,Marjoram / oregano,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_SAGE,Sage,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_ROSEMARY,Rosemary,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_LEMON_SCENTED_EUCALYPTUS,Lemon-scented eucalyptus,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_PALMAROSA,Palmarosa,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_BLACK_PEPPER,Black pepper,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_GINGER,Ginger,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_TURMERIC,Turmeric,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_CARDAMOM,Cardamom,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_VANILLA,Vanilla,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_CORIANDER,Coriander,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_BLACK_CUMIN,Black cumin,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_WHITE_CUMIN,White cumin,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_FENUGREEK,Fenugreek,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_BASIL,Basil,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_KORARIMA,Korarima,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_ROSE,Rose,CROPCAT_SPICE_MEDICINAL_AROMATIC,"Spices, condiments, medicinal and aromatic plants"
+CROP_OTHER,Other,CROPCAT_OTHER,Other
+CROP_OAT,Oat,CROPCAT_CEREAL,Cereals
+CROP_PIGEON_PEA,Pigeon pea,CROPCAT_FOOD_LEGUME,Food legumes
+CROP_ALFALFA,Alfalfa,CROPCAT_OTHER,Other
+CROP_BRACHIARIA,Brachiaria,CROPCAT_OTHER,Other
