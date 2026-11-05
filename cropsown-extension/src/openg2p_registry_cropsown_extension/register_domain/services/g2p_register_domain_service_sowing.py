@@ -41,8 +41,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
             self._validate_sowing_date(record)
             self._validate_area_sown(record)
-            from .domain_compute_utils import compute_ec_date, is_date_in_season
-            compute_ec_date(record, "sowing_date", "sowing_date_ec")
+            from .domain_compute_utils import is_date_in_season
             if session:
                 await self._validate_existing_crop_sown_record_required(record, session=session)
                 await self._validate_land_id_matches_planning(record, session=session)

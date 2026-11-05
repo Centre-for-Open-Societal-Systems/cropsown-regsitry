@@ -19,12 +19,13 @@
 {% set production_season = cell.get('production_season', '') %}
 {% if not production_season %}{{ fail('column production_season is required') }}{% endif %}
 
-{% set text_columns = ['land_id', 'plot_category', 'ownership_type', 'soil_fertility_type', 'season', 'commodity', 'crop_category', 'local_name', 'scientific_name', 'seed_variety', 'planned_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
+{% set text_columns = ['land_id', 'plot_category', 'ownership_type', 'soil_fertility_type', 'season', 'commodity', 'crop_category', 'local_name', 'scientific_name', 'seed_variety', 'planned_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'cropping_system', 'seed_class', 'seed_source'] %}
 {% set number_columns = ['land_area', 'planned_area', 'expected_yield', 'planned_seed_qty', 'planned_fertilizer_qty', 'latitude', 'longitude'] %}
 {% set integer_columns = ['start_month', 'start_day', 'end_month', 'end_day', 'growth_duration_days', 'planned_labor'] %}
 {% set date_columns = ['start_gc', 'end_gc', 'planned_date'] %}
 {% set flag_columns = ['is_plot_not_registered'] %}
-{% set choice_columns = {'cropping_system': ['MONO_CROPPING', 'INTER_CROPPING'], 'seed_class': ['LOCAL', 'IMPROVED'], 'seed_source': ['GOVERNMENT / WOREDS AGRICULTURE', 'AGRICULTURE COOPERATIVE / UNION', 'PRIVATE SEED ENTERPRISE', 'FARMER-TO-FARMER EXCHANGE / SAVED']} %}
+{#- Master Data list columns (cropping system, seed type, seed source, agro-ecological zone) are read as text columns: the registry checks their codes against Master Data. -#}
+{% set choice_columns = {} %}
 {% set comma_list_columns = [] %}
 {% set choice_list_columns = {} %}
 

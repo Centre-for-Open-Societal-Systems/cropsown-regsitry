@@ -38,8 +38,7 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
                     )
 
 
-            from .domain_compute_utils import compute_cluster_area, compute_season_parts, compute_ec_date
-            compute_ec_date(record, "establishing_date", "establishing_date_ec")
+            from .domain_compute_utils import compute_cluster_area, compute_season_parts
 
             compute_season_parts(record)
             compute_cluster_area(record)
