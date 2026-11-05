@@ -8,9 +8,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
 digest=sha256:$(printf 'a%.0s' $(seq 1 64))
-repo=123456789012.dkr.ecr.ap-south-1.amazonaws.com/gen2/cropsown-registry/registry-connector
+repo=123456789012.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/registry-connector
 ui_digest=sha256:$(printf 'b%.0s' $(seq 1 64))
-ui_repo=123456789012.dkr.ecr.ap-south-1.amazonaws.com/gen2/cropsown-registry/registry-connector-ui
+ui_repo=123456789012.dkr.ecr.ap-south-1.amazonaws.com/openg2p/cropsown-registry/registry-connector-ui
 cat > "$dir/current.json" <<JSON
 {"fullnameOverride": "cropsown-connector",
  "global": {"connectorDB": "cropsown_connector"},

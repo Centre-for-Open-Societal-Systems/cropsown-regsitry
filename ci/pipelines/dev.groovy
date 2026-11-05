@@ -31,16 +31,16 @@ pipeline {
         choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
             description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
         string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
-            description: 'connector-plan and connector-upgrade only. Tag of gen2/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
+            description: 'connector-plan and connector-upgrade only. Tag of openg2p/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
     }
     agent any
 
     environment {
         AWS_REGION     = 'ap-south-1'
-        ECR_BASE       = 'gen2/cropsown-registry'
+        ECR_BASE       = 'openg2p/cropsown-registry'
         // The dashboard service follows the openg2p/<registry>/<image> convention.
         DASHBOARD_API_ECR = 'openg2p/cropsown-registry/dashboard-api'
-        DASHBOARD_UI_ECR = 'oan/cropsown-registry/dashboard-ui'
+        DASHBOARD_UI_ECR = 'openg2p/cropsown-registry/dashboard-ui'
 
         HELM_NAMESPACE = 'crop'
 
@@ -530,7 +530,7 @@ URL:        ${env.BUILD_URL}
 Console:    ${env.BUILD_URL}console
 
 If the images built and pushed they are in ECR under
-gen2/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
+openg2p/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
 from vpn-agent2 with ci/deploy-crop-dev.sh.
 
 Regards,

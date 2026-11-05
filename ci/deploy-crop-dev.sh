@@ -27,7 +27,7 @@
 #   AWS_ACCOUNT_ID   owner of the ECR registry                      required
 #   KUBECONFIG       kubeconfig for the dev cluster                 required
 #   AWS_REGION       default ap-south-1
-#   ECR_BASE         default gen2/cropsown-registry
+#   ECR_BASE         default openg2p/cropsown-registry
 #   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
@@ -70,7 +70,7 @@ TAG="${1:-${TAG:-}}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
 : "${KUBECONFIG:?set KUBECONFIG}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-ECR_BASE="${ECR_BASE:-gen2/cropsown-registry}"
+ECR_BASE="${ECR_BASE:-openg2p/cropsown-registry}"
 DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
