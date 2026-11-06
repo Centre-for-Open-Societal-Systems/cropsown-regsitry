@@ -290,7 +290,7 @@ class ReadableListsReplayTests(unittest.IsolatedAsyncioTestCase):
         shown = dict(english.domain_translation)
 
         # 92_plot_registered_question.sql asks the question the other way round (and swaps Yes/No).
-        assert self.labels(sections, "is_plot_not_registered") == ["Is Plot Registered?"]
+        assert self.labels(sections, "is_plot_not_registered") == ["Is plot registered?"]
         assert self.labels(sections, "water_source_method") == ["Water application method"]
         assert self.labels(sections, "water_source_frequency") == ["Watering frequency"]
         assert self.labels(sections, "reference") == ["Cluster reference"]

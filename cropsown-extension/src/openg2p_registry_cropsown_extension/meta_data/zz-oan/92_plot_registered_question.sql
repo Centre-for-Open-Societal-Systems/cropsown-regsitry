@@ -1,4 +1,4 @@
--- Ask "Is Plot Registered?" instead of "Plot is not yet registered" on the crop
+-- Ask "Is plot registered?" instead of "Plot is not yet registered" on the crop
 -- planning and cultivation forms.
 --
 -- The stored field stays is_plot_not_registered (true = the plot is not
@@ -16,7 +16,7 @@ LANGUAGE sql IMMUTABLE AS $$
         WHEN 'object' THEN
             CASE WHEN node->>'widget-data-path' = 'is_plot_not_registered'
                  THEN node || jsonb_build_object(
-                          'widget-label', 'Is Plot Registered?',
+                          'widget-label', 'Is plot registered?',
                           'widget-data-source', jsonb_build_object('type', 'static', 'options', jsonb_build_array(
                               jsonb_build_object('label', 'Yes', 'value', false),
                               jsonb_build_object('label', 'No', 'value', true))))
@@ -44,10 +44,10 @@ BEGIN
        AND NOT EXISTS (
            SELECT 1 FROM jsonb_path_query(s."section_ui_schema"::jsonb,
                     'strict $.** ? (@."widget-data-path" == "is_plot_not_registered")') w
-            WHERE w->>'widget-label' = 'Is Plot Registered?'
+            WHERE w->>'widget-label' = 'Is plot registered?'
               AND w->'widget-data-source'->'options' = '[{"label": "Yes", "value": false}, {"label": "No", "value": true}]'::jsonb);
     IF missed IS NOT NULL THEN
-        RAISE EXCEPTION 'Crop Sown plot question not set to "Is Plot Registered?" in: %', missed;
+        RAISE EXCEPTION 'Crop Sown plot question not set to "Is plot registered?" in: %', missed;
     END IF;
 END
 $$;
