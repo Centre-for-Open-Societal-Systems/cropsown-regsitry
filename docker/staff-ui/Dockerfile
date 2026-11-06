@@ -19,6 +19,11 @@ COPY ui/staff-ui/overrides ./overrides
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm install
+
+# Load the Land ID / Season / Crop overlay from the locale layout; the grep fails the build if the layout changes.
+COPY docker/staff-ui/assets/cropsown-prefill-overlay.js ./.app/public/cropsown-prefill-overlay.js
+RUN sed -i 's#</body>#<script src="/cropsown-prefill-overlay.js" defer></script></body>#' ".app/src/app/[locale]/layout.tsx"  && grep -q cropsown-prefill-overlay ".app/src/app/[locale]/layout.tsx"
+
 RUN npm run build \
  && mkdir -p /out \
  && cp -a .app/.next/standalone/. /out/ \
