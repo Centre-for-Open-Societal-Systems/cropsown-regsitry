@@ -149,6 +149,11 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
             if session:
                 await self._validate_immutability_of_season_and_year(record, session, **kwargs)
+            else:
+                # Core validates a change request's records without a session; the
+                # established Crop sown ID, crop year and production season are
+                # still checked, on a session of their own.
+                await self._validate_immutability_on_own_session(record, **kwargs)
 
             await self._sync_address_names_on_record(record, session)
 
@@ -212,6 +217,26 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             if session and (record.get("farmer_id") or record.get("fayda_fin") or record.get("fayda_fan_id") or record.get("fayda_id")):
                 await self._validate_fayda_season_and_year(record, session)
 
+    async def _validate_immutability_on_own_session(self, record: dict, **kwargs) -> None:
+        """The established-values check, for callers that pass no session.
+
+        Only a record that names an existing record can change one; others are
+        left alone without opening a session. Without a database (unit tests)
+        the check is skipped, and a validation error is never swallowed.
+        """
+        id_keys = ("internal_record_id", "link_internal_record_id", "record_id", "subject_internal_record_id")
+        if not (any(record.get(k) or kwargs.get(k) for k in id_keys) or record.get("submission_id")):
+            return
+        try:
+            from openg2p_fastapi_common.context import get_async_session_maker
+
+            session_maker = get_async_session_maker()
+        except Exception:
+            _logger.warning("No database session for the crop sown established-values check; skipped")
+            return
+        async with session_maker() as own_session:
+            await self._validate_immutability_of_season_and_year(record, own_session, **kwargs)
+
     async def _validate_immutability_of_season_and_year(self, record: dict, session, **kwargs) -> None:
         if not session:
             return
@@ -241,21 +266,34 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
         existing_year = None
         existing_season = None
+        existing_functional_id = None
         found_rec_id = None
 
         from sqlalchemy import text
 
         if internal_id:
             res = await session.execute(
-                text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
+                text("SELECT internal_record_id, crop_year, production_season, functional_record_id FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
                 {"rec_id": str(internal_id)}
             )
             existing = res.fetchone()
             if existing:
-                found_rec_id, existing_year, existing_season = existing[0], existing[1], existing[2]
+                found_rec_id, existing_year, existing_season, existing_functional_id = existing[0], existing[1], existing[2], existing[3]
 
         if not found_rec_id:
             return
+
+        # The Crop sown ID is generated at the first approval and never changes.
+        new_functional_id = record.get("functional_record_id")
+        if not new_functional_id:
+            for k, v in record.items():
+                if isinstance(k, str) and k.endswith(".functional_record_id") and v:
+                    new_functional_id = v
+                    break
+        if new_functional_id and existing_functional_id and str(new_functional_id).strip() != str(existing_functional_id).strip():
+            validation_error(
+                f"Crop sown ID cannot be changed once established for a crop sown record (Existing: '{existing_functional_id}', Attempted: '{new_functional_id}')."
+            )
 
         new_season = (
             record.get("production_season")
@@ -532,8 +570,9 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         for item in payload.change_payload or []:
             if item.get("edit_action") == "DELETE" or item.get("internal_record_id", record.internal_record_id) != record.internal_record_id:
                 continue
-            for field, label in (("production_season", "Production season"), ("crop_year", "Crop year")):
-                established = getattr(record, field)
+            for field, label in (("production_season", "Production season"), ("crop_year", "Crop year"),
+                                 ("functional_record_id", "Crop sown ID")):
+                established = getattr(record, field, None)
                 if field not in item or not established:
                     continue
                 proposed = str(item[field] or "").strip()

@@ -22,6 +22,10 @@ builder rewrites them:
    name is the value code (what the registry stores) and the label its display.
      - production season and season       -> CROP_SEASON          (inline choices)
      - agro ecological zone               -> AGRO_ECOLOGICAL_ZONE (inline choices)
+     - the land, seed, fertilizer, water, machinery, land preparation, growth stage,
+       severity, pest and weed questions  -> their Master Data lists (inline choices,
+                                             see INLINE_LISTS), so ODK offers exactly the
+                                             options and codes of the web intake form
      - crop_name.csv                      -> CROP_COMMODITY, with its CROP_CATEGORY
      - seed_variety.csv                   -> SEED_VARIETY (the one "Variety" question)
      - region/zone/woreda/kebele.csv      -> the geography, named by P-code, each row
@@ -30,8 +34,16 @@ builder rewrites them:
    on SEED_VARIETY; the source workbooks' separate "Crop Variety" question (a list
    the pack does not carry) is dropped. The geography is read from --geography
    (levels.json and values.json in the pack's format; default: the pack's), which must be
-   the geography of the environment the form is published to.
-3. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
+   the geography of the environment the form is published to. Each place is labelled
+   as Master Data names it (level_value_mnemonic, e.g. "Agarfa (ET041104)" where two
+   places share a name).
+3. Questions. "Plot not registered" (a tick box) becomes the Yes/No question "Is plot
+   registered?" (is_plot_registered), as on the web form; "Security Level" is labelled
+   "Severity level"; Disease Type is dropped until Master Data has a crop disease list;
+   Pest name and Method of control (pest) read PEST and PEST_CONTROL_ACTION; dates use the
+   Ethiopian calendar (the stored value stays Gregorian); the cluster Land ID questions
+   carry no rule tying them to the planning or cultivation Land ID, as on the web form.
+4. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
    yes/no lists, which are not Master Data lists either.
 
 The form version is the build date (--version, default VERSION below).
@@ -50,50 +62,69 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.02.1"
+VERSION = "2026.11.06.2"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
 # XLSForm choice list name -> Master Data attribute
-INLINE_LISTS = {"crop_season": "CROP_SEASON", "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE"}
+INLINE_LISTS = {
+    "crop_season": "CROP_SEASON",
+    "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
+    "plot_cat": "PLOT_CATEGORY",
+    "ownership": "OWNERSHIP_TYPE",
+    "soil_fertility": "SOIL_FERTILITY",
+    "cropping_sys": "CROPPING_SYSTEM",
+    "seed_class": "SEED_TYPE",
+    "seed_source": "SEED_SOURCE",
+    "fertilizer_type": "FERTILIZER_TYPE",
+    "water_source": "WATER_SOURCE",
+    "method": "WATER_SOURCE_METHOD",
+    "frequency": "WATER_SOURCE_FREQUENCY",
+    "cult_method": "MACHINERY",
+    "land_prep_method": "LAND_PREP_METHOD",
+    "growth_stage": "CROP_GROWTH_STAGE",
+    "security_level": "INFESTATION_SEVERITY",
+    "pest_type": "PEST",
+    "weed_type": "WEED",
+    "pest_control_action": "PEST_CONTROL_ACTION",
+}
 # Source choice lists replaced by an inline Master Data list
 REPLACES = {"production_season": "crop_season", "season": "crop_season", "ecological_zone": "agro_ecological_zone"}
 # External CSV (media file name in the form) -> (file written, Master Data attribute)
 FILE_LISTS = {"crop_name.csv": "CROP_COMMODITY", "seed_variety.csv": "SEED_VARIETY"}
 GEO_FILES = {"region.csv": "region", "zone.csv": "zone", "woreda.csv": "woreda", "kebele1.csv": "kebele"}
 # Source questions dropped from the forms: the registry has one variety field (seed_variety)
-DROPPED_QUESTIONS = {"crop_variety_id"}
+DROPPED_QUESTIONS = {"crop_variety_id", "disease_type"}
+# "Plot not registered" tick box -> the web form's Yes/No question; the transform reads
+# is_plot_registered (yes = registered) and stores is_plot_not_registered.
+PLOT_QUESTION = {"is_plot_not_registered": {"type": "select_one yes_no", "name": "is_plot_registered",
+                                            "label": "Is plot registered?"}}
+PLOT_CHOICES = [{"list_name": "yes_no", "name": "yes", "label": "Yes"},
+                {"list_name": "yes_no", "name": "no", "label": "No"}]
+LABELS = {"security_level": "Severity level"}
+# Questions that read a Master Data list on the web form but not in the published form:
+# Pest name (typed in) and Method of control (pest) (the shared weed/disease method list).
+QUESTION_TYPES = {"pest_name": "select_one pest_type", "pest_pesticide_method": "select_one pest_control_action"}
+# The web form does not check these Land IDs against planning / cultivation; neither does ODK.
+NO_RULE = {"cluster_land_info_id"}
+# Dates are entered on the Ethiopian calendar, as on the web form; the value stays the
+# Gregorian date the registry stores.
+DATE_APPEARANCE = "ethiopian"
+GREGORIAN_SUFFIX = re.compile(r"\s*\(Gregorian calendar\)\s*$")
 # Label of the variety question (the registry labels the field "Variety")
 VARIETY_LABEL = "Variety"
-YES_NO = {"only_yes", "yes_only"}
+YES_NO = {"only_yes", "yes_only", "yes_no"}
 
 # Lists left as published, with the reason they are not Master Data lists. A list that is
 # neither here, nor yes/no, nor a Master Data list above makes the build fail.
 NOT_MASTER_DATA = {
     "cluster_status": "the transform and the form's own rules compare the answer to 'clustered' and 'independent'",
-    "plot_cat": "the transform maps the published names to plot category codes and drops any other value",
-    "ownership": "the transform maps the published names to ownership codes and drops any other value",
-    "soil_fertility": "the transform maps the published names to soil fertility codes and drops any other value",
-    "cropping_sys": "Master Data's cropping system codes differ from the registry's published values",
-    "seed_class": "Master Data's seed type list adds a hybrid class the registry does not accept yet",
-    "seed_source": "the transform maps the published names to seed source labels",
-    "fertilizer_type": "the transform maps the published names to fertilizer codes",
     "fert_type": "organic or inorganic: the transform reads the name as given",
-    "water_source": "the transform maps the published names to water source codes; Master Data's water source list is for households",
-    "method": "the transform maps the published names to irrigation method codes",
-    "frequency": "the transform maps the published names to irrigation frequency codes",
-    "cult_method": "the transform maps the published names to machinery codes",
-    "land_prep_method": "the published names are slash separated words, Master Data's codes are underscore separated",
     "sowing_status": "no Master Data list",
     "infestation_type": "the form's relevance rules compare the answer to pest, weed, disease, nutrient_deficiency, climate_shock; Master Data has three of the five",
-    "growth_stage": "the transform upper-cases the name; Master Data prefixes its codes",
-    "security_level": "no Master Data list",
-    "pest_type": "no Master Data list with these names",
     "method_control": "no Master Data list",
     "pesticides_type": "no Master Data list",
-    "weed_type": "no Master Data list with these names",
     "weedicides_type": "no Master Data list",
-    "disease_type": "Master Data's crop disease codes are not the published names; the transform maps the published ones",
     "fungicide_type": "no Master Data list",
     "nutrient_type": "no Master Data list",
     "method_of_control": "no Master Data list",
@@ -171,7 +202,7 @@ def write_media(lists: dict[str, dict], units: dict[str, list[dict]], media: Pat
         write_csv(media / file, ["name", "label"], rows)
         counts[file] = len(rows)
     for level in LEVELS:
-        rows = [[u["level_value_id"], u["display_name"], u["level_value_id"], (u.get("parent_level_value_id") or "") if level != "region" else ""]
+        rows = [[u["level_value_id"], u.get("level_value_mnemonic") or u["display_name"], u["level_value_id"], (u.get("parent_level_value_id") or "") if level != "region" else ""]
                 for u in sorted(units[level], key=lambda u: u["level_value_id"])]
         write_csv(media / f"{level}.csv", ["name", "label", "code", "parent"], rows)
         counts[f"{level}.csv"] = len(rows)
@@ -240,6 +271,19 @@ def use_master_data(survey: list[dict], form_id: str) -> set[str]:
     for row in survey:
         if row.get("name") == "seed_variety":
             row["label"] = VARIETY_LABEL
+        if row.get("name") in LABELS:
+            row["label"] = LABELS[row["name"]]
+        if row.get("name") in PLOT_QUESTION:
+            row.update(PLOT_QUESTION[row["name"]])
+        if row.get("name") in QUESTION_TYPES:
+            row["type"] = QUESTION_TYPES[row["name"]]
+        if row.get("name") in NO_RULE:
+            row.pop("constraint", None)
+            row.pop("constraint_message", None)
+        if (row.get("type") or "").split(" ")[0] == "date":
+            row["appearance"] = DATE_APPEARANCE
+            if row.get("label"):
+                row["label"] = GREGORIAN_SUFFIX.sub("", row["label"])
     out = []
     for row in survey:
         out.append(row)
@@ -270,6 +314,8 @@ def build_choices(rows: list[dict], lists: dict[str, dict], form_id: str, survey
     if unknown:
         raise SystemExit(f"{form_id}: choice lists neither Master Data nor accounted for: {', '.join(unknown)}")
     kept = [r for r in rows if r.get("list_name") in used and r.get("list_name") not in INLINE_LISTS]
+    if "yes_no" in used and not any(r.get("list_name") == "yes_no" for r in kept):
+        kept += [dict(r) for r in PLOT_CHOICES]
     for name, attribute in INLINE_LISTS.items():
         if name in used:
             for value in ordered(lists[attribute]["values"]):
@@ -302,7 +348,7 @@ def build_form(form_id: str, lists: dict[str, dict], version: str, source: Path,
 def build(pack: Path, geography: Path | None = None, version: str = VERSION, source: Path = SOURCE,
           target: Path = FORMS, media: Path = MEDIA) -> dict:
     lists = read_lists(pack / "codelists", pack / "domains")
-    needed = {"CROP_SEASON", "AGRO_ECOLOGICAL_ZONE", "CROP_COMMODITY", "CROP_CATEGORY", "SEED_VARIETY"}
+    needed = {"CROP_COMMODITY", "CROP_CATEGORY", "SEED_VARIETY", *INLINE_LISTS.values()}
     missing = sorted(needed - set(lists))
     if missing:
         raise SystemExit(f"not found in the pack: {', '.join(missing)}")
