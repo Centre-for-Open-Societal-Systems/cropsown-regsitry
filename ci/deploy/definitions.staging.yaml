@@ -1,0 +1,100 @@
+# Connector definitions of the cropsown-connector release in staging (namespace crop), applied by the
+# post-install/post-upgrade hook Job (templates/definitions-job.yaml). Git is the source of truth:
+# every deploy creates or PATCHes these rows by name and subscribes the WebSub receivers at the hub.
+# Prerequisite: the running connector image must be the OAN registry-connector build (admin-only API,
+# WebSub envelope); staging still runs the retired connector-service image. Set adminAuth.enabled to
+# false only for that old image. Secret values are never here; secrets are named and read from Kubernetes Secrets.
+#
+# Pass after the release values:  the release's user values, then -f definitions.staging.yaml
+connectorDefinitions:
+  enabled: true
+  adminAuth:
+    enabled: true
+    tokenUrl: https://keycloak.oanstaging.com/realms/staff/protocol/openid-connect/token
+    clientId: registry-connector
+    # Read at run time with the Job's ServiceAccount (grant in ci/k8s/connector-definitions-rbac.yaml).
+    clientSecret: {namespace: commons, name: registry-connector, key: client_secret}
+  # Rows to delete when present (by name). The Farmer-reference receiver below moves here at the
+  # end of the topic rename, after the Farmer registry publishes the new topic only and the old
+  # topic's lag is 0.
+  retired: []
+  definitions:
+    # Not declared: the Farmer receivers. The staging crop registry only has CSR_DATA_MODEL
+    # (no FARMER_REFERENCE_CHANGED_V1 or FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1); declare them from
+    # definitions.newdev.yaml in the same change that promotes the registry that has those models.
+    - name: Crop Sown 1 - Planning
+      platform: odk_central
+      transport_type: odk_central
+      data_model_mnemonic: CSR_DATA_MODEL
+      g2p_sender_id: CropSown
+      g2p_register_mnemonic: CropSown
+      auth_type: odk_session
+      # Existing credentials stay in place until this Secret exists (email, password).
+      auth_secret_from:
+        email: {secret: crop-odk-central-credentials, key: email}
+        password: {secret: crop-odk-central-credentials, key: password}
+      source_config:
+        base_url: https://odk-central.oanstaging.com
+        project_id: 3
+        form_id: crop_sown_registry_plan
+        resolve_nav_links: true
+        strict_incremental: false
+        target_url: http://cropsown-registry-partner-api.crop.svc.cluster.local/partner/ingest_data
+        target_headers: {partner-id: crop-partner, Content-Type: application/json}
+    - name: Crop Sown 2 - Cultivation & Land Prep
+      platform: odk_central
+      transport_type: odk_central
+      data_model_mnemonic: CSR_DATA_MODEL
+      g2p_sender_id: CropSown
+      g2p_register_mnemonic: CropSown
+      auth_type: odk_session
+      # Existing credentials stay in place until this Secret exists (email, password).
+      auth_secret_from:
+        email: {secret: crop-odk-central-credentials, key: email}
+        password: {secret: crop-odk-central-credentials, key: password}
+      source_config:
+        base_url: https://odk-central.oanstaging.com
+        project_id: 3
+        form_id: crop_sown_registry_prep
+        resolve_nav_links: true
+        strict_incremental: false
+        target_url: http://cropsown-registry-partner-api.crop.svc.cluster.local/partner/ingest_data
+        target_headers: {partner-id: crop-partner, Content-Type: application/json}
+    - name: Crop Sown 3 - Sowing
+      platform: odk_central
+      transport_type: odk_central
+      data_model_mnemonic: CSR_DATA_MODEL
+      g2p_sender_id: CropSown
+      g2p_register_mnemonic: CropSown
+      auth_type: odk_session
+      # Existing credentials stay in place until this Secret exists (email, password).
+      auth_secret_from:
+        email: {secret: crop-odk-central-credentials, key: email}
+        password: {secret: crop-odk-central-credentials, key: password}
+      source_config:
+        base_url: https://odk-central.oanstaging.com
+        project_id: 3
+        form_id: crop_sown_registry_sown
+        resolve_nav_links: true
+        strict_incremental: false
+        target_url: http://cropsown-registry-partner-api.crop.svc.cluster.local/partner/ingest_data
+        target_headers: {partner-id: crop-partner, Content-Type: application/json}
+    - name: Crop Sown 4 - Harvesting
+      platform: odk_central
+      transport_type: odk_central
+      data_model_mnemonic: CSR_DATA_MODEL
+      g2p_sender_id: CropSown
+      g2p_register_mnemonic: CropSown
+      auth_type: odk_session
+      # Existing credentials stay in place until this Secret exists (email, password).
+      auth_secret_from:
+        email: {secret: crop-odk-central-credentials, key: email}
+        password: {secret: crop-odk-central-credentials, key: password}
+      source_config:
+        base_url: https://odk-central.oanstaging.com
+        project_id: 3
+        form_id: crop_sown_registry_harvest
+        resolve_nav_links: true
+        strict_incremental: false
+        target_url: http://cropsown-registry-partner-api.crop.svc.cluster.local/partner/ingest_data
+        target_headers: {partner-id: crop-partner, Content-Type: application/json}
