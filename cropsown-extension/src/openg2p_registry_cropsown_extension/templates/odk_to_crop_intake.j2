@@ -34,136 +34,6 @@
   "crop_category_10": "CROP_CATEGORY_10"
 } %}
 
-{% set plot_cat_map = {
-  "perennial_crop": "PLOT_CATEGORY_PERENNIAL_CROP",
-  "annual_crop": "PLOT_CATEGORY_ANNUAL_CROP",
-  "biennial_crop": "PLOT_CATEGORY_BIENNIAL_CROP",
-  "plot_category_perennial_crop": "PLOT_CATEGORY_PERENNIAL_CROP",
-  "plot_category_annual_crop": "PLOT_CATEGORY_ANNUAL_CROP",
-  "plot_category_biennial_crop": "PLOT_CATEGORY_BIENNIAL_CROP"
-} %}
-
-{% set ownership_map = {
-  "owner": "OWNERSHIP_TYPE_OWNER",
-  "tenant": "OWNERSHIP_TYPE_TENANT",
-  "crop_sharing": "OWNERSHIP_TYPE_CROP_SHARING",
-  "family_gift": "OWNERSHIP_TYPE_FAMILY_GIFT",
-  "ownership_type_owner": "OWNERSHIP_TYPE_OWNER",
-  "ownership_type_tenant": "OWNERSHIP_TYPE_TENANT",
-  "ownership_type_crop_sharing": "OWNERSHIP_TYPE_CROP_SHARING",
-  "ownership_type_family_gift": "OWNERSHIP_TYPE_FAMILY_GIFT"
-} %}
-
-{% set soil_map = {
-  "medium": "SOIL_FERTILITY_MEDIUM",
-  "high": "SOIL_FERTILITY_HIGH",
-  "low": "SOIL_FERTILITY_LOW",
-  "degraded": "SOIL_FERTILITY_DEGRADED",
-  "soil_fertility_medium": "SOIL_FERTILITY_MEDIUM",
-  "soil_fertility_high": "SOIL_FERTILITY_HIGH",
-  "soil_fertility_low": "SOIL_FERTILITY_LOW",
-  "soil_fertility_degraded": "SOIL_FERTILITY_DEGRADED"
-} %}
-
-{% set seed_source_map = {
-  "private": "PRIVATE SEED ENTERPRISE",
-  "cooperative": "AGRICULTURE COOPERATIVE / UNION",
-  "government": "GOVERNMENT / WOREDS AGRICULTURE",
-  "farmer": "FARMER-TO-FARMER EXCHANGE / SAVED",
-  "saved": "FARMER-TO-FARMER EXCHANGE / SAVED",
-  "market": "PRIVATE SEED ENTERPRISE",
-  "ngo": "AGRICULTURE COOPERATIVE / UNION",
-  "own_saved": "FARMER-TO-FARMER EXCHANGE / SAVED"
-} %}
-
-{% set fert_map = {
-  "dap": "FERTILIZER_TYPE_DAP",
-  "urea": "FERTILIZER_TYPE_UREA",
-  "nps": "FERTILIZER_TYPE_NPS",
-  "npsb": "FERTILIZER_TYPE_NPSB",
-  "compost": "FERTILIZER_TYPE_COMPOST",
-  "manure": "FERTILIZER_TYPE_MANURE",
-  "blended": "FERTILIZER_TYPE_BLENDED",
-  "bio_fertilizer": "FERTILIZER_TYPE_BIO_FERTILIZER",
-  "none": "FERTILIZER_TYPE_NONE",
-  "fertilizer_type_dap": "FERTILIZER_TYPE_DAP",
-  "fertilizer_type_urea": "FERTILIZER_TYPE_UREA",
-  "fertilizer_type_nps": "FERTILIZER_TYPE_NPS",
-  "fertilizer_type_npsb": "FERTILIZER_TYPE_NPSB",
-  "fertilizer_type_compost": "FERTILIZER_TYPE_COMPOST",
-  "fertilizer_type_manure": "FERTILIZER_TYPE_MANURE",
-  "fertilizer_type_blended": "FERTILIZER_TYPE_BLENDED",
-  "fertilizer_type_bio_fertilizer": "FERTILIZER_TYPE_BIO_FERTILIZER",
-  "fertilizer_type_none": "FERTILIZER_TYPE_NONE"
-} %}
-
-{% set water_src_map = {
-  "well": "WATER_SOURCE_WELL",
-  "borehole": "WATER_SOURCE_BOREHOLE",
-  "river": "WATER_SOURCE_RIVER",
-  "pond": "WATER_SOURCE_POND",
-  "spring": "WATER_SOURCE_SPRING",
-  "rainfed": "WATER_SOURCE_RAINFED",
-  "irrigation_scheme": "WATER_SOURCE_IRRIGATION_SCHEME",
-  "water_harvesting_structure": "WATER_SOURCE_WATER_HARVESTING_STRUCTURE",
-  "water_source_well": "WATER_SOURCE_WELL",
-  "water_source_borehole": "WATER_SOURCE_BOREHOLE",
-  "water_source_river": "WATER_SOURCE_RIVER",
-  "water_source_pond": "WATER_SOURCE_POND",
-  "water_source_spring": "WATER_SOURCE_SPRING",
-  "water_source_rainfed": "WATER_SOURCE_RAINFED",
-  "water_source_irrigation_scheme": "WATER_SOURCE_IRRIGATION_SCHEME",
-  "water_source_water_harvesting_structure": "WATER_SOURCE_WATER_HARVESTING_STRUCTURE"
-} %}
-
-{% set water_method_map = {
-  "surface_flood": "WATER_SOURCE_METHOD_SURFACE",
-  "surface": "WATER_SOURCE_METHOD_SURFACE",
-  "manual": "WATER_SOURCE_METHOD_MANUAL",
-  "drip": "WATER_SOURCE_METHOD_DRIP",
-  "sprinkler": "WATER_SOURCE_METHOD_SPRINKLER",
-  "other": "WATER_SOURCE_METHOD_OTHER",
-  "water_source_method_surface": "WATER_SOURCE_METHOD_SURFACE",
-  "water_source_method_manual": "WATER_SOURCE_METHOD_MANUAL",
-  "water_source_method_drip": "WATER_SOURCE_METHOD_DRIP",
-  "water_source_method_sprinkler": "WATER_SOURCE_METHOD_SPRINKLER",
-  "water_source_method_other": "WATER_SOURCE_METHOD_OTHER"
-} %}
-
-{% set water_freq_map = {
-  "weekly": "WATER_SOURCE_FREQUENCY_WEEKLY",
-  "monthly": "WATER_SOURCE_FREQUENCY_MONTHLY",
-  "bi-weekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "biweekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "daily": "WATER_SOURCE_FREQUENCY_DAILY",
-  "as_needed": "WATER_SOURCE_FREQUENCY_AS_NEEDED",
-  "other": "WATER_SOURCE_FREQUENCY_OTHER",
-  "water_source_frequency_weekly": "WATER_SOURCE_FREQUENCY_WEEKLY",
-  "water_source_frequency_monthly": "WATER_SOURCE_FREQUENCY_MONTHLY",
-  "water_source_frequency_biweekly": "WATER_SOURCE_FREQUENCY_BIWEEKLY",
-  "water_source_frequency_daily": "WATER_SOURCE_FREQUENCY_DAILY",
-  "water_source_frequency_as_needed": "WATER_SOURCE_FREQUENCY_AS_NEEDED",
-  "water_source_frequency_other": "WATER_SOURCE_FREQUENCY_OTHER"
-} %}
-
-{% set machinery_map = {
-  "power_tiller": "MACHINERY_POWER_TILLER",
-  "tractor_ploughing": "MACHINERY_TRACTOR_PLOUGHING",
-  "oxen_tillage": "MACHINERY_OXEN_TILLAGE",
-  "combine_harvester": "MACHINERY_COMBINE_HARVESTER",
-  "thrashing_machine": "MACHINERY_THRASHING_MACHINE",
-  "oxen_manual": "MACHINERY_OXEN_MANUAL",
-  "tractor_oxen": "MACHINERY_TRACTOR_OXEN",
-  "equine_other": "MACHINERY_EQUINE_OTHER",
-  "family_labor": "MACHINERY_FAMILY_LABOR",
-  "hired_labor": "MACHINERY_HIRED_LABOR",
-  "debo_jigi": "MACHINERY_DEBO_JIGI",
-  "machinery_power_tiller": "MACHINERY_POWER_TILLER",
-  "machinery_tractor_ploughing": "MACHINERY_TRACTOR_PLOUGHING",
-  "machinery_oxen_tillage": "MACHINERY_OXEN_TILLAGE",
-  "machinery_combine_harvester": "MACHINERY_COMBINE_HARVESTER"
-} %}
-
 {% set region_map = {
   "amhara": "ET03",
   "tigray": "ET01",
@@ -210,23 +80,10 @@
 } %}
 
 {% set inf_cluster_map = {
-  "clustered": "CLUSTER_STATUS_CLUSTERED",
-  "independent": "CLUSTER_STATUS_INDEPENDENT",
-  "cluster_status_clustered": "CLUSTER_STATUS_CLUSTERED",
-  "cluster_status_independent": "CLUSTER_STATUS_INDEPENDENT"
-} %}
-
-{% set disease_type_map = {
-  "leaf_spot": "CROP_DISEASE_LEAF_SPOT",
-  "powdery_mildew": "CROP_DISEASE_POWDERY_MILDEW",
-  "downy_mildew": "CROP_DISEASE_DOWNY_MILDEW",
-  "rust": "CROP_DISEASE_RUST",
-  "blight": "CROP_DISEASE_BLIGHT",
-  "wilt": "CROP_DISEASE_WILT",
-  "mosaic_virus": "CROP_DISEASE_MOSAIC_VIRUS",
-  "smut": "CROP_DISEASE_SMUT",
-  "anthracnose": "CROP_DISEASE_ANTHRACNOSE",
-  "root_rot": "CROP_DISEASE_ROOT_ROT"
+  "clustered": "CLUSTERED",
+  "independent": "INDEPENDENT",
+  "cluster_status_clustered": "CLUSTERED",
+  "cluster_status_independent": "INDEPENDENT"
 } %}
 
 {% set farmer_id = d.get('farmer_identity') or {} %}
@@ -349,13 +206,14 @@
     {% set p_season = season_map.get(raw_ps, raw_ps | upper) %}
     {% set raw_plan_dt = cd.get('collected_gc') or sub_dt %}
     {% set plan_dt = p.get('start_gc') if (raw_plan_dt > sub_dt and p.get('start_gc')) else raw_plan_dt %}
-    {% set is_plot_unreg = 'true' if (p.get('is_plot_not_registered') == 'yes') else 'false' %}
+    {#- ODK asks "Is plot registered?" (is_plot_registered): yes stores is_plot_not_registered false. -#}
+    {% set is_plot_unreg = ('false' if p.get('is_plot_registered') == 'yes' else 'true') if p.get('is_plot_registered') else ('true' if p.get('is_plot_not_registered') == 'yes' else 'false') %}
     {% set raw_p_cat = (p.get('land_category') or p.get('plot_category') or '') | lower %}
-    {% set p_cat = plot_cat_map.get(raw_p_cat, '') %}
+    {% set p_cat = (p.get('land_category') or p.get('plot_category') or '') | trim %}
     {% set raw_own = (p.get('ownership_type') or '') | lower %}
-    {% set own_val = ownership_map.get(raw_own, '') %}
+    {% set own_val = (p.get('ownership_type') or '') | trim %}
     {% set raw_fert = (p.get('soil_fertility') or p.get('soil_fertility_type') or '') | lower %}
-    {% set soil_val = soil_map.get(raw_fert, '') %}
+    {% set soil_val = (p.get('soil_fertility') or p.get('soil_fertility_type') or '') | trim %}
     {% set raw_preg = (p.get('region_name_id') or p.get('region') or '') | lower %}
     {% set p_reg = region_map.get(raw_preg, (p.get('region_name_id') or p.get('region') or '') | replace('REGION_', '')) %}
     {% set raw_pzone = p.get('zone_name_id') or p.get('zone') or '' %}
@@ -392,15 +250,15 @@
     {% set raw_ccat = (cd.get('crop_category_id') or '') | lower %}
     {% set ccat_val = crop_cat_map.get(raw_ccat, cd.get('crop_category_id') or '') %}
     {% set raw_src = (spi.get('seed_source') or '') | lower %}
-    {% set src_val = seed_source_map.get(raw_src, (spi.get('seed_source') or '') | upper) %}
+    {% set src_val = (spi.get('seed_source') or '') | upper %}
     {% set raw_pfert = (spi.get('seed_planned_fertilizer_type') or '') | lower %}
-    {% set pfert_val = fert_map.get(raw_pfert, (spi.get('seed_planned_fertilizer_type') or '') | upper) %}
+    {% set pfert_val = (spi.get('seed_planned_fertilizer_type') or '') | upper %}
     {% set raw_wsrc = (p.get('water_resource_id') or p.get('water_source') or '') | lower %}
-    {% set wsrc_val = water_src_map.get(raw_wsrc, p.get('water_resource_id') or p.get('water_source') or '') %}
+    {% set wsrc_val = p.get('water_resource_id') or p.get('water_source') or '' %}
     {% set raw_wmeth = (p.get('method_id') or p.get('water_source_method') or '') | lower %}
-    {% set wmeth_val = water_method_map.get(raw_wmeth, p.get('method_id') or p.get('water_source_method') or '') %}
+    {% set wmeth_val = p.get('method_id') or p.get('water_source_method') or '' %}
     {% set raw_wfreq = (p.get('frequency') or p.get('water_source_frequency') or '') | lower %}
-    {% set wfreq_val = water_freq_map.get(raw_wfreq, p.get('frequency') or p.get('water_source_frequency') or '') %}
+    {% set wfreq_val = p.get('frequency') or p.get('water_source_frequency') or '' %}
     {
       "is_plot_not_registered": {{ is_plot_unreg }},
       "land_id": "{{ p.get('land_info_id') or '' }}",
@@ -471,13 +329,13 @@
       {% endif %}
     {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
     {% set raw_cwsrc = raw_cwsrc_value | lower %}
-    {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
+    {% set c_wsrc = raw_cwsrc_value %}
     {% set raw_cwmeth_value = c.get('method_id') or c.get('cluster_method_id') or '' %}
     {% set raw_cwmeth = raw_cwmeth_value | lower %}
-    {% set c_wmeth = water_method_map.get(raw_cwmeth, raw_cwmeth_value) %}
+    {% set c_wmeth = raw_cwmeth_value %}
     {% set raw_cwfreq_value = c.get('frequency') or c.get('cluster_frequency') or '' %}
     {% set raw_cwfreq = raw_cwfreq_value | lower %}
-    {% set c_wfreq = water_freq_map.get(raw_cwfreq, raw_cwfreq_value) %}
+    {% set c_wfreq = raw_cwfreq_value %}
     {% set c_lat = c_coords[1] if c_coords | length > 1 else '' %}
     {% set c_lon = c_coords[0] if c_coords | length > 0 else '' %}
     {% set c_alt = c_coords[2] if c_coords | length > 2 else '' %}
@@ -572,23 +430,24 @@
     {% set prep_methods_str = prep_methods_clean | join(',') %}
     {% set raw_cult_dt = cd.get('collected_gc') or sub_dt %}
     {% set cult_dt = p.get('start_gc') if (raw_cult_dt > sub_dt and p.get('start_gc')) else (sub_dt if raw_cult_dt > sub_dt else raw_cult_dt) %}
-    {% set is_plot_unreg = 'true' if (p.get('is_plot_not_registered') == 'yes') else 'false' %}
+    {#- ODK asks "Is plot registered?" (is_plot_registered): yes stores is_plot_not_registered false. -#}
+    {% set is_plot_unreg = ('false' if p.get('is_plot_registered') == 'yes' else 'true') if p.get('is_plot_registered') else ('true' if p.get('is_plot_not_registered') == 'yes' else 'false') %}
     {% set raw_crop = (cd.get('crop_name_id') or '') | lower %}
     {% set crop_val = crop_map.get(raw_crop, cd.get('crop_name_id') or '') %}
     {% set raw_ccat = (cd.get('crop_category_id') or '') | lower %}
     {% set ccat_val = crop_cat_map.get(raw_ccat, cd.get('crop_category_id') or '') %}
     {% set raw_mach = (p.get('cultivated_by') or '') | lower %}
-    {% set mach_val = machinery_map.get(raw_mach, p.get('cultivated_by') or '') %}
+    {% set mach_val = p.get('cultivated_by') or '' %}
     {% set raw_src = (sai.get('actual_seed_source') or '') | lower %}
-    {% set src_val = seed_source_map.get(raw_src, (sai.get('actual_seed_source') or '') | upper) %}
+    {% set src_val = (sai.get('actual_seed_source') or '') | upper %}
     {% set raw_afert = (sai.get('actual_fertilizer_type') or '') | lower %}
-    {% set afert_val = fert_map.get(raw_afert, (sai.get('actual_fertilizer_type') or '') | upper) %}
+    {% set afert_val = (sai.get('actual_fertilizer_type') or '') | upper %}
     {% set raw_wsrc = (p.get('water_resource_id') or p.get('water_source') or '') | lower %}
-    {% set wsrc_val = water_src_map.get(raw_wsrc, p.get('water_resource_id') or p.get('water_source') or '') %}
+    {% set wsrc_val = p.get('water_resource_id') or p.get('water_source') or '' %}
     {% set raw_wmeth = (p.get('method_id') or p.get('water_source_method') or '') | lower %}
-    {% set wmeth_val = water_method_map.get(raw_wmeth, p.get('method_id') or p.get('water_source_method') or '') %}
+    {% set wmeth_val = p.get('method_id') or p.get('water_source_method') or '' %}
     {% set raw_wfreq = (p.get('frequency') or p.get('water_source_frequency') or '') | lower %}
-    {% set wfreq_val = water_freq_map.get(raw_wfreq, p.get('frequency') or p.get('water_source_frequency') or '') %}
+    {% set wfreq_val = p.get('frequency') or p.get('water_source_frequency') or '' %}
     {
       "is_plot_not_registered": {{ is_plot_unreg }},
       "land_id": "{{ p.get('land_info_id') or '' }}",
@@ -653,13 +512,13 @@
       {% endif %}
     {% set raw_cwsrc_value = c.get('water_resource_id') or c.get('cluster_water_resource_id') or '' %}
     {% set raw_cwsrc = raw_cwsrc_value | lower %}
-    {% set c_wsrc = water_src_map.get(raw_cwsrc, raw_cwsrc_value) %}
+    {% set c_wsrc = raw_cwsrc_value %}
     {% set raw_cwmeth_value = c.get('method_id') or c.get('cluster_method_id') or '' %}
     {% set raw_cwmeth = raw_cwmeth_value | lower %}
-    {% set c_wmeth = water_method_map.get(raw_cwmeth, raw_cwmeth_value) %}
+    {% set c_wmeth = raw_cwmeth_value %}
     {% set raw_cwfreq_value = c.get('frequency') or c.get('cluster_frequency') or '' %}
     {% set raw_cwfreq = raw_cwfreq_value | lower %}
-    {% set c_wfreq = water_freq_map.get(raw_cwfreq, raw_cwfreq_value) %}
+    {% set c_wfreq = raw_cwfreq_value %}
     {% if c_coords | length > 0 and c_coords[0] is iterable and c_coords[0] is not string and c_coords[0] is not mapping %}
       {% set poly_pt = c_coords[0][0] if (c_coords[0] | length > 0 and c_coords[0][0] is iterable) else c_coords[0] %}
       {% set c_lat = poly_pt[1] if poly_pt | length > 1 else '' %}
@@ -767,7 +626,7 @@
     {% set raw_crop = (id_details.get('crop_name_id') or s.get('commodity') or '') | lower %}
     {% set crop_val = crop_map.get(raw_crop, id_details.get('crop_name_id') or s.get('commodity') or '') %}
     {% set raw_fert = (id_details.get('actual_fertilizer_type') or '') | lower %}
-    {% set fert_val = fert_map.get(raw_fert, (id_details.get('actual_fertilizer_type') or '') | upper) %}
+    {% set fert_val = (id_details.get('actual_fertilizer_type') or '') | upper %}
     {% set raw_cls = (cl_details.get('season_id') or sow_season) | lower %}
     {% set cl_season = season_map.get(raw_cls, raw_cls | upper) %}
     {
@@ -815,8 +674,8 @@
       {% endif %}
     {% endfor %}
     {% set itype_val = itype_vals | join(',') %}
-    {% set raw_dtype = (dis.get('disease_type') or '') | lower %}
-    {% set dtype_val = disease_type_map.get(raw_dtype, (dis.get('disease_type') or '') | upper) %}
+    {#- Disease type has no Master Data list yet; the ODK form does not ask it. -#}
+    {% set dtype_val = '' %}
     {
       "land_id": "{{ inf.get('infestation_land_info_id') or '' }}",
       "commodity": "{{ crop_val }}",
