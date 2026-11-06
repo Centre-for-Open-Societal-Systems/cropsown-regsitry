@@ -147,7 +147,9 @@ registry:
       APPROVER_RESOLVER_SECRET: cropsown-approver-resolver-secret
     loadGeoData: false
     loadSampleData: false
-    loadImages: true
+    # The Crop db-seed image ships no /seed/upload_images.py (profile images belong to
+    # Farmer sample data), so image loading stays off.
+    loadImages: false
     loadTemplates: true
   iamRegister:
     applicationDescription: Crop Sown Registry
@@ -419,3 +421,18 @@ farmerReference:
       latitude: farmer_reference.latitude
       longitude: farmer_reference.longitude
       altitude: farmer_reference.altitude
+
+# Pull secret for the ECR images, created before install/upgrade by a hook Job
+# and refreshed by a CronJob from the node's IAM role (ECR tokens last 12 h).
+# Pods use it through the ServiceAccounts named in serviceAccounts, which the
+# job patches to list the secret (the openg2p-registry subchart pods and seed
+# jobs run as "default"). global.imagePullSecrets is not used for this: with
+# the pinned subchart it renders invalid Deployment YAML.
+ecrPullSecret:
+  enabled: false
+  name: ""                 # default: <release>-ecr-pull-secret
+  registry: ""             # required when enabled: <account>.dkr.ecr.<region>.amazonaws.com
+  serviceAccounts: []      # ServiceAccounts to patch with the secret, e.g. [default]
+  schedule: "0 */6 * * *"
+  awsCliImage: amazon/aws-cli:2.36.43
+  kubectlImage: alpine/k8s:1.31.1
