@@ -27,12 +27,6 @@ def call() {
 //     watches.
 
 pipeline {
-    parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'publish-only', 'fresh-install', 'connector-plan', 'connector-upgrade'],
-            description: 'develop only. publish-only builds and pushes the images. deploy (the default, also for merges) upgrades the existing New Dev release with them. fresh-install backs up the New Dev crop databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Crop Sown data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the connector image digest it would set, the release values, the manifest diff and a server-side dry run of the cropsown-connector release, and the live connector images. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the cropsown-connector release to the connector image of CONNECTOR_IMAGE_TAG, pinned by digest.')
-        string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
-            description: 'connector-plan and connector-upgrade only. Tag of openg2p/cropsown-registry/registry-connector in ECR (for example develop-186). It is resolved to a digest, and the release is pinned to the digest.')
-    }
     agent any
 
     environment {
@@ -208,7 +202,7 @@ pipeline {
 
         stage('Build & Push') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
-                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
+                           expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
             // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
             environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
@@ -322,11 +316,11 @@ pipeline {
         stage('Resolve connector image') {
             // The connector actions build nothing: they take the connector image
             // already in ECR and pin the release to its digest.
-            when { allOf { branch 'develop'; expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade'] } } }
+            when { allOf { branch 'develop'; expression { (env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade'] } } }
             steps {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     script {
-                        def tag = (params.CONNECTOR_IMAGE_TAG ?: 'develop').trim()
+                        def tag = (env.CONNECTOR_IMAGE_TAG ?: 'develop').trim()
                         if (!(tag ==~ /[A-Za-z0-9._-]{1,128}/)) {
                             error "CONNECTOR_IMAGE_TAG must match [A-Za-z0-9._-]{1,128}; got '${tag}'"
                         }
@@ -379,14 +373,14 @@ pipeline {
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { params.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
+                expression { env.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
             }
             agent { label 'vpn-agent2' }
             steps {
                 sh 'rm -rf ci helm'
                 unstash 'deploy'
                 script {
-                    if (params.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
+                    if (env.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
                         withCredentials([file(credentialsId: 'crop-dev-kubeconfig', variable: 'KUBECONFIG')]) {
                             sh 'PLAN_ONLY=1 bash ci/deploy/upgrade-crop-connector.sh'
                         }
@@ -407,7 +401,7 @@ pipeline {
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
+                expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 15, unit: 'MINUTES') }
@@ -432,7 +426,7 @@ pipeline {
                 branch 'develop'
                 // A branch-index or polled build has no explicit action: it publishes
                 // only; deploy and fresh-install are requested on purpose.
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
+                expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options {
@@ -475,7 +469,7 @@ pipeline {
                     // at any other point still reads ABORTED.
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: true) {
                         script {
-                            if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
+                            if (env.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
                                 // The database archive goes to the New Dev box over the existing backup key.
                                 withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
                                     sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy/fresh-install-crop-dev.sh "${IMAGE_TAG}"'
@@ -537,7 +531,7 @@ pipeline {
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { params.NEW_DEV_DELIVERY_ACTION == 'deploy' && currentBuild.currentResult == 'SUCCESS' }
+                expression { (env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') == 'deploy' && currentBuild.currentResult == 'SUCCESS' }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 15, unit: 'MINUTES') }

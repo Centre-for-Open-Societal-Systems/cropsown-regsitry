@@ -16,6 +16,10 @@
 # ServiceAccount that the release still owns. Everything else is exactly what the release
 # already has.
 #
+# Connector definitions (connector_definitions rows) are declared in ci/deploy/definitions.newdev.yaml and
+# applied by the chart's post-upgrade hook Job through the connector API, which also subscribes the
+# WebSub receivers; the upgrade fails if the Job fails.
+#
 # Upgrade only. The connector database is archived to the New Dev box first (same host
 # and directory tree as fresh-install), then a server-side dry run and the rendered
 # manifest diff against the running release are printed, and only then is the release
@@ -62,6 +66,7 @@ done
 [[ "$PLAN_ONLY" == 1 ]] || : "${BACKUP_SSH_KEY:?Bind farmer-new-dev-backup-ssh}"
 NAMESPACE=crop
 RELEASE=cropsown-connector
+DEFINITIONS=ci/deploy/definitions.newdev.yaml
 CHART=ci/deploy/connector-chart
 CLIENT_SECRET_NAME=registry-connector-client
 CLIENT_SECRET_KEY=client_secret
@@ -135,9 +140,9 @@ cat "$STATE/override.values.json"; echo
 echo "=== end of values ==="
 
 plan() {
-  helm lint "$CHART" -f "$STATE/current.values.json" -f "$STATE/override.values.json"
+  helm lint "$CHART" -f "$STATE/current.values.json" -f "$STATE/override.values.json" -f "$DEFINITIONS"
   helm get manifest "$RELEASE" -n "$NAMESPACE" > "$STATE/current.yaml"
-  helm template "$RELEASE" "$CHART" -n "$NAMESPACE" -f "$STATE/current.values.json" -f "$STATE/override.values.json" > "$STATE/target.yaml"
+  helm template "$RELEASE" "$CHART" -n "$NAMESPACE" -f "$STATE/current.values.json" -f "$STATE/override.values.json" -f "$DEFINITIONS" > "$STATE/target.yaml"
   echo "=== manifest diff (running release -> git chart + image $IMAGE) ==="
   diff -u "$STATE/current.yaml" "$STATE/target.yaml" > "$STATE/manifest.diff" || true
   cat "$STATE/manifest.diff"
@@ -161,7 +166,7 @@ plan() {
   echo "=== live Deployment images ==="
   kubectl get deploy -n "$NAMESPACE" -l "app.kubernetes.io/instance=$RELEASE" -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image
   helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values \
-    -f "$STATE/current.values.json" -f "$STATE/override.values.json" --dry-run=server > /dev/null
+    -f "$STATE/current.values.json" -f "$STATE/override.values.json" -f "$DEFINITIONS" --dry-run=server > /dev/null
   echo "Server-side dry run passed."
   [[ "$not_images_only" == 0 ]] || exit 1
 }
@@ -251,7 +256,7 @@ plan
 
 # 5. Upgrade.
 helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values \
-  -f "$STATE/current.values.json" -f "$STATE/override.values.json" --atomic --timeout 10m   || { echo "Upgrade failed; --atomic rolled the release back. Manual rollback if needed: helm rollback $RELEASE <revision> -n $NAMESPACE (helm history $RELEASE -n $NAMESPACE)" >&2; exit 1; }
+  -f "$STATE/current.values.json" -f "$STATE/override.values.json" -f "$DEFINITIONS" --atomic --timeout 10m   || { echo "Upgrade failed; --atomic rolled the release back. Manual rollback if needed: helm rollback $RELEASE <revision> -n $NAMESPACE (helm history $RELEASE -n $NAMESPACE)" >&2; exit 1; }
 UI_ENABLED=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("ui", {}).get("enabled", True)).lower())' "$STATE/current.values.json")
 for d in api worker beat ui; do
   if [[ "$d" == ui && "$UI_ENABLED" == false ]]; then echo "ui disabled in the release values; skipping its rollout check"; continue; fi

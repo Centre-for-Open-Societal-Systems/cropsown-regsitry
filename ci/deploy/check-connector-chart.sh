@@ -32,6 +32,15 @@ test "$(grep -c "image: \"$ui_repo@$ui_digest\"" "$dir/out.yaml")" -eq 1
 if grep -q 'old/connector' "$dir/out.yaml"; then echo "FAIL: an old image is still rendered" >&2; exit 1; fi
 grep -q 'name: cropsown-connector-postgres-init$' "$dir/out.yaml"
 test "$(grep -c 'name: CONNECTOR_VALIDATE_MAPPED_PAYLOAD$' "$dir/out.yaml")" -ge 3
-if grep -q 'kind: Job' "$dir/out.yaml"; then echo "FAIL: the chart renders a Job" >&2; exit 1; fi
+if grep -q 'kind: Job' "$dir/out.yaml"; then echo "FAIL: the chart renders a Job without definitions" >&2; exit 1; fi
+# With the definitions file the chart adds exactly the post-upgrade definitions hook.
+helm lint connector-chart -f "$dir/current.json" -f "$dir/override.json" -f definitions.newdev.yaml > /dev/null
+helm template cropsown-connector connector-chart -n crop -f "$dir/current.json" -f "$dir/override.json" -f definitions.newdev.yaml > "$dir/defs.yaml"
+test "$(grep -c 'kind: Job' "$dir/defs.yaml")" -eq 1
+grep -q 'helm.sh/hook: post-install,post-upgrade' "$dir/defs.yaml"
+grep -q 'name: cropsown-connector-definitions$' "$dir/defs.yaml"
+grep -q 'farmer-registry.farmer-profile.changed.v1' "$dir/defs.yaml"
+test "$(grep -c 'name: CD_[0-9]*_AUTH_EMAIL$' "$dir/defs.yaml")" -eq 4
+helm lint connector-chart -f "$dir/current.json" -f definitions.staging.yaml > /dev/null
 if grep -q 'CONNECTOR_ADMIN_AUTH_CLIENT_SECRET' "$dir/out.yaml"; then echo "FAIL: a client secret reference is rendered" >&2; exit 1; fi
 echo "PASS: cropsown-connector chart renders the digest-pinned images on api, worker, beat and ui, and keeps the postgres-init ServiceAccount"
