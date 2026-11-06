@@ -123,3 +123,11 @@ declared but empty secret never overwrites a stored one. The Keycloak client sec
 at run time from `commons/registry-connector` by the Job's ServiceAccount; apply `ci/k8s/connector-definitions-rbac.yaml`
 once as cluster admin. `upgrade-crop-connector.sh` passes `definitions.newdev.yaml`. Tests:
 `python -m unittest discover ci/deploy/tests`; `check-connector-chart.sh` renders the hook.
+
+## Staging connector upgrade
+
+`ci/pipelines/staging.groovy` runs `ci/deploy/upgrade-crop-connector-staging.sh` after the registry is promoted and deployed. It takes no
+parameters: the connector images are the `registry-connector` and `registry-connector-ui` images of the develop build whose
+`staff-api` digest the promoted chart pins (same ECR build tag), pinned by digest. The release is upgraded with the vendored
+chart, `cropsown-connector.staging.values.yaml` and `definitions.staging.yaml` using `helm upgrade --atomic --reset-values`.
+The hook ServiceAccount needs the Role binding in `ci/k8s/connector-definitions-rbac.yaml` (namespace `crop`) before the first run.
