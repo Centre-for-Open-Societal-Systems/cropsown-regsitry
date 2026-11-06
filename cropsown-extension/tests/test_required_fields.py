@@ -270,6 +270,14 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # The one-variety overlay only removes the crop_variety column and labels seed_variety "Variety".
         if path.name.endswith("_one_variety_list.sql"):
             continue
+        # The Master Data dropdowns overlay only replaces the data source of eleven named
+        # dropdowns; every other widget key, widget-required included, is kept.
+        if path.name.endswith("_master_data_dropdowns.sql"):
+            continue
+        # The Ethiopian date copies overlay only removes the read-only *_date_ec boxes;
+        # none of them is required and every other widget is kept.
+        if path.name.endswith("_drop_ec_date_copies.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):

@@ -57,13 +57,13 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def post_ingest(self, register_id, register_row, session):
         if register_id != CROP_SOWN_REGISTER_ID:
             return
-        if await self._coss_reuse_existing_parent(register_row, session):
+        if await self._oan_reuse_existing_parent(register_row, session):
             # Reused an existing parent; this just-created root was retired.
             return
         from .farmer_name_projection import refresh_crop_name_on_ingest
         await refresh_crop_name_on_ingest(session, register_row)
 
-    async def _coss_reuse_existing_parent(self, register_row, session) -> bool:
+    async def _oan_reuse_existing_parent(self, register_row, session) -> bool:
         """Parent reuse. If an ACTIVE Crop Sown parent already exists for the same
         four keys (Farmer ID + Fayda ID + Crop Year + Production Season), attach
         THIS submission's child rows to it and retire the just-created duplicate
@@ -481,7 +481,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
 
         val = (
-            payload.get("farmer_id")
+            payload.get("farmer_name")
+            or payload.get("farmer_id")
             or payload.get("fayda_fan_id")
             or payload.get("fayda_id")
         )
@@ -1117,21 +1118,9 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     ) -> None:
         """Ensure all GC dates on active and intake records carry their computed EC date."""
         from .domain_compute_utils import compute_ec_date
-        from ..models import (
-            G2PRegisterPlanning, G2PIntakeFormPlanning,
-            G2PRegisterCluster, G2PIntakeFormCluster,
-            G2PRegisterCultivation, G2PIntakeFormCultivation,
-            G2PRegisterSowing, G2PIntakeFormSowing,
-            G2PRegisterInfestation, G2PIntakeFormInfestation,
-            G2PRegisterHarvest, G2PIntakeFormHarvest,
-        )
+        from ..models import G2PRegisterHarvest, G2PIntakeFormHarvest
 
         mappings = [
-            (G2PRegisterPlanning, G2PIntakeFormPlanning, "planned_date", "planned_date_ec"),
-            (G2PRegisterCluster, G2PIntakeFormCluster, "establishing_date", "establishing_date_ec"),
-            (G2PRegisterCultivation, G2PIntakeFormCultivation, "actual_cultivation_date", "actual_cultivation_date_ec"),
-            (G2PRegisterSowing, G2PIntakeFormSowing, "sowing_date", "sowing_date_ec"),
-            (G2PRegisterInfestation, G2PIntakeFormInfestation, "observation_date", "observation_date_ec"),
             (G2PRegisterHarvest, G2PIntakeFormHarvest, "harvest_date", "harvest_date_ec"),
         ]
 

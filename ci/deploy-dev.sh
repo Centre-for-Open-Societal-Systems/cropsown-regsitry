@@ -58,7 +58,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-python3 ci/deploy/oan_chart.py require-deployable registry "${COSS_DEPLOY_ENVIRONMENT:-dev}"
+python3 ci/deploy/oan_chart.py require-deployable registry "${OAN_DEPLOY_ENVIRONMENT:-dev}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"

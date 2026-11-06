@@ -145,7 +145,8 @@
   "cs_infestation_details": [
 {% for incident in incidents %}
     {% set severity = (incident.get('severity_level', '') or '') | upper %}
-    {% if severity not in ["LOW", "MEDIUM", "HIGH"] %}{% set severity = "LOW" %}{% endif %}
+    {% set severity = {"LOW": "SEV_LOW", "MEDIUM": "SEV_MEDIUM", "HIGH": "SEV_HIGH"}.get(severity, severity) %}
+    {% if severity not in ["SEV_LOW", "SEV_MEDIUM", "SEV_HIGH"] %}{% set severity = "SEV_LOW" %}{% endif %}
     {
       "land_uuid": "{{ land_uuid }}",
       "commodity": "{{ incident.get('crop_type', '') }}",
@@ -161,7 +162,8 @@
   "cs_cluster_details": [
 {% for cluster in clusters %}
     {% set zone = (cluster.get("agro_ecological_zone", "") or "") | upper | replace(" ", "_") | replace("-", "_") %}
-    {% if zone not in ["KOLLA", "WOINA_DEGA", "DEGA", "WURCH", "BEREHA"] %}{% set zone = "WOINA_DEGA" %}{% endif %}
+    {% set zone = {"KOLLA": "AEZ_KOLLA", "WOINA_DEGA": "AEZ_WEYNA_DEGA", "WEYNA_DEGA": "AEZ_WEYNA_DEGA", "DEGA": "AEZ_DEGA", "WURCH": "AEZ_WURCH", "BEREHA": "AEZ_BEREHA"}.get(zone, zone) %}
+    {% if zone not in ["AEZ_KOLLA", "AEZ_WEYNA_DEGA", "AEZ_DEGA", "AEZ_WURCH", "AEZ_BEREHA"] %}{% set zone = "AEZ_WEYNA_DEGA" %}{% endif %}
     {
       "cluster_name": "{{ cluster.get('name', '') }}",
       "cluster_status": "{{ (cluster.get('status', 'CLUSTERED') or 'CLUSTERED') | upper }}",

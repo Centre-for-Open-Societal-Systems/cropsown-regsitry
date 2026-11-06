@@ -178,6 +178,48 @@
       "mechanism": "retired_field",
       "replaced_by": "end_gc",
       "reason": "The season is entered once, as the Start and End date on the Ethiopian calendar picker; the day and month are worked out from those dates on save and the database column stays"
+    },
+    {
+      "from_section": "cropsown_planning_details_section_01",
+      "path": "planned_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "planned_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_cultivation_details_section_01",
+      "path": "actual_cultivation_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "actual_cultivation_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_sowing_details_section_01",
+      "path": "sowing_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "sowing_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_infestation_details_section_01",
+      "path": "observation_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "observation_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_cluster_details_section_01",
+      "path": "establishing_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "establishing_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_cultivation_cluster_details_section_01",
+      "path": "establishing_date_ec",
+      "mechanism": "retired_field",
+      "replaced_by": "establishing_date",
+      "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
     }
   ]
 }

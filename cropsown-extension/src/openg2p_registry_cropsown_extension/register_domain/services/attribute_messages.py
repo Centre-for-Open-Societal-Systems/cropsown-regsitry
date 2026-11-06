@@ -44,6 +44,14 @@ FIELDS = {
     "disease_type": ("Disease type", "a disease"),
     "pest_name": ("Pest name", "a pest"),
     "pesticide_method": ("Pest control method", "one"),
+    "seed_class": ("Seed type", "a seed type"),
+    "actual_seed_class": ("Actual seed type", "a seed type"),
+    "seed_source": ("Seed source", "a seed source"),
+    "actual_seed_source": ("Actual seed source", "a seed source"),
+    "cropping_system": ("Cropping system", "a cropping system"),
+    "agro_ecological_zone": ("Agro-ecological zone", "a zone"),
+    "growth_stage": ("Growth stage", "a growth stage"),
+    "severity_level": ("Severity level", "a severity level"),
 }
 
 _PROBLEM = re.compile(

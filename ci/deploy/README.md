@@ -12,7 +12,7 @@ The rest of this page covers the pinned archive. A deploy by hand and staging us
 Install the deploy-agent dependency with `python3 -m pip install -r ci/deploy/requirements.txt`.
 The registry-owned Jenkins job and agent/credential IDs are unchanged.
 
-`oan-chart.json` records the COSS oan-helm commit, chart version, SHA-256, native
+`oan-chart.json` records the oan-helm commit, chart version, SHA-256, native
 platform version, public-values checksum, release and environment. CI downloads
 and validates the archive before Helm uses it. There is no local Helm source,
 dependency update, moving branch URL or chart-version stamping on that path.
@@ -106,3 +106,20 @@ lease ends unless someone re-syncs the subscription before then.
 
 The sync re-subscribes with the connector definition's own hub credentials and webhook
 secret; it needs no client secret in the connector pod.
+
+## Connector definitions are declared in git and applied by Helm
+
+The rows of `connector_definitions` are declared in `definitions.newdev.yaml` (New Dev) and
+`definitions.staging.yaml` (staging) under `connectorDefinitions`. The chart's post-install and post-upgrade
+hook Job (`connector-chart/templates/definitions-job.yaml`, script `connector-chart/files/apply_definitions.py`)
+calls the connector's own admin API on every deploy: it creates a missing definition, PATCHes an existing one
+(matched by name, then `previous_names`, then slug) to the declared state, and for WebSub receivers calls
+`POST /connectors/{id}/websub/sync-subscriptions`. The API does not subscribe on create and a row inserted with
+SQL is never subscribed, so the apply performs the subscription. Checkpoints are not touched.
+
+Secrets are never in values: `webhook_secret_from` / `auth_secret_from` name Kubernetes Secrets read through
+`secretKeyRef` (`generate: true` creates the hub secret once if absent; an existing Secret is left alone). A
+declared but empty secret never overwrites a stored one. The Keycloak client secret for the admin token is read
+at run time from `commons/registry-connector` by the Job's ServiceAccount; apply `ci/k8s/connector-definitions-rbac.yaml`
+once as cluster admin. `upgrade-crop-connector.sh` passes `definitions.newdev.yaml`. Tests:
+`python -m unittest discover ci/deploy/tests`; `check-connector-chart.sh` renders the hook.

@@ -20,21 +20,28 @@ class LandSizeUnitEnum(StrEnum):
     SQUARE_METER = "SQUARE_METER"
 
 
+# Cropping system, seed type, seed source and agro-ecological zone are Master Data
+# lists (ETH-OAN pack: CROPPING_SYSTEM, SEED_TYPE, SEED_SOURCE, AGRO_ECOLOGICAL_ZONE).
+# The values are the pack's codes, one code per choice.
 class CroppingSystemEnum(StrEnum):
-    MONO_CROPPING = "MONO_CROPPING"
-    INTER_CROPPING = "INTER_CROPPING"
+    CSYS_PURE = "CSYS_PURE"
+    CSYS_MIXED = "CSYS_MIXED"
+    CSYS_INTERCROPPED = "CSYS_INTERCROPPED"
 
 
 class SeedClassEnum(StrEnum):
-    LOCAL = "LOCAL"
-    IMPROVED = "IMPROVED"
+    SEED_IMPROVED = "SEED_IMPROVED"
+    SEED_LOCAL = "SEED_LOCAL"
+    SEED_HYBRID = "SEED_HYBRID"
 
 
 class SeedSourceEnum(StrEnum):
-    GOVERNMENT_WOREDS_AGRICULTURE = "GOVERNMENT / WOREDS AGRICULTURE"
-    AGRICULTURE_COOPERATIVE_UNION = "AGRICULTURE COOPERATIVE / UNION"
-    PRIVATE_SEED_ENTERPRISE = "PRIVATE SEED ENTERPRISE"
-    FARMER_TO_FARMER_EXCHANGE_SAVED = "FARMER-TO-FARMER EXCHANGE / SAVED"
+    SEEDSRC_COOPERATIVE = "SEEDSRC_COOPERATIVE"
+    SEEDSRC_GOVERNMENT = "SEEDSRC_GOVERNMENT"
+    SEEDSRC_MARKET = "SEEDSRC_MARKET"
+    SEEDSRC_OWN_SAVED = "SEEDSRC_OWN_SAVED"
+    SEEDSRC_NGO = "SEEDSRC_NGO"
+    SEEDSRC_NEIGHBOUR = "SEEDSRC_NEIGHBOUR"
 
 
 
@@ -45,7 +52,14 @@ class CropMaturityStatusEnum(StrEnum):
 
 
 
+# Growth stage and severity are Master Data lists (ETH-OAN pack: CROP_GROWTH_STAGE, INFESTATION_SEVERITY). The older
+# values stay so records saved before the forms read those lists can still be read.
 class GrowthStageEnum(StrEnum):
+    GS_EMERGENCE = "GS_EMERGENCE"
+    GS_VEGETATIVE = "GS_VEGETATIVE"
+    GS_FLOWERING = "GS_FLOWERING"
+    GS_GRAIN_FILLING = "GS_GRAIN_FILLING"
+    GS_MATURITY = "GS_MATURITY"
     EMERGENCE = "EMERGENCE"
     VEGETATIVE = "VEGETATIVE"
     FLOWERING = "FLOWERING"
@@ -53,14 +67,17 @@ class GrowthStageEnum(StrEnum):
 
 
 class SeverityLevelEnum(StrEnum):
+    SEV_LOW = "SEV_LOW"
+    SEV_MEDIUM = "SEV_MEDIUM"
+    SEV_HIGH = "SEV_HIGH"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
 
 
 class AgroEcologicalZoneEnum(StrEnum):
-    KOLLA = "KOLLA"
-    WOINA_DEGA = "WOINA_DEGA"
-    DEGA = "DEGA"
-    WURCH = "WURCH"
-    BEREHA = "BEREHA"
+    AEZ_BEREHA = "AEZ_BEREHA"
+    AEZ_KOLLA = "AEZ_KOLLA"
+    AEZ_WEYNA_DEGA = "AEZ_WEYNA_DEGA"
+    AEZ_DEGA = "AEZ_DEGA"
+    AEZ_WURCH = "AEZ_WURCH"

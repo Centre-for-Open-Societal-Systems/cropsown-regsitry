@@ -6,7 +6,6 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .domain_compute_utils import (
     compute_season_parts,
     is_date_in_season,
-    compute_ec_date
 )
 
 from .domain_validation_utils import as_float, parse_date, validation_error, field_label
@@ -57,7 +56,6 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             self._validate_date_in_season(record, "planned_date")
             self._validate_planned_area(record)
             self._validate_planned_date(record)
-            compute_ec_date(record, "planned_date", "planned_date_ec")
         self._validate_cumulative_planned_area(active_records)
         self._validate_no_duplicate_commodity_season(active_records)
 
