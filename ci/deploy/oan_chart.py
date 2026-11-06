@@ -38,7 +38,7 @@ def profiles():
 
 def validate_pin(pin):
     if not re.fullmatch(r"https://raw\.githubusercontent\.com/Centre-for-Open-Societal-Systems/oan-helm/[0-9a-f]{40}/repository/",pin["repository"]):
-        raise ValueError("Central chart URL must pin an immutable COSS oan-helm commit")
+        raise ValueError("Central chart URL must pin an immutable oan-helm commit")
     if not re.fullmatch(r"[0-9a-f]{64}",pin["sha256"]):
         raise ValueError("Missing central chart SHA-256")
     if not re.fullmatch(r"[a-z0-9-]+",pin["name"]) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?",pin["version"]):

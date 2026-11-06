@@ -57,13 +57,13 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
     async def post_ingest(self, register_id, register_row, session):
         if register_id != CROP_SOWN_REGISTER_ID:
             return
-        if await self._coss_reuse_existing_parent(register_row, session):
+        if await self._oan_reuse_existing_parent(register_row, session):
             # Reused an existing parent; this just-created root was retired.
             return
         from .farmer_name_projection import refresh_crop_name_on_ingest
         await refresh_crop_name_on_ingest(session, register_row)
 
-    async def _coss_reuse_existing_parent(self, register_row, session) -> bool:
+    async def _oan_reuse_existing_parent(self, register_row, session) -> bool:
         """Parent reuse. If an ACTIVE Crop Sown parent already exists for the same
         four keys (Farmer ID + Fayda ID + Crop Year + Production Season), attach
         THIS submission's child rows to it and retire the just-created duplicate

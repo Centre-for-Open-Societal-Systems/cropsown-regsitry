@@ -10,7 +10,7 @@ COPY cropsown-extension/src/openg2p_registry_cropsown_extension/templates/ /seed
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 # Seed data lives in openg2p-data. The platform image checks out openg2p-data at
-# /openg2p-data; this one checks out the COSS repository at a pinned commit in its
+# /openg2p-data; this one checks out the OAN repository at a pinned commit in its
 # place. It is the source of the staff-portal theme (themes/oan_theme, rendered
 # into the seed tree after the registry configuration, pointing it at oan_theme
 # and setting the registry logo) and of the ETH-OAN pack's sample people and
