@@ -101,18 +101,31 @@ def test_without_a_session_the_check_opens_its_own():
         async def __aexit__(self, *exc):
             return False
 
-    with patch("openg2p_fastapi_common.context.get_async_session_maker", return_value=Maker()):
-        with pytest.raises(G2PRegistryException):
+    from openg2p_fastapi_common.context import dbengine
+
+    previous = dbengine.get()
+    dbengine.set(object())  # an engine is configured
+    try:
+        with patch("sqlalchemy.ext.asyncio.async_sessionmaker", return_value=Maker()), \
+                pytest.raises(G2PRegistryException):
             asyncio.run(service._validate_immutability_on_own_session(
                 same(**{PREFIX + "functional_record_id": "REG/S2/2026/98177"})))
+    finally:
+        dbengine.set(previous)
 
 
 def test_without_ids_or_a_database_the_save_check_is_skipped():
+    from openg2p_fastapi_common.context import dbengine
+
     service = G2PRegisterDomainServiceCropSown()
-    with patch("openg2p_fastapi_common.context.get_async_session_maker", side_effect=AssertionError("not opened")):
+    with patch("sqlalchemy.ext.asyncio.async_sessionmaker", side_effect=AssertionError("not opened")):
         asyncio.run(service._validate_immutability_on_own_session({"crop_year": "2026"}))
-    with patch("openg2p_fastapi_common.context.get_async_session_maker", side_effect=RuntimeError("no engine")):
-        asyncio.run(service._validate_immutability_on_own_session(same()))
+        previous = dbengine.get()
+        dbengine.set(None)  # no engine (unit tests): skipped, nothing opened
+        try:
+            asyncio.run(service._validate_immutability_on_own_session(same()))
+        finally:
+            dbengine.set(previous)
 
 
 @pytest.mark.parametrize("item, fails", [

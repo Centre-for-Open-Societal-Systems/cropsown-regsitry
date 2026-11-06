@@ -227,14 +227,16 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         id_keys = ("internal_record_id", "link_internal_record_id", "record_id", "subject_internal_record_id")
         if not (any(record.get(k) or kwargs.get(k) for k in id_keys) or record.get("submission_id")):
             return
-        try:
-            from openg2p_fastapi_common.context import get_async_session_maker
+        # The current engine, as identity_verification.py does: a cached session maker can
+        # belong to another engine than the one this process (or a test) is using.
+        from openg2p_fastapi_common.context import dbengine
+        from sqlalchemy.ext.asyncio import async_sessionmaker
 
-            session_maker = get_async_session_maker()
-        except Exception:
-            _logger.warning("No database session for the crop sown established-values check; skipped")
+        engine = dbengine.get()
+        if engine is None:
+            _logger.warning("No database engine for the crop sown established-values check; skipped")
             return
-        async with session_maker() as own_session:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as own_session:
             await self._validate_immutability_of_season_and_year(record, own_session, **kwargs)
 
     async def _validate_immutability_of_season_and_year(self, record: dict, session, **kwargs) -> None:
