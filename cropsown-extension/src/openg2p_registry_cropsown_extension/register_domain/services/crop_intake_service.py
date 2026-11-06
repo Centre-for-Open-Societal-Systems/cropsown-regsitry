@@ -18,7 +18,7 @@ from openg2p_fastapi_common.context import component_registry
 from ...farmer_reference.native import G2PIntakeFormDataService, ReferenceIntakeService
 
 # Set for the duration of a single section save; read by resolve_production_season.
-submission_ctx: ContextVar[str | None] = ContextVar("coss_crop_submission_id", default=None)
+submission_ctx: ContextVar[str | None] = ContextVar("oan_crop_submission_id", default=None)
 
 
 class CropIntakeService(ReferenceIntakeService):

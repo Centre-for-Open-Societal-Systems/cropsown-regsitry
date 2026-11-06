@@ -12,7 +12,7 @@ The rest of this page covers the pinned archive. A deploy by hand and staging us
 Install the deploy-agent dependency with `python3 -m pip install -r ci/deploy/requirements.txt`.
 The registry-owned Jenkins job and agent/credential IDs are unchanged.
 
-`oan-chart.json` records the COSS oan-helm commit, chart version, SHA-256, native
+`oan-chart.json` records the oan-helm commit, chart version, SHA-256, native
 platform version, public-values checksum, release and environment. CI downloads
 and validates the archive before Helm uses it. There is no local Helm source,
 dependency update, moving branch URL or chart-version stamping on that path.
