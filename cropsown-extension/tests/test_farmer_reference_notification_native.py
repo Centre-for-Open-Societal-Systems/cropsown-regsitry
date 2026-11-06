@@ -31,7 +31,7 @@ class NativeNotificationTests(NativeReferenceTests):
         current = replace(self.snapshot, source_version=200, profile={**self.snapshot.profile,"first_name":"Current source"})
         client = SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),
             lookup_current=AsyncMock(return_value=current))
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
                 service = native.G2PChangeRequestWorkerService.get_component()
                 payload = self._notification_payload(local_id)
@@ -54,7 +54,7 @@ class NativeNotificationTests(NativeReferenceTests):
     async def test_notification_identity_mismatch_fails_before_lookup_or_cr(self):
         from unittest.mock import patch
         local_id=await self._approved_reference()
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup") as lookup_factory:
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup") as lookup_factory:
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"IDENTITY_MISMATCH"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
@@ -71,7 +71,7 @@ class NativeNotificationTests(NativeReferenceTests):
 
     async def _deliver_first_notice(self, session, client, local_id="unknown-local", **changes):
         from unittest.mock import patch
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             return await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                 self._notification_payload(local_id,**changes),session,source_partner_id="synthetic-source-partner",
                 change_request_source=native.INGESTION_PIPELINE_SOURCE)
@@ -132,14 +132,14 @@ class NativeNotificationTests(NativeReferenceTests):
         from unittest.mock import patch
         payload=self._notification_payload("unknown-local")
         payload.section_id="test_farmer_other_section"
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             return await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                 payload,session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
 
     async def test_notification_from_wrong_partner_cannot_lookup_or_create_request(self):
         from unittest.mock import patch
         local_id=await self._approved_reference()
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup") as lookup_factory:
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup") as lookup_factory:
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"SOURCE_PARTNER_REQUIRED"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
@@ -152,7 +152,7 @@ class NativeNotificationTests(NativeReferenceTests):
         local_id=await self._approved_reference()
         client=SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),
             lookup_current=AsyncMock(side_effect=Error("FARMER_REFERENCE_LOOKUP_UNAVAILABLE")))
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}), patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"LOOKUP_UNAVAILABLE"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
@@ -193,7 +193,7 @@ class NativeNotificationTests(NativeReferenceTests):
                 "RECORD_CONTRACT_FILE":str(directory/"record.json"),"CONSENT_AUDIENCE":"synthetic-consent",
                 "CONSENT_CONTROLLER":"synthetic-controller","CONSENT_PURPOSE":"synthetic-purpose",
                 "CONSENT_SCOPES":"farmer_personal_details","SOURCE_PARTNER_ID":"synthetic-source-partner"}
-            with patch.dict(os.environ,{"COSS_FARMER_"+name:value for name,value in settings.items()}):
+            with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_"+name:value for name,value in settings.items()}):
                 async with self.sessions.begin() as session:
                     cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                         self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
@@ -212,7 +212,7 @@ class NativeNotificationTests(NativeReferenceTests):
         local_id=await self._approved_reference()
         client=SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),
             lookup_current=AsyncMock(return_value=replace(self.snapshot,source_version=200)))
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"IDENTITY_MISMATCH"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
@@ -228,7 +228,7 @@ class NativeNotificationTests(NativeReferenceTests):
         local_id=await self._approved_reference()
         current=replace(self.snapshot,source_version=200,profile={**self.snapshot.profile,"fayda_fan_id":"0000000000000002"})
         client=SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),lookup_current=AsyncMock(return_value=current))
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
                 cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                     self._notification_payload(local_id,fayda_fan_id="0000000000000002"),session,
@@ -253,7 +253,7 @@ class NativeNotificationTests(NativeReferenceTests):
         local_id=await self._approved_reference()
         current=replace(self.snapshot,source_version=200,profile={**self.snapshot.profile,"first_name":"Current signed FIN source"})
         client=SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),lookup_current=AsyncMock(return_value=current))
-        with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
+        with patch.dict(os.environ,{"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
                 cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 farmer=await session.get(native.domain_models().G2PRegisterFarmer,local_id)
@@ -300,7 +300,7 @@ class NativeNotificationTests(NativeReferenceTests):
 
     async def _finalize_notice(self, submission_id, client):
         from unittest.mock import patch
-        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_PARTNER_ID": "synthetic-source-partner"}), \
+        with patch.dict(os.environ, {"REGISTRY_FARMER_REFERENCE_SOURCE_PARTNER_ID": "synthetic-source-partner"}), \
                 patch.object(native, "configured_lookup", return_value=client):
             async with self.sessions.begin() as session:
                 return await native.G2PIntakeFormDataService.get_component().finalize_submission_with_session(

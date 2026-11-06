@@ -7,14 +7,14 @@ That names a record number, a database field, a list id and every permitted
 code. It is reworded here to "Crop: choose a crop from the list." with the
 field name the form shows, for every Master Data backed field on the crop forms.
 
-The sentence is a registry translation (coss_code_choice), so it can be
+The sentence is a registry translation (validation_code_choice), so it can be
 changed in the registry's language data; this module holds the default.
 """
 
 import re
 
 DEFAULT_TEXT = "{label}: choose {noun} from the list."
-TRANSLATION_KEY = "coss_code_choice"
+TRANSLATION_KEY = "validation_code_choice"
 
 # field -> (label as the forms show it, noun for "choose a ...")
 FIELDS = {

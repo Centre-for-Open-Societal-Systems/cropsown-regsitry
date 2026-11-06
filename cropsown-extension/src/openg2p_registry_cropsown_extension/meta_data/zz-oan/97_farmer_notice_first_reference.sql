@@ -31,4 +31,4 @@ ON CONFLICT ("tab_section_id") DO UPDATE SET "tab_id" = EXCLUDED."tab_id", "sect
 UPDATE "public"."incoming_model_semantic_patterns"
 SET "intake_form_id" = 'farmer_registry_notice_to_farmer_reference_form',
     "pattern_for_intake_form" = "pattern_for_register"
-WHERE "semantic_pattern_id" IN ('a01d73cb-ca18-53b4-9d90-7c1a4841cd37','farmer_changed_v1_pattern');
+WHERE "semantic_pattern_id" IN ('a01d73cb-ca18-53b4-9d90-7c1a4841cd37','farmer_changed_v1_pattern','2eb3e080-fbcb-5160-ba51-0360fc5f98af');

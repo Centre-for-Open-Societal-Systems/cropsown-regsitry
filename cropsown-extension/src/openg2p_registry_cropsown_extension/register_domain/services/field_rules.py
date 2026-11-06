@@ -113,23 +113,23 @@ LABELS = {
     "supervisor_mobile_number": "Supervisor mobile number",
 }
 MESSAGES = {
-    "coss_field_name_format": "{label}: use 1 to 100 letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
-    "coss_field_amharic_name_format": "{label}: use 1 to 100 Ethiopic letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
-    "coss_field_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
-    "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the Fayda FAN ID field for a 16-digit number.",
-    "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the Fayda FIN field for a 12-digit number.",
-    "coss_field_date_format": "{label}: enter a real date. In imported files, write dates as year-month-day in the Gregorian calendar, for example 2018-12-25.",
-    "coss_field_date_min": "{label}: the date is too early. Enter a date in 1900 or later.",
-    "coss_field_date_future": "{label}: the date is in the future. Enter today's date or an earlier date.",
-    "coss_field_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
-    "coss_field_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
-    "coss_field_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
-    "coss_field_numeric": "{label}: enter a number only — no letters, spaces or other symbols.",
-    "coss_field_non_negative": "{label}: enter a number that is 0 or greater. Negative values are not allowed.",
-    "coss_field_percentage": "{label}: enter a number between 0 and 100.",
-    "coss_field_month": "{label}: enter a whole number from 1 to 12.",
-    "coss_field_day": "{label}: enter a whole number from 1 to 31.",
-    "coss_field_mobile": "{label}: enter a valid Ethiopian mobile number (e.g. +251911234567 or 0911234567).",
+    "validation_rule_name_format": "{label}: use 1 to 100 letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
+    "validation_rule_amharic_name_format": "{label}: use 1 to 100 Ethiopic letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
+    "validation_rule_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
+    "validation_rule_fin_format": "{label}: enter exactly 12 digits. Use the Fayda FAN ID field for a 16-digit number.",
+    "validation_rule_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the Fayda FIN field for a 12-digit number.",
+    "validation_rule_date_format": "{label}: enter a real date. In imported files, write dates as year-month-day in the Gregorian calendar, for example 2018-12-25.",
+    "validation_rule_date_min": "{label}: the date is too early. Enter a date in 1900 or later.",
+    "validation_rule_date_future": "{label}: the date is in the future. Enter today's date or an earlier date.",
+    "validation_rule_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
+    "validation_rule_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
+    "validation_rule_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
+    "validation_rule_numeric": "{label}: enter a number only — no letters, spaces or other symbols.",
+    "validation_rule_non_negative": "{label}: enter a number that is 0 or greater. Negative values are not allowed.",
+    "validation_rule_percentage": "{label}: enter a number between 0 and 100.",
+    "validation_rule_month": "{label}: enter a whole number from 1 to 12.",
+    "validation_rule_day": "{label}: enter a whole number from 1 to 31.",
+    "validation_rule_mobile": "{label}: enter a valid Ethiopian mobile number (e.g. +251911234567 or 0911234567).",
 }
 
 
@@ -148,7 +148,7 @@ def explain(issue, messages=None):
         or re.sub(r"\bid\b", "ID", issue.field.replace("_", " ").capitalize())
     )
     if issue.row is not None:
-        row_label = messages.get("coss_field_row_label", "{label} (row {row})")
+        row_label = messages.get("validation_rule_row_label", "{label} (row {row})")
         label = row_label.replace("{label}", label).replace("{row}", str(issue.row))
     template = messages.get(issue.key) or MESSAGES[issue.key]
     return template.replace("{label}", label)
@@ -156,10 +156,10 @@ def explain(issue, messages=None):
 
 def name_issue(value, field):
     if not isinstance(value, str):
-        return Issue(field, "coss_field_name_format")
+        return Issue(field, "validation_rule_name_format")
     cleaned = unicodedata.normalize("NFC", value.strip())
     amharic = field.endswith("_amh")
-    key = "coss_field_amharic_name_format" if amharic else "coss_field_name_format"
+    key = "validation_rule_amharic_name_format" if amharic else "validation_rule_name_format"
 
     def letter(char):
         return unicodedata.category(char).startswith(("L", "M")) and (
@@ -197,9 +197,9 @@ def clean_records(records):
                     record[key] = value.strip()
             elif field in {"farmer_id", "fayda_fin", "fayda_fan_id"}:
                 normalizer, error_key = {
-                    "farmer_id": (normalize_farmer_id, "coss_field_farmer_id_format"),
-                    "fayda_fin": (normalize_fin, "coss_field_fin_format"),
-                    "fayda_fan_id": (normalize_uid, "coss_field_fan_format"),
+                    "farmer_id": (normalize_farmer_id, "validation_rule_farmer_id_format"),
+                    "fayda_fin": (normalize_fin, "validation_rule_fin_format"),
+                    "fayda_fan_id": (normalize_uid, "validation_rule_fan_format"),
                 }[field]
                 try:
                     record[key] = normalizer(value)
@@ -212,39 +212,39 @@ def clean_records(records):
                     else parse_date(value)
                 )
                 if parsed is None:
-                    problems.append(Issue(field, "coss_field_date_format"))
+                    problems.append(Issue(field, "validation_rule_date_format"))
                 elif parsed < date(1900, 1, 1):
-                    problems.append(Issue(field, "coss_field_date_min"))
+                    problems.append(Issue(field, "validation_rule_date_min"))
                 elif field in PAST_ONLY and parsed > date.today():
-                    problems.append(Issue(field, "coss_field_date_future"))
+                    problems.append(Issue(field, "validation_rule_date_future"))
                 else:
                     record[key] = parsed.isoformat()
             elif field in COORDINATE_FIELDS:
                 if not _DECIMAL_RE.fullmatch(str(value).strip()):
-                    problems.append(Issue(field, "coss_field_numeric"))
+                    problems.append(Issue(field, "validation_rule_numeric"))
             elif field in MONTH_FIELDS:
                 token = str(value).strip()
                 if not _INTEGER_RE.fullmatch(token) or not 1 <= int(token) <= 12:
-                    problems.append(Issue(field, "coss_field_month"))
+                    problems.append(Issue(field, "validation_rule_month"))
             elif field in DAY_FIELDS:
                 token = str(value).strip()
                 if not _INTEGER_RE.fullmatch(token) or not 1 <= int(token) <= 31:
-                    problems.append(Issue(field, "coss_field_day"))
+                    problems.append(Issue(field, "validation_rule_day"))
             elif field in PERCENTAGE_FIELDS:
                 token = str(value).strip()
                 if not _DECIMAL_RE.fullmatch(token):
-                    problems.append(Issue(field, "coss_field_numeric"))
+                    problems.append(Issue(field, "validation_rule_numeric"))
                 elif not 0 <= float(token) <= 100:
-                    problems.append(Issue(field, "coss_field_percentage"))
+                    problems.append(Issue(field, "validation_rule_percentage"))
             elif field in NON_NEGATIVE_FIELDS:
                 token = str(value).strip()
                 if not _DECIMAL_RE.fullmatch(token):
-                    problems.append(Issue(field, "coss_field_numeric"))
+                    problems.append(Issue(field, "validation_rule_numeric"))
                 elif float(token) < 0:
-                    problems.append(Issue(field, "coss_field_non_negative"))
+                    problems.append(Issue(field, "validation_rule_non_negative"))
             elif field in MOBILE_FIELDS:
                 if not _ETH_MOBILE_RE.fullmatch(str(value).strip()):
-                    problems.append(Issue(field, "coss_field_mobile"))
+                    problems.append(Issue(field, "validation_rule_mobile"))
         problems.extend(identity_issues(record))
     return problems
 
@@ -264,15 +264,15 @@ def split_fayda_id(record):
         if value is None or isinstance(value, str) and not value.strip():
             farmer_id = next((v for k, v in record.items() if isinstance(k, str) and k.rsplit(".", 1)[-1] == "farmer_id"), "")
             if not (farmer_id.strip() if isinstance(farmer_id, str) else farmer_id):
-                issues.append(Issue("farmer_id", "coss_field_farmer_id_required"))
-            issues.append(Issue("fayda_id", "coss_field_fayda_one_of"))
+                issues.append(Issue("farmer_id", "validation_rule_farmer_id_required"))
+            issues.append(Issue("fayda_id", "validation_rule_fayda_one_of"))
             continue
         digits = "".join(value.split()) if isinstance(value, str) else ""
         if digits.isascii() and digits.isdigit() and len(digits) in (12, 16):
             record[prefix + "fayda_fan_id"] = digits if len(digits) == 16 else None
             record[prefix + "fayda_fin"] = digits if len(digits) == 12 else None
         else:
-            issues.append(Issue("fayda_id", "coss_field_fayda_id_format"))
+            issues.append(Issue("fayda_id", "validation_rule_fayda_id_format"))
     return issues
 
 
@@ -293,9 +293,9 @@ def identity_issues(record):
         return []
     issues = []
     if not value("farmer_id"):
-        issues.append(Issue("farmer_id", "coss_field_farmer_id_required"))
+        issues.append(Issue("farmer_id", "validation_rule_farmer_id_required"))
     if not value("fayda_fin") and not value("fayda_fan_id"):
-        issues.append(Issue("fayda_fin", "coss_field_fayda_one_of"))
+        issues.append(Issue("fayda_fin", "validation_rule_fayda_one_of"))
     return issues
 
 

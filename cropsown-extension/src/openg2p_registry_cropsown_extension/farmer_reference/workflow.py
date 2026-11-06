@@ -1,5 +1,4 @@
 """Committed outbox -> native AWE integration, with server-owned context."""
-import os
 import logging
 from pathlib import Path
 import httpx
@@ -9,6 +8,7 @@ from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services.g2p_awe_integration_service import G2PAweIntegrationService, REGISTRY_CHANGE_REQUEST_ARTIFACT
 from openg2p_registry_core.services.g2p_awe_policy_configuration_service import G2PAwePolicyConfigurationService
 
+from .configuration import setting
 from .approval_context import approval_context
 from .directory import PolicyDirectory
 from .geography import approver_context
@@ -18,9 +18,16 @@ from .profile import FarmerReferenceError
 _logger = logging.getLogger("oan-farmer-reference-workflow")
 
 
+def _required_setting(name):
+    value = setting(name)
+    if value is None:
+        raise KeyError(name)
+    return value
+
+
 async def service_bearer():
     try:
-        url = os.environ["COSS_FARMER_AWE_TOKEN_URL"]
+        url = _required_setting("AWE_TOKEN_URL")
         # Match platform service-network URL configuration. Credentials go in
         # an OAuth request body, never a URL or a resolver query string.
         from urllib.parse import urlsplit
@@ -28,10 +35,10 @@ async def service_bearer():
         if (parsed.username or parsed.password or parsed.query or parsed.fragment or
                 not parsed.hostname or parsed.scheme not in {"http", "https"}):
             raise ValueError
-        secret = Path(os.environ["COSS_FARMER_AWE_CLIENT_SECRET_FILE"]).read_text().strip()
+        secret = Path(_required_setting("AWE_CLIENT_SECRET_FILE")).read_text().strip()
         async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
             response = await client.post(url, data={"grant_type": "client_credentials",
-                "client_id": os.environ["COSS_FARMER_AWE_CLIENT_ID"], "client_secret": secret})
+                "client_id": _required_setting("AWE_CLIENT_ID"), "client_secret": secret})
             response.raise_for_status()
             token = response.json()["access_token"]
         if not isinstance(token, str) or not token.strip():
@@ -82,7 +89,7 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
     # decides whether the platform copies them into the request, and the policy
     # decides whether any stage applies.
     context = {**context, **approval_context(request.action, response_digest=request.response_digest,
-        source_system=reference.source_system)}
+        source_system=reference.source_system, configured_source_system=setting("SOURCE_ID", ""))}
     service = integration or G2PAweIntegrationService.get_component()
     if not service._awe_enabled():
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_REQUIRED")

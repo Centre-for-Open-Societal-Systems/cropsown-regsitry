@@ -37,7 +37,7 @@ def test_both_notice_patterns_match_the_form_for_add_and_keep_their_update_secti
     assert "section_id" not in assignments and "pattern_for_section" not in assignments
     inbound = seed("registry-inbound-message-rules")
     patterns = re.findall(r"'([^']+)'", ids)
-    assert len(patterns) == 2
+    assert len(patterns) == 3
     for pattern_id in patterns:
         assert f"'{pattern_id}'" in inbound
         assert re.search(rf"'{pattern_id}','[^']+','{FARMER}',NULL,'{SECTION}'", inbound)

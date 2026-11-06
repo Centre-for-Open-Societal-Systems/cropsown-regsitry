@@ -4,13 +4,44 @@ import json
 import os
 from pathlib import Path
 
+import logging
+
 from .lookup import FarmerLookup, LookupConfig, RecordContract
 from .profile import FarmerReferenceError, SOURCE_TO_LOCAL_FIELDS
 
 
+_logger = logging.getLogger("oan-farmer-reference-configuration")
+SETTING_PREFIX = "REGISTRY_FARMER_REFERENCE_"
+# Read for one release so a running deployment keeps working until its values
+# switch to the new names; the fallback is removed afterwards.
+LEGACY_SETTING_PREFIX = "COSS_FARMER_"
+_legacy_warned = False
+
+
+def setting(name, default=None):
+    """The one place the Farmer-reference settings are read from the environment.
+
+    REGISTRY_FARMER_REFERENCE_<name> wins; COSS_FARMER_<name> is the fallback and
+    logs a single warning per process when it is the only one set.
+    """
+    global _legacy_warned
+    value = os.environ.get(SETTING_PREFIX + name)
+    if value is not None:
+        return value
+    value = os.environ.get(LEGACY_SETTING_PREFIX + name)
+    if value is not None:
+        if not _legacy_warned:
+            _legacy_warned = True
+            _logger.warning("Farmer-reference settings are read from %s* names (first seen: %s); "
+                            "rename them to %s* before the fallback is removed",
+                            LEGACY_SETTING_PREFIX, LEGACY_SETTING_PREFIX + name, SETTING_PREFIX)
+        return value
+    return default
+
+
 def configured_lookup():
     def required(name):
-        value = os.environ.get("COSS_FARMER_" + name, "").strip()
+        value = (setting(name) or "").strip()
         if not value:
             raise FarmerReferenceError("FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED")
         return value
@@ -30,8 +61,8 @@ def configured_lookup():
             source_kid=required("SOURCE_KID"), consent_audience=required("CONSENT_AUDIENCE"),
             consent_controller=required("CONSENT_CONTROLLER"), consent_purpose=required("CONSENT_PURPOSE"),
             consent_scopes=tuple(value.strip() for value in required("CONSENT_SCOPES").split(",") if value.strip()),
-            algorithm=os.environ.get("COSS_FARMER_SIGNING_ALGORITHM", "RS256"),
-            source_algorithm=os.environ.get("COSS_FARMER_SOURCE_ALGORITHM", "RS256"))
+            algorithm=setting("SIGNING_ALGORITHM", "RS256"),
+            source_algorithm=setting("SOURCE_ALGORITHM", "RS256"))
         return FarmerLookup(config, contract)
     except (OSError, ValueError, TypeError, AttributeError):
         raise FarmerReferenceError("FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED") from None
