@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.02.1",
+  "version": "2026.11.06.2",
   "media_rows": {
     "crop_name.csv": 125,
     "seed_variety.csv": 794,
@@ -11,7 +11,7 @@
   "forms": [
     {
       "form_id": "crop_sown_registry_plan",
-      "version": "2026.11.02.1",
+      "version": "2026.11.06.2",
       "workbook": "crop_sown_registry_plan.xlsx",
       "media": [
         "crop_name.csv",
@@ -23,24 +23,23 @@
       ],
       "master_data_lists": {
         "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
-        "crop_season": "CROP_SEASON"
+        "crop_season": "CROP_SEASON",
+        "cropping_sys": "CROPPING_SYSTEM",
+        "fertilizer_type": "FERTILIZER_TYPE",
+        "frequency": "WATER_SOURCE_FREQUENCY",
+        "method": "WATER_SOURCE_METHOD",
+        "ownership": "OWNERSHIP_TYPE",
+        "plot_cat": "PLOT_CATEGORY",
+        "seed_class": "SEED_TYPE",
+        "seed_source": "SEED_SOURCE",
+        "soil_fertility": "SOIL_FERTILITY",
+        "water_source": "WATER_SOURCE"
       },
-      "lists_left_as_published": [
-        "cropping_sys",
-        "fertilizer_type",
-        "frequency",
-        "method",
-        "ownership",
-        "plot_cat",
-        "seed_class",
-        "seed_source",
-        "soil_fertility",
-        "water_source"
-      ]
+      "lists_left_as_published": []
     },
     {
       "form_id": "crop_sown_registry_prep",
-      "version": "2026.11.02.1",
+      "version": "2026.11.06.2",
       "workbook": "crop_sown_registry_prep.xlsx",
       "media": [
         "crop_name.csv",
@@ -52,56 +51,55 @@
       ],
       "master_data_lists": {
         "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
-        "crop_season": "CROP_SEASON"
+        "crop_season": "CROP_SEASON",
+        "cropping_sys": "CROPPING_SYSTEM",
+        "cult_method": "MACHINERY",
+        "fertilizer_type": "FERTILIZER_TYPE",
+        "frequency": "WATER_SOURCE_FREQUENCY",
+        "land_prep_method": "LAND_PREP_METHOD",
+        "method": "WATER_SOURCE_METHOD",
+        "seed_class": "SEED_TYPE",
+        "seed_source": "SEED_SOURCE",
+        "water_source": "WATER_SOURCE"
       },
-      "lists_left_as_published": [
-        "cropping_sys",
-        "cult_method",
-        "fertilizer_type",
-        "frequency",
-        "land_prep_method",
-        "method",
-        "seed_class",
-        "seed_source",
-        "water_source"
-      ]
+      "lists_left_as_published": []
     },
     {
       "form_id": "crop_sown_registry_sown",
-      "version": "2026.10.31.2",
+      "version": "2026.11.06.2",
       "workbook": "crop_sown_registry_sown.xlsx",
       "media": [
         "crop_name.csv"
       ],
       "master_data_lists": {
         "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
-        "crop_season": "CROP_SEASON"
+        "crop_season": "CROP_SEASON",
+        "fertilizer_type": "FERTILIZER_TYPE",
+        "growth_stage": "CROP_GROWTH_STAGE",
+        "pest_control_action": "PEST_CONTROL_ACTION",
+        "pest_type": "PEST",
+        "security_level": "INFESTATION_SEVERITY",
+        "weed_type": "WEED"
       },
       "lists_left_as_published": [
         "cluster_status",
-        "disease_type",
         "fert_type",
-        "fertilizer_type",
         "fungicide_type",
-        "growth_stage",
         "infestation_type",
         "m_control",
         "method_control",
         "method_of_control",
         "nutrient_type",
-        "pest_type",
         "pesticides_type",
         "recovery_type",
-        "security_level",
         "shock_type",
         "sowing_status",
-        "weed_type",
         "weedicides_type"
       ]
     },
     {
       "form_id": "crop_sown_registry_harvest",
-      "version": "2026.10.31.2",
+      "version": "2026.11.06.2",
       "workbook": "crop_sown_registry_harvest.xlsx",
       "media": [
         "crop_name.csv"

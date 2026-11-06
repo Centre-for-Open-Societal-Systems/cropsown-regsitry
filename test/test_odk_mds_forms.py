@@ -33,6 +33,9 @@ def pack(tmp_path):
                                    CROP_TEFF={"category": "CROPCAT_CEREAL"}, CROP_SESAME={"category": "CROPCAT_OILSEED"}),
         "SEED_VARIETY": mds_list("SEED_VARIETY", ["VAR_TEFF_QUNCHO", "VAR_TEFF_BOSET"]),
     }
+    # every other list the forms read from Master Data, with two codes each
+    for attribute_id in set(builder.INLINE_LISTS.values()) - set(lists):
+        lists[attribute_id] = mds_list(attribute_id, [f"{attribute_id}_A", f"{attribute_id}_B"])
     for attribute_id, data in lists.items():
         (root / "domains/agriculture" / f"{attribute_id.lower()}.json").write_text(json.dumps(data), encoding="utf-8")
     (root / "levels.json").write_text(json.dumps([
@@ -43,7 +46,8 @@ def pack(tmp_path):
     for r, name in (("01", "Tigray"), ("03", "Amhara")):
         units += [{"level_value_id": f"ET{r}", "level_id": "l1", "display_name": name, "parent_level_value_id": "ET"},
                   {"level_value_id": f"ET{r}01", "level_id": "l2", "display_name": f"Zone {r}", "parent_level_value_id": f"ET{r}"},
-                  {"level_value_id": f"ET{r}0101", "level_id": "l3", "display_name": f"Woreda {r}", "parent_level_value_id": f"ET{r}01"},
+                  {"level_value_id": f"ET{r}0101", "level_id": "l3", "display_name": f"Woreda {r}",
+                   "level_value_mnemonic": f"Woreda {r} (ET{r}0101)", "parent_level_value_id": f"ET{r}01"},
                   {"level_value_id": f"ET{r}010101", "level_id": "l4", "display_name": f"Kebele {r}", "parent_level_value_id": f"ET{r}0101"}]
     (root / "values.json").write_text(json.dumps(units), encoding="utf-8")
     return root
@@ -135,12 +139,15 @@ def test_media_files_are_master_data_codes(pack, tmp_path):
     assert [r["name"] for r in read("region.csv")] == ["ET01", "ET03"]
     assert [(r["name"], r["parent"]) for r in read("zone.csv")] == [("ET0101", "ET01"), ("ET0301", "ET03")]
     assert [(r["name"], r["parent"]) for r in read("kebele.csv")] == [("ET01010101", "ET010101"), ("ET03010101", "ET030101")]
+    # places are labelled as Master Data names them; without a mnemonic, the display name
+    assert [r["label"] for r in read("woreda.csv")] == ["Woreda 01 (ET010101)", "Woreda 03 (ET030101)"]
+    assert [r["label"] for r in read("kebele.csv")] == ["Kebele 01", "Kebele 03"]
 
 
 def test_a_list_nobody_accounted_for_stops_the_build(pack, tmp_path, monkeypatch):
     root = pack
-    monkeypatch.delitem(builder.NOT_MASTER_DATA, "plot_cat")
-    with pytest.raises(SystemExit, match="plot_cat"):
+    monkeypatch.delitem(builder.NOT_MASTER_DATA, "sowing_status")
+    with pytest.raises(SystemExit, match="sowing_status"):
         builder.build(root, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
 
 
@@ -170,3 +177,47 @@ def test_the_forms_ask_for_one_variety_called_variety(pack, tmp_path, form_id):
     survey = sheet(openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx"), "survey")
     varieties = [r for r in survey if "variety" in (r["name"] or "")]
     assert [(r["name"], r["label"], r["type"]) for r in varieties] == [("seed_variety", "Variety", "select_one_from_file seed_variety.csv")]
+
+
+def test_the_questions_read_as_on_the_web_form(pack, tmp_path):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    for form_id in ("crop_sown_registry_plan", "crop_sown_registry_prep"):
+        book = openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx")
+        survey, choices = sheet(book, "survey"), sheet(book, "choices")
+        plot = [r for r in survey if "plot" in (r["name"] or "") and "regist" in (r["name"] or "")]
+        assert [(r["name"], r["type"], r["label"]) for r in plot] == [("is_plot_registered", "select_one yes_no", "Is plot registered?")]
+        assert [(r["name"], r["label"]) for r in choices if r["list_name"] == "yes_no"] == [("yes", "Yes"), ("no", "No")]
+    survey = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"), "survey")
+    assert [r["label"] for r in survey if r["name"] == "security_level"] == ["Severity level"]
+    assert not [r for r in survey if r["name"] == "disease_type"]  # until Master Data has a crop disease list
+
+
+def test_committed_forms_offer_the_pack_lists():
+    """Each Master Data question in the published forms offers exactly the pinned pack's codes and labels."""
+    pack = REPO.parent / "openg2p-data" / "packs" / "ETH-OAN"
+    if not pack.is_dir():
+        pytest.skip("openg2p-data checkout next to the repository is needed")
+    lists = builder.read_lists(pack / "codelists", pack / "domains")
+    for form_id in builder.FORM_IDS:
+        choices = sheet(openpyxl.load_workbook(REPO / f"odk/forms/{form_id}.xlsx"), "choices")
+        for name, attribute in builder.INLINE_LISTS.items():
+            rows = [(r["name"], r["label"]) for r in choices if r["list_name"] == name]
+            if rows:
+                assert rows == [(v["value_code"], v["value_display"]) for v in builder.ordered(lists[attribute]["values"])], (form_id, name)
+
+
+def test_pest_dates_and_land_ids_read_as_on_the_web_form(pack, tmp_path):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    for form_id in builder.FORM_IDS:
+        survey = sheet(openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx"), "survey")
+        dates = [r for r in survey if (r["type"] or "").split(" ")[0] == "date"]
+        assert dates and all(r["appearance"] == "ethiopian" for r in dates), form_id
+        assert not any("Gregorian" in (r["label"] or "") for r in dates), form_id
+        assert all(not r.get("constraint") for r in survey if r["name"] == "cluster_land_info_id"), form_id
+    sown = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"), "survey")
+    types = {r["name"]: r["type"] for r in sown}
+    assert types["pest_name"] == "select_one pest_type"
+    assert types["pest_pesticide_method"] == "select_one pest_control_action"
+    assert types["weed_control_method"] == "select_one method_control"  # matches the web form's own list
+    # the infestation Land ID is still checked against sowing, as on the web form
+    assert [r["constraint"] for r in sown if r["name"] == "infestation_land_info_id"] == ["selected(join(' ', ${land_info_id}), .)"]
