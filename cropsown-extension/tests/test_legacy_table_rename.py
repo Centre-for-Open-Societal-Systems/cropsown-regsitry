@@ -45,6 +45,16 @@ class RenameStatementTests(unittest.TestCase):
             rename.SQL_PATH.read_text(encoding="utf-8"),
         )
 
+    def test_the_seed_renames_before_it_writes_the_archive(self):
+        # db-seed applies register-metadata in file-name order and can run before the
+        # staff-api start-up rename, so the seed carries the same statement first.
+        folder = ROOT / "meta_data" / "register-metadata"
+        seed = folder / "000_rename_legacy_tables_to_g2p.sql"
+        self.assertEqual(seed.read_text(encoding="utf-8"), rename.SQL_PATH.read_text(encoding="utf-8"))
+        names = sorted(path.name for path in folder.glob("*.sql"))
+        self.assertEqual(names[0], seed.name)
+        self.assertLess(names.index(seed.name), names.index("00_archive_approval_bindings.sql"))
+
     def test_nothing_is_dropped_or_deleted(self):
         sql = rename.SQL_PATH.read_text(encoding="utf-8").upper()
         for word in ("DROP ", "DELETE ", "TRUNCATE", "CREATE TABLE"):
