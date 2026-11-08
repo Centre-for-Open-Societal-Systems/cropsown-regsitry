@@ -79,5 +79,27 @@ BEGIN
       END IF;
     END LOOP;
   END LOOP;
+
+  -- Constraints whose generated name Postgres cut to 63 characters keep the old prefix but
+  -- not the full old table name (coss_farmer_reference_request_..._key), so the loop above
+  -- skips them; this also covers tables renamed by an earlier run of this statement.
+  FOR i IN 1 .. array_length(pairs, 1) / 2 LOOP
+    new_name := pairs[2 * i];
+    IF to_regclass(format('%I.%I', schema_name, new_name)) IS NULL THEN
+      CONTINUE;
+    END IF;
+    FOR item IN
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = format('%I.%I', schema_name, new_name)::regclass
+        AND left(conname, 5) = 'coss_'
+    LOOP
+      renamed_to := left('g2p_' || substr(item.conname, 6), 63);
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                     WHERE conrelid = format('%I.%I', schema_name, new_name)::regclass AND conname = renamed_to)
+         AND to_regclass(format('%I.%I', schema_name, renamed_to)) IS NULL THEN
+        EXECUTE format('ALTER TABLE %I.%I RENAME CONSTRAINT %I TO %I', schema_name, new_name, item.conname, renamed_to);
+      END IF;
+    END LOOP;
+  END LOOP;
 END
 $rename$;
