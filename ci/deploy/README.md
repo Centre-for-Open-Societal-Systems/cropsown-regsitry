@@ -53,7 +53,7 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 
 | Action | What it does |
 | --- | --- |
-| `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (set `ALLOW_NON_IMAGE_CHANGES=1` only for a deliberate chart change). |
+| `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (tick the operator parameter `ALLOW_NON_IMAGE_CHANGES`, which sets `ALLOW_NON_IMAGE_CHANGES=1`, only for a deliberate chart change such as the first rollout of the connector-definitions Job). |
 | `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker, beat and ui. Upgrade only, safe to rerun. |
 
 The service image (api, worker, beat) is `openg2p/cropsown-registry/registry-connector` (built by this
