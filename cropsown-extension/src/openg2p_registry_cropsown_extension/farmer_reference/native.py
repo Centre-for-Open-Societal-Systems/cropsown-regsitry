@@ -7,7 +7,6 @@ import asyncio
 from contextvars import ContextVar
 from importlib import import_module
 import logging
-import os
 
 from sqlalchemy import select
 from openg2p_fastapi_common.context import get_async_session_maker
@@ -24,7 +23,7 @@ from ..direct_approval import DirectApprovalClosed
 from ..fayda_id_view import FaydaIdMixin
 from ..required_intake import RequiredFieldsMixin
 from . import messages
-from .configuration import configured_lookup
+from .configuration import configured_lookup, setting
 from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerPendingLookup
 from .onboarding import OnboardingService
 from .profile import FarmerReferenceError, reference_identity, intake_identity, model_identity, matches_declared_identity, PROFILE_FIELDS
@@ -33,7 +32,7 @@ from .profile import FarmerReferenceError, reference_identity, intake_identity, 
 # (ChangeRequestSourceEnum.INGESTION_PIPELINE); the native ingest worker passes it.
 INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
 
-_logger = logging.getLogger("coss-farmer-reference-validate")
+_logger = logging.getLogger("oan-farmer-reference-validate")
 _IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
 
 
@@ -47,7 +46,7 @@ def _issue_code(reference_code: str) -> str:
     return "FARMER_NOT_FOUND"
 
 
-_approved_callback = ContextVar("coss_farmer_approved_callback", default=None)
+_approved_callback = ContextVar("oan_farmer_approved_callback", default=None)
 
 
 def domain_models():
@@ -85,7 +84,7 @@ async def create_native_request(session, local_id, profile, action, *, created_b
     service = G2PRegisterChangeRequestService.get_component()
     await service._validate_domain_attributes([dict(profile)], "Farmer", section.section_ui_schema)
     cr = await service.construct_change_request(request, section, "Farmer", "Farmer",
-        source_partner_id=os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID") or None, created_by=created_by,
+        source_partner_id=setting("SOURCE_PARTNER_ID") or None, created_by=created_by,
         change_request_source_override=INGESTION_PIPELINE_SOURCE, session=session)
     session.add(cr)
     session.add(cr._payload)
@@ -404,7 +403,7 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         start the Farmer reference ADD, exactly as the same notice does for an unreferenced
         farmer, and the intake is closed as cancelled with a pointer to the change request. It
         stays a draft, so no approval, deduplication or register ingest ever picks it up."""
-        expected_partner = os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID", "").strip()
+        expected_partner = (setting("SOURCE_PARTNER_ID") or "").strip()
         if not expected_partner or submission.partner_id != expected_partner:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
         root = getattr(domain_models(), "G2PIntakeFormFarmer")
@@ -521,7 +520,7 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
         definition = await session.get(G2PRegisterDefinition, payload.section_register_id)
         if not definition or definition.register_mnemonic != "Farmer":
             return await super().create_change_request(payload, session, source_partner_id, created_by, change_request_source)
-        expected_partner = os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID", "").strip()
+        expected_partner = (setting("SOURCE_PARTNER_ID") or "").strip()
         if not expected_partner or source_partner_id != expected_partner or change_request_source != INGESTION_PIPELINE_SOURCE:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
         reference = (await session.execute(select(FarmerReference).where(

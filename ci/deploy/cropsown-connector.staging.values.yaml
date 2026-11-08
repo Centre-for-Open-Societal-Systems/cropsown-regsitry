@@ -1,0 +1,56 @@
+# Release values of the staging cropsown-connector release (namespace crop), applied by
+# ci/deploy/upgrade-crop-connector-staging.sh with `helm upgrade --atomic --reset-values`.
+# Taken from `helm get values cropsown-connector` at revision 2 (2026-10-08); database, hosts, Secret
+# names and the ODK address are unchanged. No secret values: the database password stays in the
+# existing Secret cropsown-connector. The images are not here: the staging pipeline writes them, by
+# digest, from the build of the registry it just promoted.
+fullnameOverride: cropsown-connector
+
+global:
+  hostname: connector-cropsown-registry.crop.staging.openg2p.test
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  postgresqlPort: 5432
+  redisHost: cropsown-registry-redis-master
+  redisPort: 6379
+  partnerApiService: cropsown-registry-partner-api
+  connectorDB: cropsown_connector_crop
+  connectorDBUser: crop_cropsown_connector_user
+  connectorDBSecret: cropsown-connector
+  connectorDBUserPasswordKey: cropsown-connector-db-user
+
+imagePullSecrets:
+  - name: ecr-pull-secret
+
+commonEnv:
+  CONNECTOR_CORS_ORIGINS: https://connector-cropsown-registry.crop.staging.openg2p.test
+
+extraEnv:
+  CONNECTOR_ODK_CENTRAL_BASE_URL: https://odk-central.oanstaging.com
+
+api:
+  image:
+    pullPolicy: IfNotPresent
+worker:
+  image:
+    pullPolicy: IfNotPresent
+beat:
+  image:
+    pullPolicy: IfNotPresent
+ui:
+  image:
+    pullPolicy: IfNotPresent
+
+istio:
+  enabled: true
+  gateway:
+    create: false
+    name: internal
+  virtualservice:
+    enabled: true
+    gateway: internal
+
+# The connector database and user exist since the first install. With the init enabled, the chart's
+# pre-upgrade hooks would run again against the Secret that holds the database password; the
+# chart's preserved-init-serviceaccount.yaml keeps the ServiceAccount the release still owns.
+postgres-init:
+  enabled: false

@@ -55,17 +55,19 @@ def test_land_prep_method_text_column_is_converted_to_a_list():
 
 
 # The infestation cluster_status select reads the CLUSTER_STATUS register list with
-# valueKey value_id, so what is stored is the value id (CLUSTER_STATUS_CLUSTERED,
-# CLUSTER_STATUS_INDEPENDENT), not the value code. The show rules and the ODK
-# mapping must keep using the ids. Sowing and harvest use a separate static
-# multi-select with CLUSTER / INDEPENDENT and are not covered here.
+# valueKey value_code, so what is stored is the value code (CLUSTERED, INDEPENDENT),
+# the code the registry validates against. The show rules must use the codes.
+# Sowing and harvest use a separate static multi-select with CLUSTER / INDEPENDENT
+# and are not covered here.
+INFESTATION_CLUSTER_CODES = {"CLUSTERED", "INDEPENDENT"}
+# The ODK mapping still emits the list value ids; it moves to the codes in its own change.
 INFESTATION_CLUSTER_IDS = {"CLUSTER_STATUS_CLUSTERED", "CLUSTER_STATUS_INDEPENDENT"}
 
 
-def test_infestation_cluster_status_rules_use_list_value_ids():
+def test_infestation_cluster_status_rules_use_list_value_codes():
     line = next(l for l in SECTIONS.splitlines() if "cs_infestation_details" in l and "widget-data-columns" in l)
     values = set(re.findall(r'"field": "cluster_status", "value": "([^"]*)"', line))
-    assert values == INFESTATION_CLUSTER_IDS
+    assert values == INFESTATION_CLUSTER_CODES
 
 
 def test_odk_infestation_cluster_map_emits_list_value_ids():

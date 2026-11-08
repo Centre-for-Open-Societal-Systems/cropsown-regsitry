@@ -46,7 +46,6 @@ class G2PSchemaCultivationCluster:
     water_source_method: Optional[str] = None
     water_source_frequency: Optional[str] = None
     establishing_date: Optional[date] = None
-    establishing_date_ec: Optional[str] = None
     reference: Optional[str] = None
     primary_commodity: Optional[str] = None
     secondary_commodity: Optional[str] = None

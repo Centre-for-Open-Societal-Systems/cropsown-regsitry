@@ -19,12 +19,13 @@
 {% set production_season = cell.get('production_season', '') %}
 {% if not production_season %}{{ fail('column production_season is required') }}{% endif %}
 
-{% set text_columns = ['land_id', 'season', 'commodity', 'fertilizer_type', 'cluster_name', 'cluster_season', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
+{% set text_columns = ['land_id', 'season', 'commodity', 'fertilizer_type', 'cluster_name', 'cluster_season', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'agro_ecological_zone'] %}
 {% set number_columns = ['area_sown', 'fertilizer_qty', 'cluster_area_hectare', 'cluster_area_sown'] %}
 {% set integer_columns = [] %}
 {% set date_columns = ['sowing_date'] %}
 {% set flag_columns = ['has_pest_disease', 'cluster_has_pest_disease'] %}
-{% set choice_columns = {'agro_ecological_zone': ['KOLLA', 'WOINA_DEGA', 'DEGA', 'WURCH', 'BEREHA']} %}
+{#- Master Data list columns (cropping system, seed type, seed source, agro-ecological zone) are read as text columns: the registry checks their codes against Master Data. -#}
+{% set choice_columns = {} %}
 {% set comma_list_columns = [] %}
 {% set choice_list_columns = {'cluster_status': ['CLUSTER', 'INDEPENDENT']} %}
 

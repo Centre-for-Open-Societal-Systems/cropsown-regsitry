@@ -32,7 +32,6 @@ class G2PSchemaCultivation:
     end_gc: Optional[date] = None
     end_month: Optional[int] = None
     end_day: Optional[int] = None
-    actual_cultivation_date_ec: Optional[str] = None
     is_crop_changed: Optional[bool] = None
     land_id: Optional[str] = None
     ownership_type: Optional[str] = None
