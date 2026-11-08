@@ -81,8 +81,8 @@ def test_several_rows_with_the_same_mistake_say_it_once_and_other_text_is_kept()
 
 
 def test_the_wording_comes_from_the_registry_translation_when_it_has_one():
-    assert messages.reword(CROP, {"coss_code_choice": "{label}: pick {noun}."}) == "Crop: pick a crop."
-    assert messages.reword(CROP, {"coss_code_choice": "{broken}"}) == "Crop: choose a crop from the list."
+    assert messages.reword(CROP, {"validation_code_choice": "{label}: pick {noun}."}) == "Crop: pick a crop."
+    assert messages.reword(CROP, {"validation_code_choice": "{broken}"}) == "Crop: choose a crop from the list."
 
 
 def test_a_message_that_is_not_about_a_list_is_unchanged():
@@ -91,8 +91,8 @@ def test_a_message_that_is_not_about_a_list_is_unchanged():
 
 def test_the_translation_is_seeded_without_replacing_other_keys():
     sql = (META / "zz-oan" / "87_code_choice_message.sql").read_text(encoding="utf-8")
-    assert '"coss_code_choice": "{label}: choose {noun} from the list."' in sql
-    assert sql.index("coss_code_choice") < sql.index('COALESCE("domain_translation"') and "\r" not in sql
+    assert '"validation_code_choice": "{label}: choose {noun} from the list."' in sql
+    assert sql.index("validation_code_choice") < sql.index('COALESCE("domain_translation"') and "\r" not in sql
 
 
 def test_the_installed_validator_rewords_what_core_refuses(monkeypatch):

@@ -45,6 +45,10 @@ class Initializer(BaseInitializer):
         async def migrate():
             # Native table creation followed by add-only mapped columns.
             # Existing types/constraints/data are never altered or dropped.
+            # Tables that still carry their old names are renamed first, so
+            # create_migrate does not add empty tables beside them.
+            from .legacy_table_rename import rename_legacy_tables
+            await rename_legacy_tables(dbengine.get())
             for name in MODEL_NAMES:
                 await getattr(models, name).create_migrate()
             for model in REFERENCE_MODELS:
