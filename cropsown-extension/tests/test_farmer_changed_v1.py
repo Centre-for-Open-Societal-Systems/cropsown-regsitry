@@ -69,6 +69,23 @@ class FarmerChangedTests(unittest.TestCase):
         self.assertEqual(found,own)
         for value in own: self.assertEqual(UUID(value).version,5)
 
+    def test_readable_name_has_its_own_data_model_and_is_accepted(self):
+        seed=(ROOT/'meta_data/registry-inbound-message-rules/zz_farmer_profile_updates_v1.sql').read_text(encoding='utf-8')
+        self.assertIn("'FARMER_PROFILE_UPDATES_V1'",seed)
+        new_type='farmer.profile.updates.v1'
+        patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^farmer[^']+)'",seed))
+        self.assertTrue(patterns)
+        for pattern in patterns:
+            self.assertTrue(re.match(pattern,new_type))
+            for other in ('farmer-registry.farmer-profile.changed.v1','farmer-registry.farmer.changed.v1','farmer_reference.changed.v1'):
+                self.assertFalse(re.match(pattern,other))
+        from uuid import uuid5,NAMESPACE_URL
+        base='https://oan.invalid/seed/inbound/farmer.profile.updates.v1/'
+        own={str(uuid5(NAMESPACE_URL,base+k)) for k in ('data-model','key-path','register-pattern','semantic-pattern','template')}
+        self.assertEqual(set(re.findall(r"'([0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12})'",seed)),own)
+        for pattern in set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^\(farmer[^']+)'",SEED)):
+            self.assertFalse(re.match(pattern,new_type))
+
     def test_update_template_renders_only_the_identity(self):
         enriched=enrichers.FarmerChangedEnricher().enrich({**EVENT,'event_type':'farmer-registry.farmer.changed.v1'},None)
         template=(ROOT/'templates/crop_farmer_changed_v1_update.j2').read_text(encoding='utf-8')
