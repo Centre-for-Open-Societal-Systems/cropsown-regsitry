@@ -61,4 +61,10 @@ test "$(grep -c 'kind: Job' "$staging")" -eq 1
 grep -q 'name: cropsown-connector-postgres-init$' "$staging"  # kept by preserved-init-serviceaccount.yaml
 grep -q 'connector-cropsown-registry.crop.staging.openg2p.test' "$staging"
 grep -q 'cropsown_connector_crop' "$staging"
+# The API must expect the issuer of the tokens the definitions hook fetches (tokenUrl in
+# definitions.staging.yaml), not the New Dev issuer baked into the image.
+token_url=$(sed -n 's/^ *tokenUrl: *//p' definitions.staging.yaml)
+issuer=${token_url%/protocol/openid-connect/token}
+test -n "$issuer"
+test "$(grep -A1 'name: CONNECTOR_ADMIN_AUTH_ISSUER$' "$staging" | grep -c "value: \"$issuer\"")" -ge 3 || { echo "FAIL: staging API does not expect issuer $issuer" >&2; exit 1; }
 echo "PASS: cropsown-connector chart renders the digest-pinned images on api, worker, beat and ui, and keeps the postgres-init ServiceAccount"
