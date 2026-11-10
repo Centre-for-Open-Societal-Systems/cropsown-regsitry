@@ -1,6 +1,6 @@
 # Let the farmer-ci service account deploy the crop namespace.
 #
-# Deploy to Dev runs on the vpn-agent2 node with the staging-farmer-kubeconfig
+# Deploy to Dev runs on the oan-ci-deploy-agent-1 node with the staging-farmer-kubeconfig
 # credential, the one farmer-registry's pipeline deploys its far namespace with.
 # That kubeconfig authenticates as system:serviceaccount:far:farmer-ci, which is
 # only allowed into far, so the first deploy into crop failed at helm's release
