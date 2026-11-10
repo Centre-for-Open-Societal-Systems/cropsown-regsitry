@@ -190,16 +190,16 @@ def test_the_fayda_number_has_one_name():
     words = overlay_translations()
     for key in ("fayda_fan_id", "Fayda ID (FAN)", "link_foundational_id"):
         assert words[key] == "Fayda FAN ID"
-    assert words["coss_input_fayda_fan_id"].startswith("Fayda FAN ID: enter exactly 16 digits")
-    assert words["coss_input_fayda_fin"].startswith("Fayda FIN: enter exactly 12 digits")
+    assert words["validation_fayda_fan_id"].startswith("Fayda FAN ID: enter exactly 16 digits")
+    assert words["validation_fayda_fin"].startswith("Fayda FIN: enter exactly 12 digits")
     assert field_rules.LABELS["fayda_fan_id"] == "Fayda FAN ID"
     assert field_rules.LABELS["fayda_fin"] == "Fayda FIN"
     assert field_rules.LABELS["fayda_id"] == "Fayda ID (FAN or FIN)"
     for message in field_rules.MESSAGES.values():
         assert "FAN field" not in message.replace("Fayda FAN ID field", "")
         assert "FIN field" not in message.replace("Fayda FIN field", "")
-    assert words["coss_field_fan_format"] == field_rules.MESSAGES["coss_field_fan_format"]
-    assert words["coss_field_fin_format"] == field_rules.MESSAGES["coss_field_fin_format"]
+    assert words["validation_rule_fan_format"] == field_rules.MESSAGES["validation_rule_fan_format"]
+    assert words["validation_rule_fin_format"] == field_rules.MESSAGES["validation_rule_fin_format"]
 
 
 def test_the_register_name_is_sentence_case():

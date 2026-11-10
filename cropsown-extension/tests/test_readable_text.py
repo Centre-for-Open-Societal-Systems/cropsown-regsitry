@@ -122,12 +122,12 @@ class ReadableTextTests(unittest.IsolatedAsyncioTestCase):
                 for problem in problems(shown, message=key in {"patternMessage", "minDateMessage", "message"} or not crop):
                     failures.append(f"{section.section_id} {key} {raw_text!r} -> {shown!r}: {problem}")
         for key, value in translations.items():
-            if GEOGRAPHY.match(key) or value in PROPER or key.startswith(("coss_", "common.")):
+            if GEOGRAPHY.match(key) or value in PROPER or key.startswith(("validation_", "common.")):
                 continue
             for problem in problems(str(value)):
                 failures.append(f"translation {key!r} -> {value!r}: {problem}")
         for key, value in translations.items():
-            if key.startswith("coss_"):
+            if key.startswith("validation_"):
                 for problem in problems(str(value), message=True):
                     failures.append(f"message {key!r} -> {value!r}: {problem}")
                 assert "1900-01-01" not in value and "Remove digits" not in value, key

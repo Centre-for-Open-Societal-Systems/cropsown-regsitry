@@ -23,6 +23,15 @@ class DbSeedReportingViewsTests(unittest.TestCase):
             if line.startswith("CREATE") and "INDEX" in line:
                 self.assertIn("IF NOT EXISTS", line)
 
+    def test_the_hook_waits_for_every_table_the_views_read(self):
+        # Crop staging 33: the hook waited only for g2p_register_cultivations, which an older register
+        # already has, and then failed on g2p_attribute_values before staff-api had migrated.
+        import re
+        sql = (SEED / "reporting_views.sql").read_text()
+        hook = (ROOT / "helm/openg2p-cropsown-registry/templates/reporting-views.yaml").read_text()
+        for table in sorted(set(re.findall(r"\b(?:FROM|JOIN)\s+(g2p_\w+)", sql))):
+            self.assertIn("'" + table + "'", hook, table)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,29 +12,29 @@ BEGIN
   SELECT COALESCE(jsonb_object_agg(key,pg_temp.oan_field_rules(value)),'{}'::jsonb) INTO result FROM jsonb_each(node);
   field:=COALESCE(node->>'column-key', CASE WHEN jsonb_typeof(node->'widget-data-path')='string' THEN regexp_replace(node->>'widget-data-path','^.*\.','') END,node->>'widget-id');
   CASE
-   WHEN field='da_name' THEN pattern:=person_pattern; message_key:='coss_input_da_name';
-WHEN field='farmer_id' THEN pattern:='^\s*FR-[0-9]{12}\s*$'; message_key:='coss_input_farmer_id';
-WHEN field='farmer_name' THEN pattern:=person_pattern; message_key:='coss_input_farmer_name';
-WHEN field='fayda_fan_id' THEN pattern:='^\s*[0-9](?:\s*[0-9]){15}\s*$'; message_key:='coss_input_fayda_fan_id';
-WHEN field='fayda_fin' THEN pattern:='^\s*[0-9]{12}\s*$'; message_key:='coss_input_fayda_fin';
-WHEN field='first_name' THEN pattern:=person_pattern; message_key:='coss_input_first_name';
-WHEN field='first_name_amh' THEN pattern:=ethiopic_pattern; message_key:='coss_input_first_name_amh';
-WHEN field='first_name_other' THEN pattern:=person_pattern; message_key:='coss_input_first_name_other';
-WHEN field='last_name' THEN pattern:=person_pattern; message_key:='coss_input_last_name';
-WHEN field='last_name_amh' THEN pattern:=ethiopic_pattern; message_key:='coss_input_last_name_amh';
-WHEN field='last_name_other' THEN pattern:=person_pattern; message_key:='coss_input_last_name_other';
-WHEN field='middle_name' THEN pattern:=person_pattern; message_key:='coss_input_middle_name';
-WHEN field='middle_name_amh' THEN pattern:=ethiopic_pattern; message_key:='coss_input_middle_name_amh';
-WHEN field='middle_name_other' THEN pattern:=person_pattern; message_key:='coss_input_middle_name_other';
-WHEN field='supervisor_name' THEN pattern:=person_pattern; message_key:='coss_input_supervisor_name';
-WHEN field='surveyor_name' THEN pattern:=person_pattern; message_key:='coss_input_surveyor_name';
+   WHEN field='da_name' THEN pattern:=person_pattern; message_key:='validation_da_name';
+WHEN field='farmer_id' THEN pattern:='^\s*FR-[0-9]{12}\s*$'; message_key:='validation_farmer_id';
+WHEN field='farmer_name' THEN pattern:=person_pattern; message_key:='validation_farmer_name';
+WHEN field='fayda_fan_id' THEN pattern:='^\s*[0-9](?:\s*[0-9]){15}\s*$'; message_key:='validation_fayda_fan_id';
+WHEN field='fayda_fin' THEN pattern:='^\s*[0-9]{12}\s*$'; message_key:='validation_fayda_fin';
+WHEN field='first_name' THEN pattern:=person_pattern; message_key:='validation_first_name';
+WHEN field='first_name_amh' THEN pattern:=ethiopic_pattern; message_key:='validation_first_name_amh';
+WHEN field='first_name_other' THEN pattern:=person_pattern; message_key:='validation_first_name_other';
+WHEN field='last_name' THEN pattern:=person_pattern; message_key:='validation_last_name';
+WHEN field='last_name_amh' THEN pattern:=ethiopic_pattern; message_key:='validation_last_name_amh';
+WHEN field='last_name_other' THEN pattern:=person_pattern; message_key:='validation_last_name_other';
+WHEN field='middle_name' THEN pattern:=person_pattern; message_key:='validation_middle_name';
+WHEN field='middle_name_amh' THEN pattern:=ethiopic_pattern; message_key:='validation_middle_name_amh';
+WHEN field='middle_name_other' THEN pattern:=person_pattern; message_key:='validation_middle_name_other';
+WHEN field='supervisor_name' THEN pattern:=person_pattern; message_key:='validation_supervisor_name';
+WHEN field='surveyor_name' THEN pattern:=person_pattern; message_key:='validation_surveyor_name';
    ELSE NULL;
   END CASE;
   IF pattern IS NOT NULL AND COALESCE(node->>'widget',node->>'widget-type') IS NOT NULL THEN
    result:=jsonb_set(result,'{widget-data-validation}',COALESCE(result->'widget-data-validation','{}'::jsonb) || jsonb_build_object('pattern',pattern,'patternMessage',message_key));
   END IF;
   IF node->>'widget'='date' AND field IN ('actual_cultivation_date','cluster_harvest_date','date_of_birth','end_gc','establishing_date','harvest_date','observation_date','planned_date','registration_date','sowing_date','start_gc') THEN
-   result:=jsonb_set(result,'{widget-data-options}',COALESCE(result->'widget-data-options','{}'::jsonb) || jsonb_build_object('minDate','1900-01-01','minDateMessage','coss_input_'||field||'_min'));
+   result:=jsonb_set(result,'{widget-data-options}',COALESCE(result->'widget-data-options','{}'::jsonb) || jsonb_build_object('minDate','1900-01-01','minDateMessage','validation_'||field||'_min'));
    IF field IN ('date_of_birth','registration_date') THEN
     result:=jsonb_set(result,'{widget-data-format}',COALESCE(result->'widget-data-format','{}'::jsonb) || '{"dateConstraint":"past-only"}'::jsonb);
    END IF;

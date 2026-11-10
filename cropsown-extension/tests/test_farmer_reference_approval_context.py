@@ -32,13 +32,14 @@ class ApprovalContextTests(unittest.TestCase):
             with self.subTest(overrides=overrides):
                 self.assertEqual(self.build("UPDATE", **overrides), {"change_type": "UPDATE", "source": "unverified"})
 
-    def test_configured_source_defaults_to_the_deployment_variable(self):
-        with mock.patch.dict("os.environ", {context.SOURCE_ID_VARIABLE: " " + SOURCE_SYSTEM + " "}):
-            self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
-                             "farmer-registry")
-        with mock.patch.dict("os.environ", clear=True):
-            self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
-                             "unverified")
+    def test_without_a_configured_source_the_change_is_unverified(self):
+        # The workflow passes the deployment setting (farmer_reference.configuration.setting);
+        # this module reads no environment of its own.
+        self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
+                         "unverified")
+        self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM,
+                                                  configured_source_system=" " + SOURCE_SYSTEM + " ")["source"],
+                         "farmer-registry")
 
     def test_the_keys_are_exactly_those_the_binding_declares(self):
         self.assertEqual(sorted(self.build("ADD")), sorted(context.CONTEXT_FIELD_NAMES))
@@ -51,6 +52,7 @@ class ApprovalContextTests(unittest.TestCase):
         # must not decide anything itself, so it only merges these two keys.
         text = (SOURCE / "farmer_reference" / "workflow.py").read_text()
         self.assertIn("approval_context(request.action, response_digest=request.response_digest", text)
+        self.assertIn('configured_source_system=setting("SOURCE_ID", "")', text)
         self.assertIn("start_change_request_workflow(session, change_request, [context]", text)
         self.assertNotIn("skip_if", text)
         self.assertNotIn("auto_approve", text.lower())

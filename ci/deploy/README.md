@@ -53,7 +53,7 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 
 | Action | What it does |
 | --- | --- |
-| `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (set `ALLOW_NON_IMAGE_CHANGES=1` only for a deliberate chart change). |
+| `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (tick the operator parameter `ALLOW_NON_IMAGE_CHANGES`, which sets `ALLOW_NON_IMAGE_CHANGES=1`, only for a deliberate chart change such as the first rollout of the connector-definitions Job). |
 | `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker, beat and ui. Upgrade only, safe to rerun. |
 
 The service image (api, worker, beat) is `openg2p/cropsown-registry/registry-connector` (built by this
@@ -123,3 +123,11 @@ declared but empty secret never overwrites a stored one. The Keycloak client sec
 at run time from `commons/registry-connector` by the Job's ServiceAccount; apply `ci/k8s/connector-definitions-rbac.yaml`
 once as cluster admin. `upgrade-crop-connector.sh` passes `definitions.newdev.yaml`. Tests:
 `python -m unittest discover ci/deploy/tests`; `check-connector-chart.sh` renders the hook.
+
+## Staging connector upgrade
+
+`ci/pipelines/staging.groovy` runs `ci/deploy/upgrade-crop-connector-staging.sh` after the registry is promoted and deployed. It takes no
+parameters: the connector images are the `registry-connector` and `registry-connector-ui` images of the develop build whose
+`staff-api` digest the promoted chart pins (same ECR build tag), pinned by digest. The release is upgraded with the vendored
+chart, `cropsown-connector.staging.values.yaml` and `definitions.staging.yaml` using `helm upgrade --atomic --reset-values`.
+The hook ServiceAccount needs the Role binding in `ci/k8s/connector-definitions-rbac.yaml` (namespace `crop`) before the first run.
