@@ -278,6 +278,10 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # none of them is required and every other widget is kept.
         if path.name.endswith("_drop_ec_date_copies.sql"):
             continue
+        # The plot question overlay only rewords is_plot_not_registered and swaps its Yes/No
+        # values; the field is not required and every other widget is kept.
+        if path.name.endswith("_plot_registered_question.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):
