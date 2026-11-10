@@ -73,6 +73,9 @@ pipeline {
         // Two deploys at once leave the release locked ("another operation is in
         // progress"); a second build waits for the first instead.
         disableConcurrentBuilds()
+        // Build agents are on-demand spot machines: if one is reclaimed mid-build,
+        // run the build again instead of failing it.
+        retry(count: 2, conditions: [agent(), nonresumable()])
     }
 
     stages {
@@ -233,8 +236,11 @@ pipeline {
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
 
                             # --pull, not --no-cache: unchanged layers are reused,
-                            # but a moved base tag is still refreshed.
+                            # but a moved base tag is still refreshed. Build agents are
+                            # on-demand and start with an empty Docker cache, so layers
+                            # come from the branch image in ECR (inline cache metadata).
                             docker build --pull \
+                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --build-arg RP_VERSION="${RP_VERSION}" \
                                 -f "docker/${SVC}/Dockerfile" \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
@@ -285,6 +291,7 @@ pipeline {
                             IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
                             echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
                             docker build --pull \
+                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
                                 --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
                                 --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
