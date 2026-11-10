@@ -24,7 +24,7 @@ from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_d
 
 RECORD_ID = "1aa7c675-91d6-40be-86ba-41d7b9172049"
 PREFIX = "6b06a95a-9a6c-5a33-a33d-c1625716c59c."
-OVERLAY = (Path(module.__file__).resolve().parents[2] / "meta_data" / "zz-oan" / "93_crop_record_header_readonly.sql")
+OVERLAY = (Path(module.__file__).resolve().parents[2] / "meta_data" / "zz-oan" / "94_crop_record_header_readonly.sql")
 
 
 class Rows:
@@ -158,6 +158,8 @@ def test_the_crop_record_section_shows_the_three_fields_as_not_editable():
     assert "'cropsown_cropsown_record_section_01'" in sql
     assert "IN ('functional_record_id', 'crop_year')" in sql and '"widget": "display"' in sql
     assert "= 'production_season'" in sql and '{"widget-readonly": true}' in sql
+    # the intake record name label shares this file (98 must be the last overlay)
+    assert "jsonb_build_object('intake_record_id', 'ID')" in sql
     later = sorted(p.name for p in OVERLAY.parent.glob("*.sql"))
     assert later.index(OVERLAY.name) > later.index("41_crop_record_tab_layout.sql")
-    assert later[-1] == "98_ethiopian_dates.sql"
+    assert later.index(OVERLAY.name) < later.index("98_ethiopian_dates.sql")
