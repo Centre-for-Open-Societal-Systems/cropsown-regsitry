@@ -67,4 +67,8 @@ token_url=$(sed -n 's/^ *tokenUrl: *//p' definitions.staging.yaml)
 issuer=${token_url%/protocol/openid-connect/token}
 test -n "$issuer"
 test "$(grep -A1 'name: CONNECTOR_ADMIN_AUTH_ISSUER$' "$staging" | grep -c "value: \"$issuer\"")" -ge 3 || { echo "FAIL: staging API does not expect issuer $issuer" >&2; exit 1; }
+# The Farmer-reference receivers sign the registry payload: api, worker and beat carry the kid and
+# the key from the crop lookup Secret, or every delivery is dead-lettered unsigned.
+test "$(grep -A1 'name: CONNECTOR_SIGNING_KID$' "$staging" | grep -c 'value: "crop-lookup-ed25519-')" -ge 3 || { echo "FAIL: staging connector has no signing kid" >&2; exit 1; }
+test "$(grep -A5 'name: CONNECTOR_SIGNING_KEY_PEM$' "$staging" | grep -c 'name: crop-farmer-lookup-signing-ed25519$')" -ge 3 || { echo "FAIL: staging connector has no signing key" >&2; exit 1; }
 echo "PASS: cropsown-connector chart renders the digest-pinned images on api, worker, beat and ui, and keeps the postgres-init ServiceAccount"
