@@ -216,8 +216,81 @@ def test_pest_dates_and_land_ids_read_as_on_the_web_form(pack, tmp_path):
         assert all(not r.get("constraint") for r in survey if r["name"] == "cluster_land_info_id"), form_id
     sown = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"), "survey")
     types = {r["name"]: r["type"] for r in sown}
-    assert types["pest_name"] == "select_one pest_type"
+    assert types["pest_name"] == "text"  # typed, as on the web form
     assert types["pest_pesticide_method"] == "select_one pest_control_action"
     assert types["weed_control_method"] == "select_one method_control"  # matches the web form's own list
     # the infestation Land ID is still checked against sowing, as on the web form
-    assert [r["constraint"] for r in sown if r["name"] == "infestation_land_info_id"] == ["selected(join(' ', ${land_info_id}), .)"]
+    assert [r["constraint"] for r in sown if r["name"] == "infestation_land_info_id"] == [
+        "selected(join(' ', ${land_info_id}), .) or selected(join(' ', ${cluster_land_info_id}), .)"]
+
+
+def test_planning_and_cultivation_ask_the_land_and_crop_locations_as_on_the_web_form(pack, tmp_path):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    plan = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_plan.xlsx"), "survey")
+    names = [r["name"] for r in plan]
+    assert "address" not in names and "region_display_id" not in names  # from the Farmer Registry
+    assert names[names.index("kebele_id") + 1] == "planning_gps"
+    assert names[names.index("crop_expected") + 1] == "crop_gps"
+    assert {r["name"]: r["type"] for r in plan if r["name"] in ("planning_gps", "crop_gps")} == {
+        "planning_gps": "geopoint", "crop_gps": "geopoint"}
+
+    prep = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_prep.xlsx"), "survey")
+    rows = {r["name"]: r for r in prep if r["name"]}
+    names = [r["name"] for r in prep]
+    first = names.index("cult_land_prep") + 1
+    assert names[first:first + 3] == ["is_planning_record_created", "is_plot_registered", "land_info_id"]
+    assert rows["is_planning_record_created"]["type"] == "select_one yes_no"
+    assert not rows["is_planning_record_created"]["required"]  # file import does not send it yet
+    land = ["is_plot_registered", "land_category", "ownership_type", "soil_fertility", "region_name_id",
+            "zone_name_id", "woreda_name_id", "kebele_id", "planning_gps"]
+    assert all(rows[n]["relevant"] == "${is_planning_record_created} = 'no'" for n in land)
+    assert not rows["land_info_id"]["relevant"] and not rows["land_area"]["relevant"]
+    assert names[names.index("land_area") + 1:names.index("land_area") + 7] == land[3:]
+    assert names[names.index("actual_crop_area") + 1] == "crop_gps" and not rows["crop_gps"]["relevant"]
+    # the land questions are the Planning form's own
+    for n in ("land_category", "zone_name_id", "kebele_id"):
+        same = lambda row: {k: v for k, v in row.items() if k != "relevant"}
+        assert same(rows[n]) == same(next(r for r in plan if r["name"] == n))
+
+
+def test_sowing_infestations_are_pest_weed_and_disease(pack, tmp_path):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    for book in (openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"),
+                 openpyxl.load_workbook(REPO / "odk/forms/crop_sown_registry_sown.xlsx")):
+        survey, choices = sheet(book, "survey"), sheet(book, "choices")
+        assert [r["name"] for r in choices if r["list_name"] == "infestation_type"] == ["pest", "weed", "disease"]
+        names = {r["name"] for r in survey}
+        assert not names & {"nutrient_deficiency", "nutrient_type", "climate_shock", "shock_type", "recovery_input_type"}
+        assert {"pest_occurance", "weed_occurrence", "disease"} <= names
+        assert not {r["list_name"] for r in choices} & {"nutrient_type", "shock_type", "recovery_type", "m_control"}
+
+
+@pytest.mark.parametrize("form_id", ("crop_sown_registry_sown", "crop_sown_registry_harvest"))
+def test_sowing_and_harvest_ask_each_land_id_in_its_cluster_status_group(pack, tmp_path, form_id):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    for book in (openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx"),
+                 openpyxl.load_workbook(REPO / f"odk/forms/{form_id}.xlsx")):
+        survey = sheet(book, "survey")
+        names = [r["name"] for r in survey]
+        rows = {r["name"]: r for r in survey if r["name"]}
+        assert rows["cluster_status_ids"]["required"] == "yes"
+        cl = names.index("clustered_details")
+        assert names[cl + 1:cl + 3] == ["is_cluster_land_recorded", "cluster_land_info_id"]
+        ind = names.index("independant_details")
+        assert names[ind + 1:ind + 3] == ["is_land_recorded", "land_info_id"]
+        assert names.count("land_info_id") == 1  # no Land ID left at the top of the row
+        assert rows["land_info_id"]["required"] == "yes" and rows["cluster_land_info_id"]["required"] == "yes"
+        assert all(rows[n]["relevant"] == "${is_land_recorded} = 'no'"
+                   for n in ("is_plot_registered", "land_category", "region_name_id", "kebele_id", "planning_gps"))
+        assert all(rows[n]["relevant"] == "${is_cluster_land_recorded} = 'no'"
+                   for n in ("cluster_region_id", "cluster_kebele_id", "cluster_sub_kebele", "cluster_gps"))
+        assert rows["cluster_zone_id"]["choice_filter"] == "parent=${cluster_region_id}"
+
+
+@pytest.mark.parametrize("form_id", ("crop_sown_registry_sown", "crop_sown_registry_harvest"))
+def test_cluster_status_reads_as_on_the_web_form(pack, tmp_path, form_id):
+    builder.build(pack, None, "test-version", builder.SOURCE, tmp_path / "forms", tmp_path / "media")
+    for book in (openpyxl.load_workbook(tmp_path / "forms" / f"{form_id}.xlsx"),
+                 openpyxl.load_workbook(REPO / f"odk/forms/{form_id}.xlsx")):
+        labels = [r["label"] for r in sheet(book, "survey") if (r["name"] or "").startswith("cluster_status")]
+        assert labels and set(labels) == {"Cluster / non cluster status"}

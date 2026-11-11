@@ -130,41 +130,123 @@ def is_clustered_row(row: dict) -> bool:
     return False
 
 
-async def get_form_type(form_id: str | None, session) -> str:
-    """
-    Returns 'planning', 'cultivation', 'sowing', 'harvesting', or 'other'.
-    """
-    if not form_id:
-        return "other"
-    if form_id == "5bf0068c-ce19-46f8-874c-7147997f793b":
-        return "planning"
-    if form_id == "6be15ab9-0f1b-4c38-995f-395d52a1b17a":
-        return "cultivation"
-    if form_id == "4a7c2c98-0ffb-41d8-8fea-f22349823675":
-        return "sowing"
-    if form_id == "52150a37-153d-496d-9cd9-2a3815d6e13b":
-        return "harvesting"
+def cluster_sides(row: dict) -> tuple[bool, bool]:
+    """(Clustered ticked, Independent ticked) in a row's Cluster status."""
+    cs = row.get("cluster_status")
+    items = cs if isinstance(cs, (list, tuple, set)) else ([cs] if cs else [])
+    names = [str((x.get("value") or x.get("label")) if isinstance(x, dict) else x or "").upper() for x in items]
+    independent = any("INDEPENDENT" in n or "NON_CLUSTER" in n or "NON-CLUSTER" in n for n in names)
+    cluster = any("CLUSTER" in n and "NON_CLUSTER" not in n and "NON-CLUSTER" not in n for n in names)
+    return cluster, independent
 
-    try:
-        res = await session.execute(
-            text("SELECT form_mnemonic FROM g2p_intake_form_definitions WHERE form_id = :fid"),
-            {"fid": form_id}
-        )
-        row = res.fetchone()
-        if row and row[0]:
-            mnemonic = str(row[0]).lower()
-            if "planning" in mnemonic:
-                return "planning"
-            if "cultivation" in mnemonic:
-                return "cultivation"
-            if "sowing" in mnemonic:
-                return "sowing"
-            if "harvest" in mnemonic:
-                return "harvesting"
-    except Exception as e:
-        _logger.warning("Error checking form type: %s", e)
-    return "other"
 
+def row_lands(row: dict) -> tuple[str, str]:
+    """(cluster land, independent land) of a Sowing / Harvest row; "" where not ticked.
+
+    Clustered uses Land ID (cluster) (cluster_land_id), Independent uses Land ID
+    (land_id); a row with both ticked has both. A row without a Cluster status
+    (ODK, file import, older rows) keeps its one Land ID on the side is_clustered_row picks.
+    """
+    cluster, independent = cluster_sides(row)
+    land_id = str(row.get("land_id") or "").strip()
+    cluster_land_id = str(row.get("cluster_land_id") or "").strip()
+    if not independent and not cluster:
+        return (cluster_land_id or land_id, "") if is_clustered_row(row) else ("", land_id)
+    return (cluster_land_id if cluster else "", land_id if independent else "")
+
+
+# Not used: nothing calls get_form_type. It was written for
+# validate_farmer_identity_prerequisite, which is not called either. Kept
+# commented out for reference.
+#
+# async def get_form_type(form_id: str | None, session) -> str:
+#     """
+#     Returns 'planning', 'cultivation', 'sowing', 'harvesting', or 'other'.
+#     """
+#     if not form_id:
+#         return "other"
+#     if form_id == "5bf0068c-ce19-46f8-874c-7147997f793b":
+#         return "planning"
+#     if form_id == "6be15ab9-0f1b-4c38-995f-395d52a1b17a":
+#         return "cultivation"
+#     if form_id == "4a7c2c98-0ffb-41d8-8fea-f22349823675":
+#         return "sowing"
+#     if form_id == "52150a37-153d-496d-9cd9-2a3815d6e13b":
+#         return "harvesting"
+#
+#     try:
+#         res = await session.execute(
+#             text("SELECT form_mnemonic FROM g2p_intake_form_definitions WHERE form_id = :fid"),
+#             {"fid": form_id}
+#         )
+#         row = res.fetchone()
+#         if row and row[0]:
+#             mnemonic = str(row[0]).lower()
+#             if "planning" in mnemonic:
+#                 return "planning"
+#             if "cultivation" in mnemonic:
+#                 return "cultivation"
+#             if "sowing" in mnemonic:
+#                 return "sowing"
+#             if "harvest" in mnemonic:
+#                 return "harvesting"
+#     except Exception as e:
+#         _logger.warning("Error checking form type: %s", e)
+#     return "other"
+
+
+# "Is planning record created?" on Sowing and Harvest rows: the answer's key, the Land ID
+# it is about, and the earlier sections that may hold that land.
+LAND_RECORDED = (
+    ("is_land_recorded", "land_id", "Land ID", ("plannings", "cultivations"),
+     "planning or cultivation record"),
+    ("is_cluster_land_recorded", "cluster_land_id", "Land ID (cluster)", ("clusters", "cultivation_clusters"),
+     "cluster planning or cultivation cluster record"),
+)
+
+
+async def validate_land_recorded(record: dict, session) -> None:
+    """Yes to "Is planning record created?": the Land ID is in an earlier section of the
+    same farmer, crop year and season (this intake's rows, the farmer's matching crop
+    records, or the crop record being edited). When neither the intake nor the record
+    can be told, nothing is refused."""
+    if session is None:
+        return
+    for answer_key, land_key, land_label, tables, what in LAND_RECORDED:
+        answer = record.get(answer_key)
+        if not (answer is True or str(answer).strip().lower() in ("true", "yes")):
+            continue
+        land_id = str(record.get(land_key) or "").strip()
+        if not land_id:
+            continue
+        submission_id = record.get("submission_id")
+        record_ids: list[str] = []
+        found = False
+        if submission_id:
+            for table in tables:
+                if (await session.execute(
+                        text(f"SELECT 1 FROM g2p_intake_form_{table} WHERE submission_id = :sid AND TRIM(land_id) = :land LIMIT 1"),
+                        {"sid": str(submission_id), "land": land_id})).first():
+                    found = True
+                    break
+            if not found:
+                record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
+        if record.get("link_internal_record_id"):
+            record_ids = [*record_ids, str(record["link_internal_record_id"])]
+        if found or (not submission_id and not record_ids):
+            continue
+        for table in tables if record_ids else ():
+            if (await session.execute(
+                    text(f"SELECT 1 FROM g2p_register_{table} WHERE link_internal_record_id = ANY(:ids) "
+                         "AND record_status = 'ACTIVE' AND TRIM(land_id) = :land LIMIT 1"),
+                    {"ids": record_ids, "land": land_id})).first():
+                found = True
+                break
+        if not found:
+            validation_error(
+                f"No {what} found for {land_label} '{land_id}' for this farmer in this crop year and season. "
+                "Check the Land ID, or choose No for \"Is planning record created?\" and enter the land details."
+            )
 
 async def get_master_records_for_submission(session, submission_id: str | None) -> tuple[list[str], str, str, str]:
     """
@@ -174,7 +256,10 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
         return [], "", "", ""
 
     res_hdr = await session.execute(
-        text("SELECT fayda_fan_id, crop_year, production_season, farmer_id FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid AND fayda_fan_id IS NOT NULL LIMIT 1"),
+        # The farmer's FAN (16 digits) or, without one, FIN (12 digits).
+        text("SELECT COALESCE(NULLIF(TRIM(fayda_fan_id), ''), NULLIF(TRIM(fayda_fin), '')), crop_year, production_season, farmer_id "
+             "FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid "
+             "AND COALESCE(NULLIF(TRIM(fayda_fan_id), ''), NULLIF(TRIM(fayda_fin), '')) IS NOT NULL LIMIT 1"),
         {"sid": submission_id}
     )
     hdr_row = res_hdr.fetchone()
@@ -194,7 +279,8 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
     query_master = text("""
         SELECT internal_record_id, crop_year, production_season, farmer_id
         FROM g2p_register_crop_sowns
-        WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
+        WHERE (REPLACE(COALESCE(fayda_fan_id, ''), ' ', '') = :fayda_nospaces
+               OR REPLACE(COALESCE(fayda_fin, ''), ' ', '') = :fayda_nospaces)
           AND record_status = 'ACTIVE'
     """)
     res_m = await session.execute(query_master, {"fayda": fayda, "fayda_nospaces": fayda_nospaces})
@@ -214,351 +300,373 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
 _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 
 
-def validate_farmer_identity_required_fields(section_id: str, section_payload: list[dict]):
-    if section_id not in (
-        "cropsown_intake_record_section_01",
-        "cropsown_common_intake_record_section_01",
-        "cropsown_cropsown_record_section_01",
-    ):
-        return
-
-    from .domain_validation_utils import get_row_field, validate_alphabetical_name, as_int
-
-    active_rows = [r for r in (section_payload or []) if isinstance(r, dict) and not is_record_deleted(r)]
-    is_common_intake = (section_id == "cropsown_common_intake_record_section_01")
-
-    if not active_rows:
-        if is_common_intake:
-            validation_error("Fayda ID (FAN) is required in Farmer Identity.")
-        else:
-            validation_error("Farmer ID is required in Farmer Identity.")
-
-    for row in active_rows:
-        farmer_id = get_row_field(row, "farmer_id")
-        fayda_fan_id = get_row_field(row, "fayda_fan_id") or get_row_field(row, "fayda_id")
-        crop_year = get_row_field(row, "crop_year")
-        prod_season = get_row_field(row, "production_season") or get_row_field(row, "season")
-
-        # 1. Farmer ID
-        if not is_common_intake:
-            if not farmer_id:
-                validation_error("Farmer ID is required in Farmer Identity.")
-            if not _FARMER_ID_PATTERN.match(str(farmer_id).strip()):
-                validation_error(f"Farmer ID must be FR- followed by 12 digits (got '{farmer_id}')")
-
-        # 2. Fayda ID (FAN)
-        if not fayda_fan_id:
-            validation_error("Fayda ID (FAN) is required in Farmer Identity.")
-        fyda_pattern = r"^\d{4} \d{4} \d{4} \d{4}$"
-        if not re.match(fyda_pattern, str(fayda_fan_id).strip()):
-            validation_error(
-                "Fayda ID must be 16 digits formatted as 4 groups of 4 digits (e.g. 1234 5678 9000 3456) with no letters, special characters, or extra spaces within groups"
-            )
-
-        # 3. Crop Year
-        if not crop_year:
-            validation_error("Crop Year is required in Farmer Identity.")
-        val_str = str(crop_year).strip()
-        if not val_str.isdigit():
-            validation_error("Crop Year must contain only numeric digits (no letters, spaces, or special characters)")
-        year = as_int(crop_year)
-        current_year = date.today().year
-        if year is not None and year < current_year:
-            validation_error("Crop Year must not be in the past")
-        if year is not None and year > current_year:
-            validation_error("Crop Year must not be in the future")
-
-        # 4. Production Season
-        if not prod_season:
-            validation_error("Production Season is required in Farmer Identity.")
-
-        # 5. Farmer Name (optional)
-        farmer_name = get_row_field(row, "farmer_name")
-        if farmer_name:
-            validate_alphabetical_name(farmer_name, "Farmer Name")
-
-
-async def validate_farmer_identity_prerequisite(session, section_payload: list[dict], submission_id: str | None, form_type: str):
-    """
-    Rule: Sowing and Harvesting are NOT allowed to create a new master Crop Sown record.
-    When filling Farmer Identity and clicking 'Next' on Sowing or Harvesting forms,
-    check whether there is already an ACTIVE record for this Fayda ID, Crop Year, and Season
-    in entire Crop Sown records. If none exists, raise an error preventing the user from proceeding.
-    """
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
-        fayda = str(row.get("fayda_fan_id") or row.get("fayda_id") or "").strip()
-        crop_year = str(row.get("crop_year") or "").strip()
-        prod_season = str(row.get("production_season") or "").strip()
-
-        if not fayda:
-            continue
-
-        fayda_nospaces = fayda.replace(" ", "")
-        season_clean = clean_season(prod_season)
-
-        query = text("""
-            SELECT internal_record_id, crop_year, production_season
-            FROM g2p_register_crop_sowns
-            WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
-              AND record_status = 'ACTIVE'
-        """)
-        res = await session.execute(query, {"fayda": fayda, "fayda_nospaces": fayda_nospaces})
-        rows = res.fetchall()
-
-        matched = False
-        for r_id, r_year, r_season in rows:
-            year_matches = not crop_year or str(r_year or "").strip() == crop_year
-            season_matches = not season_clean or clean_season(r_season) == season_clean
-            if year_matches and season_matches:
-                matched = True
-                break
-
-        if not matched:
-            year_str = f", Crop Year '{crop_year}'" if crop_year else ""
-            season_str = f", Production Season '{prod_season}'" if prod_season else ""
-            stage_name = form_type.capitalize()
-            prereq_msg = (
-                "Please ensure a Sowing record exists before creating a Harvesting record."
-                if form_type == "harvesting"
-                else "Please ensure a Planning / Cultivation record exists before creating a Sowing record."
-            )
-            validation_error(
-                f"No active Crop Sown record found under Fayda ID '{fayda}'{year_str}{season_str}. "
-                f"A {stage_name} intake form can only be created for an existing Crop Sown record. "
-                f"{prereq_msg}"
-            )
+# Not used: nothing calls validate_farmer_identity_required_fields. Its rules are
+# handled by the section required-field settings and the crop sown service checks
+# (and Fayda FAN ID is optional on the current forms). Kept commented out for reference.
+#
+# def validate_farmer_identity_required_fields(section_id: str, section_payload: list[dict]):
+#     if section_id not in (
+#         "cropsown_intake_record_section_01",
+#         "cropsown_common_intake_record_section_01",
+#         "cropsown_cropsown_record_section_01",
+#     ):
+#         return
+#
+#     from .domain_validation_utils import get_row_field, validate_alphabetical_name, as_int
+#
+#     active_rows = [r for r in (section_payload or []) if isinstance(r, dict) and not is_record_deleted(r)]
+#     is_common_intake = (section_id == "cropsown_common_intake_record_section_01")
+#
+#     if not active_rows:
+#         if is_common_intake:
+#             validation_error("Fayda ID (FAN) is required in Farmer Identity.")
+#         else:
+#             validation_error("Farmer ID is required in Farmer Identity.")
+#
+#     for row in active_rows:
+#         farmer_id = get_row_field(row, "farmer_id")
+#         fayda_fan_id = get_row_field(row, "fayda_fan_id") or get_row_field(row, "fayda_id")
+#         crop_year = get_row_field(row, "crop_year")
+#         prod_season = get_row_field(row, "production_season") or get_row_field(row, "season")
+#
+#         # 1. Farmer ID
+#         if not is_common_intake:
+#             if not farmer_id:
+#                 validation_error("Farmer ID is required in Farmer Identity.")
+#             if not _FARMER_ID_PATTERN.match(str(farmer_id).strip()):
+#                 validation_error(f"Farmer ID must be FR- followed by 12 digits (got '{farmer_id}')")
+#
+#         # 2. Fayda ID (FAN)
+#         if not fayda_fan_id:
+#             validation_error("Fayda ID (FAN) is required in Farmer Identity.")
+#         fyda_pattern = r"^\d{4} \d{4} \d{4} \d{4}$"
+#         if not re.match(fyda_pattern, str(fayda_fan_id).strip()):
+#             validation_error(
+#                 "Fayda ID must be 16 digits formatted as 4 groups of 4 digits (e.g. 1234 5678 9000 3456) with no letters, special characters, or extra spaces within groups"
+#             )
+#
+#         # 3. Crop Year
+#         if not crop_year:
+#             validation_error("Crop Year is required in Farmer Identity.")
+#         val_str = str(crop_year).strip()
+#         if not val_str.isdigit():
+#             validation_error("Crop Year must contain only numeric digits (no letters, spaces, or special characters)")
+#         year = as_int(crop_year)
+#         current_year = date.today().year
+#         if year is not None and year < current_year:
+#             validation_error("Crop Year must not be in the past")
+#         if year is not None and year > current_year:
+#             validation_error("Crop Year must not be in the future")
+#
+#         # 4. Production Season
+#         if not prod_season:
+#             validation_error("Production Season is required in Farmer Identity.")
+#
+#         # 5. Farmer Name (optional)
+#         farmer_name = get_row_field(row, "farmer_name")
+#         if farmer_name:
+#             validate_alphabetical_name(farmer_name, "Farmer Name")
 
 
-async def validate_farmer_identity_season_change(session, section_payload: list[dict], submission_id: str | None):
-    if not submission_id or not section_payload:
-        return
-    for row in section_payload:
-        if is_record_deleted(row):
-            continue
-        new_prod_season = (
-            row.get("production_season")
-            or row.get("6b06a95a-9a6c-5a33-a33d-c1625716c59c.production_season")
-            or row.get("season")
-        )
-        if not new_prod_season:
-            continue
-        new_clean = clean_season(new_prod_season)
-        if not new_clean:
-            continue
-
-        intake_tables = [
-            ("g2p_intake_form_plannings", "season", "Crop Planning Details"),
-            ("g2p_intake_form_cultivations", "season", "Cultivation Details"),
-            ("g2p_intake_form_cultivation_clusters", "season", "Cultivation Cluster Details"),
-            ("g2p_intake_form_clusters", "season", "Cluster Information Details"),
-            ("g2p_intake_form_sowings", "COALESCE(season, cluster_season)", "Sowing Details"),
-            ("g2p_intake_form_productions", "season", "Production Details"),
-        ]
-        for tbl, col, sec_label in intake_tables:
-            res = await session.execute(
-                text(f"SELECT {col} FROM {tbl} WHERE submission_id = :sid AND {col} IS NOT NULL LIMIT 1"),
-                {"sid": submission_id}
-            )
-            row_c = res.fetchone()
-            if row_c and row_c[0]:
-                c_clean = clean_season(row_c[0])
-                if c_clean and c_clean != new_clean:
-                    validation_error(
-                        f"Production Season '{new_prod_season}' does not match Season '{row_c[0]}' in {sec_label} for this submission."
-                    )
-
-
-async def validate_section_season_matches_production_season(session, section_id: str, section_payload: list[dict], submission_id: str | None):
-    if not submission_id or not section_payload:
-        return
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
-    if not prod_season and submission_id:
-        res = await session.execute(
-            text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid AND production_season IS NOT NULL LIMIT 1"),
-            {"sid": submission_id}
-        )
-        row = res.fetchone()
-        if row and row[0]:
-            prod_season = row[0]
-
-    if not prod_season:
-        return
-
-    prod_clean = clean_season(prod_season)
-    if not prod_clean:
-        return
-
-    section_names = {
-        "cropsown_planning_details_section_01": "Crop Planning Details",
-        "cropsown_cluster_details_section_01": "Cluster Information Details",
-        "cropsown_cultivation_details_section_01": "Cultivation / Land Preparation Details",
-        "cropsown_cultivation_cluster_details_section_01": "Cultivation Cluster Details",
-        "cropsown_sowing_details_section_01": "Sowing Details",
-        "cropsown_harvest_details_section_01": "Harvest Details",
-        "cropsown_production_details_section_01": "Production Details",
-    }
-    sec_name = section_names.get(section_id, "this section")
-
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
-        row_season = row.get("season") or row.get("cluster_season")
-        if not row_season:
-            for k, v in row.items():
-                if isinstance(k, str) and (k.endswith("season") or k.endswith(".season")) and v:
-                    row_season = v
-                    break
-        if row_season:
-            r_clean = clean_season(row_season)
-            if r_clean and r_clean != prod_clean:
-                validation_error(
-                    f"Season '{row_season}' in {sec_name} does not match the Production Season '{prod_season}' specified in Farmer Identity."
-                )
+# Not used: nothing calls validate_farmer_identity_prerequisite. Its rule (Sowing and
+# Harvesting may not create a crop sown record) was replaced by parent reuse, which
+# lets any stage create one. Kept commented out for reference.
+#
+# async def validate_farmer_identity_prerequisite(session, section_payload: list[dict], submission_id: str | None, form_type: str):
+#     """
+#     Rule: Sowing and Harvesting are NOT allowed to create a new master Crop Sown record.
+#     When filling Farmer Identity and clicking 'Next' on Sowing or Harvesting forms,
+#     check whether there is already an ACTIVE record for this Fayda ID, Crop Year, and Season
+#     in entire Crop Sown records. If none exists, raise an error preventing the user from proceeding.
+#     """
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
+#         fayda = str(row.get("fayda_fan_id") or row.get("fayda_id") or "").strip()
+#         crop_year = str(row.get("crop_year") or "").strip()
+#         prod_season = str(row.get("production_season") or "").strip()
+#
+#         if not fayda:
+#             continue
+#
+#         fayda_nospaces = fayda.replace(" ", "")
+#         season_clean = clean_season(prod_season)
+#
+#         query = text("""
+#             SELECT internal_record_id, crop_year, production_season
+#             FROM g2p_register_crop_sowns
+#             WHERE (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_nospaces)
+#               AND record_status = 'ACTIVE'
+#         """)
+#         res = await session.execute(query, {"fayda": fayda, "fayda_nospaces": fayda_nospaces})
+#         rows = res.fetchall()
+#
+#         matched = False
+#         for r_id, r_year, r_season in rows:
+#             year_matches = not crop_year or str(r_year or "").strip() == crop_year
+#             season_matches = not season_clean or clean_season(r_season) == season_clean
+#             if year_matches and season_matches:
+#                 matched = True
+#                 break
+#
+#         if not matched:
+#             year_str = f", Crop Year '{crop_year}'" if crop_year else ""
+#             season_str = f", Production Season '{prod_season}'" if prod_season else ""
+#             stage_name = form_type.capitalize()
+#             prereq_msg = (
+#                 "Please ensure a Sowing record exists before creating a Harvesting record."
+#                 if form_type == "harvesting"
+#                 else "Please ensure a Planning / Cultivation record exists before creating a Sowing record."
+#             )
+#             validation_error(
+#                 f"No active Crop Sown record found under Fayda ID '{fayda}'{year_str}{season_str}. "
+#                 f"A {stage_name} intake form can only be created for an existing Crop Sown record. "
+#                 f"{prereq_msg}"
+#             )
 
 
-def extract_row_dict(item):
-    if hasattr(item, "model_dump"):
-        return item.model_dump()
-    if isinstance(item, dict):
-        return item
-    if hasattr(item, "__dict__"):
-        return item.__dict__
-    return {}
+# Not used: nothing calls validate_farmer_identity_season_change. A season that does not
+# match the other sections is refused by each section's own season check on save and
+# again when the intake is checked for approval. Kept commented out for reference.
+#
+# async def validate_farmer_identity_season_change(session, section_payload: list[dict], submission_id: str | None):
+#     if not submission_id or not section_payload:
+#         return
+#     for row in section_payload:
+#         if is_record_deleted(row):
+#             continue
+#         new_prod_season = (
+#             row.get("production_season")
+#             or row.get("6b06a95a-9a6c-5a33-a33d-c1625716c59c.production_season")
+#             or row.get("season")
+#         )
+#         if not new_prod_season:
+#             continue
+#         new_clean = clean_season(new_prod_season)
+#         if not new_clean:
+#             continue
+#
+#         intake_tables = [
+#             ("g2p_intake_form_plannings", "season", "Crop Planning Details"),
+#             ("g2p_intake_form_cultivations", "season", "Cultivation Details"),
+#             ("g2p_intake_form_cultivation_clusters", "season", "Cultivation Cluster Details"),
+#             ("g2p_intake_form_clusters", "season", "Cluster Information Details"),
+#             ("g2p_intake_form_sowings", "COALESCE(season, cluster_season)", "Sowing Details"),
+#             ("g2p_intake_form_productions", "season", "Production Details"),
+#         ]
+#         for tbl, col, sec_label in intake_tables:
+#             res = await session.execute(
+#                 text(f"SELECT {col} FROM {tbl} WHERE submission_id = :sid AND {col} IS NOT NULL LIMIT 1"),
+#                 {"sid": submission_id}
+#             )
+#             row_c = res.fetchone()
+#             if row_c and row_c[0]:
+#                 c_clean = clean_season(row_c[0])
+#                 if c_clean and c_clean != new_clean:
+#                     validation_error(
+#                         f"Production Season '{new_prod_season}' does not match Season '{row_c[0]}' in {sec_label} for this submission."
+#                     )
 
 
-def extract_season_from_item(item_dict):
-    for key in ("season", "cluster_season", "production_season"):
-        val = item_dict.get(key)
-        if val:
-            return str(val)
-    for k, v in item_dict.items():
-        if isinstance(k, str) and (k.endswith("production_season") or k.endswith("cluster_season") or k.endswith(".season") or k == "season") and v:
-            return str(v)
-    return None
+# Not used: nothing calls validate_section_season_matches_production_season. The same
+# rule (a section's season must match the production season) is in each of the 7
+# section services and runs on every save. Kept commented out for reference.
+#
+# async def validate_section_season_matches_production_season(session, section_id: str, section_payload: list[dict], submission_id: str | None):
+#     if not submission_id or not section_payload:
+#         return
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+#     if not prod_season and submission_id:
+#         res = await session.execute(
+#             text("SELECT production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sid AND production_season IS NOT NULL LIMIT 1"),
+#             {"sid": submission_id}
+#         )
+#         row = res.fetchone()
+#         if row and row[0]:
+#             prod_season = row[0]
+#
+#     if not prod_season:
+#         return
+#
+#     prod_clean = clean_season(prod_season)
+#     if not prod_clean:
+#         return
+#
+#     section_names = {
+#         "cropsown_planning_details_section_01": "Crop Planning Details",
+#         "cropsown_cluster_details_section_01": "Cluster Information Details",
+#         "cropsown_cultivation_details_section_01": "Cultivation / Land Preparation Details",
+#         "cropsown_cultivation_cluster_details_section_01": "Cultivation Cluster Details",
+#         "cropsown_sowing_details_section_01": "Sowing Details",
+#         "cropsown_harvest_details_section_01": "Harvest Details",
+#         "cropsown_production_details_section_01": "Production Details",
+#     }
+#     sec_name = section_names.get(section_id, "this section")
+#
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
+#         row_season = row.get("season") or row.get("cluster_season")
+#         if not row_season:
+#             for k, v in row.items():
+#                 if isinstance(k, str) and (k.endswith("season") or k.endswith(".season")) and v:
+#                     row_season = v
+#                     break
+#         if row_season:
+#             r_clean = clean_season(row_season)
+#             if r_clean and r_clean != prod_clean:
+#                 validation_error(
+#                     f"Season '{row_season}' in {sec_name} does not match the Production Season '{prod_season}' specified in Farmer Identity."
+#                 )
 
 
-def extract_year_from_item(item_dict):
-    for key in ("crop_year",):
-        val = item_dict.get(key)
-        if val:
-            return str(val)
-    for k, v in item_dict.items():
-        if isinstance(k, str) and k.endswith("crop_year") and v:
-            return str(v)
-    return None
-
-
-async def find_root_crop_sown_record(internal_id, session):
-    if not internal_id:
-        return None
-    res = await session.execute(
-        text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :id"),
-        {"id": str(internal_id)}
-    )
-    row = res.fetchone()
-    if row:
-        return row[0], row[1], row[2]
-
-    child_tables = (
-        "g2p_register_plannings",
-        "g2p_register_cultivations",
-        "g2p_register_cultivation_clusters",
-        "g2p_register_clusters",
-        "g2p_register_sowings",
-        "g2p_register_harvests",
-        "g2p_register_productions",
-    )
-    for tbl in child_tables:
-        res_c = await session.execute(
-            text(f"SELECT link_internal_record_id FROM {tbl} WHERE internal_record_id = :id AND link_internal_record_id IS NOT NULL LIMIT 1"),
-            {"id": str(internal_id)}
-        )
-        row_c = res_c.fetchone()
-        if row_c and row_c[0]:
-            res_p = await session.execute(
-                text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :pid"),
-                {"pid": str(row_c[0])}
-            )
-            row_p = res_p.fetchone()
-            if row_p:
-                return row_p[0], row_p[1], row_p[2]
-
-    return None
-
-
-async def validate_change_request_season_and_year(payload, session):
-    internal_id = getattr(payload, "internal_record_id", None)
-    section_id = getattr(payload, "section_id", None)
-    change_items = getattr(payload, "change_payload", None) or []
-
-    if not internal_id:
-        for it in change_items:
-            d = extract_row_dict(it)
-            internal_id = d.get("link_internal_record_id") or d.get("internal_record_id")
-            if internal_id:
-                break
-
-    if not internal_id:
-        return
-
-    root_data = await find_root_crop_sown_record(internal_id, session)
-    if not root_data:
-        return
-
-    root_id, existing_year, existing_season = root_data
-    if not existing_season:
-        return
-
-    clean_existing_season = clean_season(existing_season)
-
-    is_farmer_identity = section_id in (
-        "cropsown_cropsown_record_section_01",
-        "crop_farmer_lookup",
-        "cropsown_common_intake_record_section_01",
-        "cropsown_intake_record_section_01",
-    )
-
-    section_names = {
-        "cropsown_cropsown_record_section_01": "Farmer Identity",
-        "crop_farmer_lookup": "Farmer lookup",
-        "cropsown_common_intake_record_section_01": "Farmer Identity",
-        "cropsown_intake_record_section_01": "Farmer Identity",
-        "cropsown_planning_details_section_01": "Crop Planning Details",
-        "cropsown_cluster_details_section_01": "Cluster Information Details",
-        "cropsown_cultivation_details_section_01": "Cultivation / Land Preparation Details",
-        "cropsown_cultivation_cluster_details_section_01": "Cultivation Cluster Details",
-        "cropsown_sowing_details_section_01": "Sowing Details",
-        "cropsown_harvest_details_section_01": "Harvest Details",
-        "cropsown_production_details_section_01": "Production Details",
-    }
-    sec_name = section_names.get(section_id, "this section")
-
-    for it in change_items:
-        d = extract_row_dict(it)
-        if is_record_deleted(d):
-            continue
-
-        item_season = extract_season_from_item(d)
-        if item_season:
-            clean_item_season = clean_season(item_season)
-            if clean_item_season and clean_item_season != clean_existing_season:
-                if is_farmer_identity:
-                    validation_error(
-                        f"Production Season cannot be changed once established for a Crop Sown record (Existing: '{existing_season}', Attempted: '{item_season}')."
-                    )
-                else:
-                    validation_error(
-                        f"Season '{item_season}' in {sec_name} does not match the Production Season '{existing_season}' specified in Farmer Identity."
-                    )
-
-        if is_farmer_identity:
-            item_year = extract_year_from_item(d)
-            if item_year and existing_year and str(item_year).strip() != str(existing_year).strip():
-                validation_error(
-                    f"Crop Year cannot be changed once established for a Crop Sown record (Existing: '{existing_year}', Attempted: '{item_year}')."
-                )
+# Not used: nothing calls validate_change_request_season_and_year, and the four helpers
+# above it (extract_row_dict, extract_season_from_item, extract_year_from_item,
+# find_root_crop_sown_record) are used only by it. Its rules are done by the crop sown
+# season / year lock (save and approval), each section's season check, and the approval
+# season check. Kept commented out for reference.
+#
+# def extract_row_dict(item):
+#     if hasattr(item, "model_dump"):
+#         return item.model_dump()
+#     if isinstance(item, dict):
+#         return item
+#     if hasattr(item, "__dict__"):
+#         return item.__dict__
+#     return {}
+#
+#
+# def extract_season_from_item(item_dict):
+#     for key in ("season", "cluster_season", "production_season"):
+#         val = item_dict.get(key)
+#         if val:
+#             return str(val)
+#     for k, v in item_dict.items():
+#         if isinstance(k, str) and (k.endswith("production_season") or k.endswith("cluster_season") or k.endswith(".season") or k == "season") and v:
+#             return str(v)
+#     return None
+#
+#
+# def extract_year_from_item(item_dict):
+#     for key in ("crop_year",):
+#         val = item_dict.get(key)
+#         if val:
+#             return str(val)
+#     for k, v in item_dict.items():
+#         if isinstance(k, str) and k.endswith("crop_year") and v:
+#             return str(v)
+#     return None
+#
+#
+# async def find_root_crop_sown_record(internal_id, session):
+#     if not internal_id:
+#         return None
+#     res = await session.execute(
+#         text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :id"),
+#         {"id": str(internal_id)}
+#     )
+#     row = res.fetchone()
+#     if row:
+#         return row[0], row[1], row[2]
+#
+#     child_tables = (
+#         "g2p_register_plannings",
+#         "g2p_register_cultivations",
+#         "g2p_register_cultivation_clusters",
+#         "g2p_register_clusters",
+#         "g2p_register_sowings",
+#         "g2p_register_harvests",
+#         "g2p_register_productions",
+#     )
+#     for tbl in child_tables:
+#         res_c = await session.execute(
+#             text(f"SELECT link_internal_record_id FROM {tbl} WHERE internal_record_id = :id AND link_internal_record_id IS NOT NULL LIMIT 1"),
+#             {"id": str(internal_id)}
+#         )
+#         row_c = res_c.fetchone()
+#         if row_c and row_c[0]:
+#             res_p = await session.execute(
+#                 text("SELECT internal_record_id, crop_year, production_season FROM g2p_register_crop_sowns WHERE internal_record_id = :pid"),
+#                 {"pid": str(row_c[0])}
+#             )
+#             row_p = res_p.fetchone()
+#             if row_p:
+#                 return row_p[0], row_p[1], row_p[2]
+#
+#     return None
+#
+#
+# async def validate_change_request_season_and_year(payload, session):
+#     internal_id = getattr(payload, "internal_record_id", None)
+#     section_id = getattr(payload, "section_id", None)
+#     change_items = getattr(payload, "change_payload", None) or []
+#
+#     if not internal_id:
+#         for it in change_items:
+#             d = extract_row_dict(it)
+#             internal_id = d.get("link_internal_record_id") or d.get("internal_record_id")
+#             if internal_id:
+#                 break
+#
+#     if not internal_id:
+#         return
+#
+#     root_data = await find_root_crop_sown_record(internal_id, session)
+#     if not root_data:
+#         return
+#
+#     root_id, existing_year, existing_season = root_data
+#     if not existing_season:
+#         return
+#
+#     clean_existing_season = clean_season(existing_season)
+#
+#     is_farmer_identity = section_id in (
+#         "cropsown_cropsown_record_section_01",
+#         "crop_farmer_lookup",
+#         "cropsown_common_intake_record_section_01",
+#         "cropsown_intake_record_section_01",
+#     )
+#
+#     section_names = {
+#         "cropsown_cropsown_record_section_01": "Farmer Identity",
+#         "crop_farmer_lookup": "Farmer lookup",
+#         "cropsown_common_intake_record_section_01": "Farmer Identity",
+#         "cropsown_intake_record_section_01": "Farmer Identity",
+#         "cropsown_planning_details_section_01": "Crop Planning Details",
+#         "cropsown_cluster_details_section_01": "Cluster Information Details",
+#         "cropsown_cultivation_details_section_01": "Cultivation / Land Preparation Details",
+#         "cropsown_cultivation_cluster_details_section_01": "Cultivation Cluster Details",
+#         "cropsown_sowing_details_section_01": "Sowing Details",
+#         "cropsown_harvest_details_section_01": "Harvest Details",
+#         "cropsown_production_details_section_01": "Production Details",
+#     }
+#     sec_name = section_names.get(section_id, "this section")
+#
+#     for it in change_items:
+#         d = extract_row_dict(it)
+#         if is_record_deleted(d):
+#             continue
+#
+#         item_season = extract_season_from_item(d)
+#         if item_season:
+#             clean_item_season = clean_season(item_season)
+#             if clean_item_season and clean_item_season != clean_existing_season:
+#                 if is_farmer_identity:
+#                     validation_error(
+#                         f"Production Season cannot be changed once established for a Crop Sown record (Existing: '{existing_season}', Attempted: '{item_season}')."
+#                     )
+#                 else:
+#                     validation_error(
+#                         f"Season '{item_season}' in {sec_name} does not match the Production Season '{existing_season}' specified in Farmer Identity."
+#                     )
+#
+#         if is_farmer_identity:
+#             item_year = extract_year_from_item(d)
+#             if item_year and existing_year and str(item_year).strip() != str(existing_year).strip():
+#                 validation_error(
+#                     f"Crop Year cannot be changed once established for a Crop Sown record (Existing: '{existing_year}', Attempted: '{item_year}')."
+#                 )
 
 
 async def validate_cultivation_against_planning(session, section_payload: list[dict], submission_id: str | None):
@@ -742,25 +850,45 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
         )
         cult_cls_rows.extend(res_icls.fetchall())
 
+    # 3. Planning: the sowing date of an Independent row with no matching Cultivation is
+    #    checked against the Planned date instead.
+    res_plan = await session.execute(
+        text("""
+            SELECT land_id, commodity, season, planned_date
+            FROM g2p_register_plannings
+            WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+        """),
+        {"m_ids": master_ids}
+    )
+    plan_rows = list(res_plan.fetchall())
+    if submission_id:
+        res_iplan = await session.execute(
+            text("""
+                SELECT land_id, commodity, season, planned_date
+                FROM g2p_intake_form_plannings
+                WHERE submission_id = :sid
+            """),
+            {"sid": submission_id}
+        )
+        plan_rows.extend(res_iplan.fetchall())
+
     for row in section_payload or []:
         if is_record_deleted(row):
             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        if not land_id:
-            continue
-
+        # Clustered: Land ID (cluster) against Cultivation cluster; Independent: Land ID
+        # against Cultivation. A row with both ticked is checked on both sides.
+        cluster_land_id, land_id = row_lands(row)
         sow_date = parse_date_flexible(row.get("sowing_date"))
-        is_cluster = is_clustered_row(row)
 
-        if is_cluster:
+        if cluster_land_id:
             cluster_name = str(row.get("cluster_name") or "").strip()
             if not cluster_name:
                 validation_error("Farmers Production Cluster Name is required for clustered Sowing.")
 
             matched_cluster = None
             for c_land, c_cname, c_start, c_est in cult_cls_rows:
-                if str(c_land or "").strip() == land_id and str(c_cname or "").strip().upper() == cluster_name.upper():
+                if str(c_land or "").strip() == cluster_land_id and str(c_cname or "").strip().upper() == cluster_name.upper():
                     matched_cluster = (c_start, c_est)
                     break
 
@@ -770,9 +898,9 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
                 if sow_date and cult_date and sow_date < cult_date:
                     validation_error(
                         f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                        f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+                        f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID (cluster) '{cluster_land_id}'."
                     )
-        else:
+        if land_id:
             commodity = str(row.get("commodity") or "").strip()
             season = str(row.get("season") or row.get("cluster_season") or prod_season or "").strip()
 
@@ -795,112 +923,128 @@ async def validate_sowing_against_cultivation(session, section_payload: list[dic
                         f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
                         f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
                     )
-
-
-async def validate_infestation_against_sowing(session, section_payload: list[dict], submission_id: str | None):
-    """
-    Rule 6: Infestation incident details must check against Sowing.
-    - Independent: check Land ID and Crop Name (commodity / crop_type_affected).
-    - Cluster: check FPC Name (cluster_name) and Land ID.
-    - Date check: Observation Date >= Sowing Date.
-    """
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
-
-    if not master_ids:
-        validation_error(
-            f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add infestation incident details."
-        )
-
-    sowings = []
-    if master_ids:
-        res_s = await session.execute(
-            text("""
-                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
-                FROM g2p_register_sowings
-                WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
-            """),
-            {"m_ids": master_ids}
-        )
-        sowings.extend(res_s.fetchall())
-
-    if submission_id:
-        res_is = await session.execute(
-            text("""
-                SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
-                FROM g2p_intake_form_sowings
-                WHERE submission_id = :sid
-            """),
-            {"sid": submission_id}
-        )
-        sowings.extend(res_is.fetchall())
-
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
-
-        land_id = str(row.get("land_id") or "").strip()
-        if not land_id:
-            continue
-
-        obs_date = parse_date_flexible(row.get("observation_date"))
-        is_cluster = is_clustered_row(row)
-
-        if is_cluster:
-            cluster_name = str(row.get("cluster_name") or "").strip()
-            if not cluster_name:
-                validation_error("Farmers Production Cluster Name is required for clustered Infestation.")
-
-            cluster_matched = False
-            matched_sowing = None
-            for s_land, s_comm, s_cname, s_date, s_cstatus in sowings:
-                if str(s_land or "").strip() == land_id and str(s_cname or "").strip().upper() == cluster_name.upper():
-                    cluster_matched = True
-                    matched_sowing = s_date
-                    break
-
-            if not cluster_matched:
-                validation_error(
-                    f"No active Sowing record found for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
-                    f"Infestation incident can only be reported for a sown cluster."
-                )
-
-            sow_date = parse_date_flexible(matched_sowing)
-            if obs_date and sow_date and obs_date <= sow_date:
-                validation_error(
-                    f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
-                )
-        else:
-            commodity = str(row.get("commodity") or row.get("crop_type_affected") or "").strip()
-            land_matched = False
-            sowing_matched = False
-            matched_sowing_date = None
-
-            for s_land, s_comm, s_cname, s_date, s_cstatus in sowings:
-                if str(s_land or "").strip() == land_id:
-                    land_matched = True
-                    if commodity_matches(commodity, s_comm):
-                        sowing_matched = True
-                        matched_sowing_date = s_date
+            else:
+                # No matching Cultivation: the matching Planning row's Planned date, if any.
+                for p_land, p_comm, p_season, p_date in plan_rows:
+                    if (str(p_land or "").strip() == land_id and commodity_matches(commodity, p_comm)
+                            and season_matches(season, p_season)):
+                        plan_date = parse_date_flexible(p_date)
+                        if sow_date and plan_date and sow_date < plan_date:
+                            validation_error(
+                                f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+                                f"Planned Date ({plan_date.strftime('%d/%m/%Y')}) in Planning for Land ID '{land_id}' and Crop '{commodity}'."
+                            )
                         break
 
-            if not land_matched:
-                validation_error(
-                    f"Land ID '{land_id}' in Infestation Incident does not match any Land ID specified in Sowing for this record."
-                )
 
-            if not sowing_matched:
-                validation_error(
-                    f"No active Sowing record found for Land ID '{land_id}' and Crop '{commodity}' under this Crop Sown record. "
-                    f"Infestation incident can only be reported for an existing Sowing record."
-                )
-
-            sow_date = parse_date_flexible(matched_sowing_date)
-            if obs_date and sow_date and obs_date <= sow_date:
-                validation_error(
-                    f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
-                    f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
-                )
+# Not used: nothing calls validate_infestation_against_sowing. The infestation service's
+# own _validate_infestation_after_sowing does the same check and runs on save and at
+# approval. Kept commented out for reference.
+#
+# async def validate_infestation_against_sowing(session, section_payload: list[dict], submission_id: str | None):
+#     """
+#     Rule 6: Infestation incident details must check against Sowing.
+#     - Independent: check Land ID and Crop Name (commodity / crop_type_affected).
+#     - Cluster: check FPC Name (cluster_name) and Land ID.
+#     - Date check: Observation Date >= Sowing Date.
+#     """
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+#
+#     if not master_ids:
+#         validation_error(
+#             f"No active Crop Sown record found for Fayda ID '{fayda}'. Cannot add infestation incident details."
+#         )
+#
+#     sowings = []
+#     if master_ids:
+#         res_s = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
+#                 FROM g2p_register_sowings
+#                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+#             """),
+#             {"m_ids": master_ids}
+#         )
+#         sowings.extend(res_s.fetchall())
+#
+#     if submission_id:
+#         res_is = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, cluster_name, sowing_date, cluster_status
+#                 FROM g2p_intake_form_sowings
+#                 WHERE submission_id = :sid
+#             """),
+#             {"sid": submission_id}
+#         )
+#         sowings.extend(res_is.fetchall())
+#
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
+#
+#         land_id = str(row.get("land_id") or "").strip()
+#         if not land_id:
+#             continue
+#
+#         obs_date = parse_date_flexible(row.get("observation_date"))
+#         is_cluster = is_clustered_row(row)
+#
+#         if is_cluster:
+#             cluster_name = str(row.get("cluster_name") or "").strip()
+#             if not cluster_name:
+#                 validation_error("Farmers Production Cluster Name is required for clustered Infestation.")
+#
+#             cluster_matched = False
+#             matched_sowing = None
+#             for s_land, s_comm, s_cname, s_date, s_cstatus in sowings:
+#                 if str(s_land or "").strip() == land_id and str(s_cname or "").strip().upper() == cluster_name.upper():
+#                     cluster_matched = True
+#                     matched_sowing = s_date
+#                     break
+#
+#             if not cluster_matched:
+#                 validation_error(
+#                     f"No active Sowing record found for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}' under this Crop Sown record. "
+#                     f"Infestation incident can only be reported for a sown cluster."
+#                 )
+#
+#             sow_date = parse_date_flexible(matched_sowing)
+#             if obs_date and sow_date and obs_date <= sow_date:
+#                 validation_error(
+#                     f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
+#                     f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+#                 )
+#         else:
+#             commodity = str(row.get("commodity") or row.get("crop_type_affected") or "").strip()
+#             land_matched = False
+#             sowing_matched = False
+#             matched_sowing_date = None
+#
+#             for s_land, s_comm, s_cname, s_date, s_cstatus in sowings:
+#                 if str(s_land or "").strip() == land_id:
+#                     land_matched = True
+#                     if commodity_matches(commodity, s_comm):
+#                         sowing_matched = True
+#                         matched_sowing_date = s_date
+#                         break
+#
+#             if not land_matched:
+#                 validation_error(
+#                     f"Land ID '{land_id}' in Infestation Incident does not match any Land ID specified in Sowing for this record."
+#                 )
+#
+#             if not sowing_matched:
+#                 validation_error(
+#                     f"No active Sowing record found for Land ID '{land_id}' and Crop '{commodity}' under this Crop Sown record. "
+#                     f"Infestation incident can only be reported for an existing Sowing record."
+#                 )
+#
+#             sow_date = parse_date_flexible(matched_sowing_date)
+#             if obs_date and sow_date and obs_date <= sow_date:
+#                 validation_error(
+#                     f"Infestation Observation Date ({obs_date.strftime('%d/%m/%Y')}) must be after "
+#                     f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
+#                 )
 
 
 async def validate_harvest_against_sowing(session, section_payload: list[dict], submission_id: str | None):
@@ -923,7 +1067,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
     if master_ids:
         res_s = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status
+                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status, cluster_land_id
                 FROM g2p_register_sowings
                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
             """),
@@ -934,7 +1078,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
     if submission_id:
         res_is = await session.execute(
             text("""
-                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status
+                SELECT land_id, commodity, cluster_name, season, cluster_season, sowing_date, cluster_status, cluster_land_id
                 FROM g2p_intake_form_sowings
                 WHERE submission_id = :sid
             """),
@@ -942,17 +1086,32 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
         )
         sowings.extend(res_is.fetchall())
 
+    # An Independent row with no matching Sowing is checked against the matching
+    # Cultivation's date, then the matching Planning row's Planned date.
+    earlier = {}
+    for name, table, date_sql in (("Cultivation Date", "cultivations", "COALESCE(actual_cultivation_date, start_gc)"),
+                                  ("Planned Date in Planning", "plannings", "planned_date")):
+        rows = []
+        if master_ids:
+            rows += (await session.execute(
+                text(f"SELECT land_id, commodity, season, {date_sql} FROM g2p_register_{table} "
+                     "WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'"),
+                {"m_ids": master_ids})).fetchall()
+        if submission_id:
+            rows += (await session.execute(
+                text(f"SELECT land_id, commodity, season, {date_sql} FROM g2p_intake_form_{table} WHERE submission_id = :sid"),
+                {"sid": submission_id})).fetchall()
+        earlier[name] = rows
+
     for row in section_payload or []:
         if is_record_deleted(row):
             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        if not land_id:
-            continue
+        # Clustered: Land ID (cluster) against the clustered Sowing; Independent: Land ID
+        # against the independent Sowing. A row with both ticked is checked on both sides.
+        cluster_land_id, land_id = row_lands(row)
 
-        is_cluster = is_clustered_row(row)
-
-        if is_cluster:
+        if cluster_land_id:
             cluster_name = str(row.get("cluster_name") or "").strip()
             harvest_date = parse_date_flexible(row.get("cluster_harvest_date") or row.get("harvest_date"))
 
@@ -961,8 +1120,8 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
 
             cluster_matched = False
             matched_sowing_date = None
-            for s_land, s_comm, s_cname, s_season, s_cseason, s_date, s_cstatus in sowings:
-                if str(s_land or "").strip() == land_id and str(s_cname or "").strip().upper() == cluster_name.upper():
+            for s_land, s_comm, s_cname, s_season, s_cseason, s_date, s_cstatus, s_cland in sowings:
+                if str(s_cland or "").strip() == cluster_land_id and str(s_cname or "").strip().upper() == cluster_name.upper():
                     cluster_matched = True
                     matched_sowing_date = s_date
                     break
@@ -973,9 +1132,9 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
                 if harvest_date and sow_date and harvest_date <= sow_date:
                     validation_error(
                         f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
-                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+                        f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID (cluster) '{cluster_land_id}'."
                     )
-        else:
+        if land_id:
             commodity = str(row.get("commodity") or "").strip()
             harvest_date = parse_date_flexible(row.get("harvest_date"))
             season = str(row.get("season") or prod_season or "").strip()
@@ -984,7 +1143,7 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
             sowing_matched = False
             matched_sowing_date = None
 
-            for s_land, s_comm, s_cname, s_season, s_cseason, s_date, s_cstatus in sowings:
+            for s_land, s_comm, s_cname, s_season, s_cseason, s_date, s_cstatus, s_cland in sowings:
                 if str(s_land or "").strip() == land_id:
                     land_matched = True
                     s_sn = s_season or s_cseason
@@ -1002,3 +1161,17 @@ async def validate_harvest_against_sowing(session, section_payload: list[dict], 
                         f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
                         f"Sowing Date ({sow_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
                     )
+            else:
+                # No matching Sowing: the first of Cultivation, then Planning, that matches.
+                for stage, rows in earlier.items():
+                    match = next((r for r in rows if str(r[0] or "").strip() == land_id
+                                  and commodity_matches(commodity, r[1]) and season_matches(season, r[2])), None)
+                    if match is None:
+                        continue
+                    earlier_date = parse_date_flexible(match[3])
+                    if harvest_date and earlier_date and harvest_date <= earlier_date:
+                        validation_error(
+                            f"Harvest Date ({harvest_date.strftime('%d/%m/%Y')}) must be after "
+                            f"{stage} ({earlier_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'."
+                        )
+                    break

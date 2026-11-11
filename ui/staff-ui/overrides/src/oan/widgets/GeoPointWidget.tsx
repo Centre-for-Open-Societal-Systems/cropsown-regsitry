@@ -28,6 +28,34 @@ type HierarchyEntry = {
 };
 type Handler = (service: string, endpoint: string, method: string, params: Record<string, unknown>) => Promise<unknown>;
 
+/**
+ * Table-row mode. In a table's row dialog each cell keeps its value under its own
+ * id (`<table>-dlg-<n>-<column>`) and widgets get no data path, so a map column
+ * names the row's columns instead, in "oan-row-paths":
+ *   {latitude, longitude, altitude?, levels?: {<geo level_id>: <column>}}
+ * The pin then writes the row's latitude and longitude (as text, as the columns
+ * hold them) and, with levels, the Master Data id of each level under the pin
+ * (e.g. {"l1": "region", "l2": "zone", "l3": "woreda", "l4": "kebele"}); a level
+ * the boundaries do not reach (the kebele) is cleared, to be chosen.
+ */
+type RowMode = { paths: Record<string, string>; levels: Record<string, string> };
+export function rowMode(config: Config): RowMode | null {
+    const spec = config['oan-row-paths'];
+    const widgetId = String(config['widget-id'] ?? '');
+    const column = String(config['column-key'] ?? '');
+    if (!spec || !column || !widgetId.includes('-dlg-') || !widgetId.endsWith(`-${column}`)) return null;
+    const prefix = widgetId.slice(0, widgetId.length - column.length);
+    const paths: Record<string, string> = {};
+    for (const key of ['latitude', 'longitude', 'altitude']) {
+        if (spec[key]) paths[key] = `${prefix}${spec[key]}`;
+    }
+    const levels: Record<string, string> = {};
+    for (const [levelId, levelColumn] of Object.entries((spec.levels ?? {}) as Record<string, string>)) {
+        levels[levelId] = `${prefix}${levelColumn}`;
+    }
+    return { paths, levels };
+}
+
 const TILE = 256;
 const DEFAULTS = {
     tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -187,7 +215,8 @@ export function GeoPointWidget({ config }: { config: Config }) {
     const dispatch = useDispatch();
     const { t, schemaData, dataSourceRequestHandler } = useWidgetContext();
     const values = useSelector((state: WidgetRootState) => state.widget.values);
-    const paths = (config['widget-data-path'] ?? {}) as Record<string, string>;
+    const row = useMemo(() => rowMode(config), [config]);
+    const paths = (row?.paths ?? config['widget-data-path'] ?? {}) as Record<string, string>;
     const format = { ...DEFAULTS, ...(config['widget-data-format'] ?? {}) };
     const base = useBaseWidget({ config: { ...config, 'widget-data-path': paths.latitude } as never });
     const readonly = config['widget-readonly'] === true || !base.isEnabled;
@@ -266,19 +295,22 @@ export function GeoPointWidget({ config }: { config: Config }) {
             let patch: Record<string, unknown> = {};
             for (const [key, value] of Object.entries(next)) {
                 const path = paths[key];
-                if (path) patch = setValueByPath(patch, path, value);
+                // A table row's latitude and longitude columns hold text.
+                const stored = row && value !== null && value !== undefined ? String(value) : value;
+                if (path) patch = setValueByPath(patch, path, stored);
             }
             dispatch(setValues(patch as never));
             base.onBlur?.();
         },
-        [base, dispatch, paths],
+        [base, dispatch, paths, row],
     );
 
     // The location hierarchy under the pin, saved for the geo hierarchy widget.
     const boundaries = format.boundaries as Boundaries | undefined;
     const fillLocation = useCallback(
         async (point: { lat: number; lon: number }) => {
-            if (!boundaries?.url || !paths.hierarchy || !dataSourceRequestHandler) return;
+            const rowLevels = row && Object.keys(row.levels).length > 0 ? row.levels : null;
+            if (!boundaries?.url || !(paths.hierarchy || rowLevels) || !dataSourceRequestHandler) return;
             try {
                 const unit = unitAt(await loadBoundaries(boundaries.url), point.lat, point.lon);
                 // A unit without a polygon (a woreda created since the boundaries were cut).
@@ -296,6 +328,19 @@ export function GeoPointWidget({ config }: { config: Config }) {
                     return;
                 }
                 setStatus(chain.slice(1).map((entry) => entry.level_value_mnemonic).join(' / '));
+                if (rowLevels) {
+                    // The same unit as before: keep what was chosen below it.
+                    const lastCell = rowLevels[last.level_id];
+                    if (lastCell && (values as Record<string, unknown>)[lastCell] === last.level_value_id) return;
+                    const rowPatch: Record<string, unknown> = {};
+                    for (const [levelId, cell] of Object.entries(rowLevels)) {
+                        const entry = chain.find((item) => item.level_id === levelId);
+                        // A level below the unit (the kebele) is still to be chosen.
+                        rowPatch[cell] = entry ? entry.level_value_id : null;
+                    }
+                    dispatch(setValues(rowPatch as never));
+                    return;
+                }
                 const raw = getValueByPath(values, paths.hierarchy) ?? getValueByPath(schemaData ?? {}, paths.hierarchy);
                 // The same unit as before: keep what was chosen below it.
                 if (parseHierarchy(raw).some((entry) => entry.level_value_id === last.level_value_id)) return;
@@ -312,7 +357,7 @@ export function GeoPointWidget({ config }: { config: Config }) {
                 setStatus(label('oan_map_no_boundaries'));
             }
         },
-        [boundaries, dataSourceRequestHandler, dispatch, label, paths.hierarchy, paths.location, schemaData, values],
+        [boundaries, dataSourceRequestHandler, dispatch, label, paths.hierarchy, paths.location, row, schemaData, values],
     );
 
     const pin = useCallback(
@@ -426,8 +471,11 @@ export function GeoPointWidget({ config }: { config: Config }) {
     const title = config['widget-label'] ? label(String(config['widget-label'])) : '';
 
     return (
-        <div className="mb-[10px] oan-geo">
+        <div className={`mb-[10px] oan-geo${row ? ' oan-geo-row' : ''}`}>
             <style>{`
+                /* In a table row dialog (two fields a row) the map takes the whole row,
+                   so the row's Latitude and Longitude sit side by side under it. */
+                .dialog-table-field:has(.oan-geo-row) { grid-column: 1 / -1; }
                 .oan-geo-title { font-weight: 500; margin-bottom: 6px; color: var(--owt-color-text, #111827); }
                 .oan-geo-map {
                     position: relative; overflow: hidden; border-radius: 10px; touch-action: none; user-select: none;
@@ -488,16 +536,20 @@ export function GeoPointWidget({ config }: { config: Config }) {
                     <span className="oan-geo-hint">{status ?? label('oan_map_hint')}</span>
                 </div>
             )}
-            <div className="oan-geo-fields">
-                {(['latitude', 'longitude', 'altitude'] as const).map((key) => (
-                    <label key={key}>
-                        {label(`oan_map_${key}`)}
-                        <input type="number" step="any" disabled={readonly}
-                               value={(key === 'latitude' ? lat : key === 'longitude' ? lon : alt) ?? ''}
-                               onChange={(e) => typed(key, e.target.value)} />
-                    </label>
-                ))}
-            </div>
+            {/* In a table row the row's own Latitude and Longitude columns take the typed
+                values (and move the pin), so the map draws no boxes of its own there. */}
+            {!row && (
+                <div className="oan-geo-fields">
+                    {(['latitude', 'longitude', 'altitude'] as const).map((key) => (
+                        <label key={key}>
+                            {label(`oan_map_${key}`)}
+                            <input type="number" step="any" disabled={readonly}
+                                   value={(key === 'latitude' ? lat : key === 'longitude' ? lon : alt) ?? ''}
+                                   onChange={(e) => typed(key, e.target.value)} />
+                        </label>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

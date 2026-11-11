@@ -40,10 +40,20 @@ builder rewrites them:
 3. Questions. "Plot not registered" (a tick box) becomes the Yes/No question "Is plot
    registered?" (is_plot_registered), as on the web form; "Security Level" is labelled
    "Severity level"; Disease Type is dropped until Master Data has a crop disease list;
-   Pest name and Method of control (pest) read PEST and PEST_CONTROL_ACTION; dates use the
+   Pest name is typed text and Method of control (pest) reads PEST_CONTROL_ACTION; dates use the
    Ethiopian calendar (the stored value stays Gregorian); the cluster Land ID questions
    carry no rule tying them to the planning or cultivation Land ID, as on the web form.
-4. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
+4. Land and crop locations, as on the web form (match_web_form). Planning drops the
+   Address group (the farmer's address comes from the Farmer Registry) and asks "Land
+   location" after Kebele and "Crop location" after Expected Yield, as GPS points.
+   Cultivation asks "Is planning record created?" first in the row; No adds the
+   Planning row's land questions (Is plot registered?, Plot Category, Ownership Type,
+   Soil Fertility, Region to Kebele, Land location); every row asks "Crop location"
+   after Actual Crop Area. Sowing's Type of Infestation offers Pest, Weed and Disease, as
+   Master Data does: Nutrient Deficiency and Climate Shock, and their groups, are dropped.
+   Sowing and Harvest ask the Land ID inside each Cluster status group, after "Is planning
+   record created?"; No asks the land (Independent) or the cluster location (Clustered).
+5. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
    yes/no lists, which are not Master Data lists either.
 
 The form version is the build date (--version, default VERSION below).
@@ -62,7 +72,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.06.2"
+VERSION = "2026.11.11.5"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -101,10 +111,13 @@ PLOT_QUESTION = {"is_plot_not_registered": {"type": "select_one yes_no", "name":
                                             "label": "Is plot registered?"}}
 PLOT_CHOICES = [{"list_name": "yes_no", "name": "yes", "label": "Yes"},
                 {"list_name": "yes_no", "name": "no", "label": "No"}]
-LABELS = {"security_level": "Severity level"}
+# Labels as the web form shows them.
+LABELS = {"security_level": "Severity level", "cluster_status_ids": "Cluster / non cluster status",
+          "cluster_status_id": "Cluster / non cluster status"}
 # Questions that read a Master Data list on the web form but not in the published form:
-# Pest name (typed in) and Method of control (pest) (the shared weed/disease method list).
-QUESTION_TYPES = {"pest_name": "select_one pest_type", "pest_pesticide_method": "select_one pest_control_action"}
+# Method of control (pest) (the shared weed/disease method list). Pest name stays typed
+# text, as on the web form (zz-oan/97j_pest_name_text.sql).
+QUESTION_TYPES = {"pest_pesticide_method": "select_one pest_control_action"}
 # The web form does not check these Land IDs against planning / cultivation; neither does ODK.
 NO_RULE = {"cluster_land_info_id"}
 # Dates are entered on the Ethiopian calendar, as on the web form; the value stays the
@@ -121,7 +134,7 @@ NOT_MASTER_DATA = {
     "cluster_status": "the transform and the form's own rules compare the answer to 'clustered' and 'independent'",
     "fert_type": "organic or inorganic: the transform reads the name as given",
     "sowing_status": "no Master Data list",
-    "infestation_type": "the form's relevance rules compare the answer to pest, weed, disease, nutrient_deficiency, climate_shock; Master Data has three of the five",
+    "infestation_type": "the form's relevance rules compare the answer to pest, weed and disease; Master Data has only these three, so nutrient_deficiency and climate_shock are dropped (DROPPED_CHOICES)",
     "method_control": "no Master Data list",
     "pesticides_type": "no Master Data list",
     "weedicides_type": "no Master Data list",
@@ -150,6 +163,45 @@ IDENTITY_ROWS = [
     {"type": "end_group"},
 ]
 KEEP_FROM_OLD_IDENTITY = ("crop_year", "production_season")
+
+# Planning and Cultivation follow the web form's land and crop locations
+# (zz-oan/97c_planning_map_location.sql, 97e_address_section.sql, 97f_cultivation_land_details.sql).
+# A GPS point is ODK's map: the transform reads its latitude and longitude.
+LAND_GPS = {"type": "geopoint", "name": "planning_gps", "label": "Land location", "appearance": "placement-map",
+            "hint": "Capture the location of the land, or pick it on the map."}
+CROP_GPS = {"type": "geopoint", "name": "crop_gps", "label": "Crop location", "appearance": "placement-map",
+            "hint": "Capture the location of the crop, or pick it on the map."}
+# The farmer's address comes from the Farmer Registry, so Planning no longer asks for it.
+DROPPED_GROUPS = {"crop_sown_registry_plan": {"address"},
+                  # Sowing infestations: Pest, Weed and Disease only, as Master Data's INFESTATION_TYPE
+                  "crop_sown_registry_sown": {"nutrient_deficiency", "climate_shock"}}
+DROPPED_CHOICES = {"crop_sown_registry_sown": {"infestation_type": {"nutrient_deficiency", "climate_shock"}}}
+# Cultivation: "Is planning record created?" first in the row. No asks the land details,
+# copied from the Planning form's row; Yes (or no answer) asks only Land ID and land area.
+PLANNING_QUESTION = {"type": "select_one yes_no", "name": "is_planning_record_created",
+                     "label": "Is planning record created?"}
+WHEN_NO = "${is_planning_record_created} = 'no'"
+AFTER_LAND_ID = ("land_category", "ownership_type")
+AFTER_LAND_AREA = ("soil_fertility", "region_name_id", "zone_name_id", "woreda_name_id", "kebele_id")
+# Sowing and Harvest (zz-oan/97g_sowing_harvest_land_rows.sql): each Cluster status group
+# starts with "Is planning record created?" and its own Land ID; No asks the land (the
+# Planning row's questions) or the cluster location (the Planning cluster's questions).
+LAND_ROW_FORMS = ("crop_sown_registry_sown", "crop_sown_registry_harvest")
+LAND_RECORDED = {"type": "select_one yes_no", "name": "is_land_recorded", "label": "Is planning record created?"}
+CLUSTER_LAND_RECORDED = {"type": "select_one yes_no", "name": "is_cluster_land_recorded",
+                         "label": "Is planning record created?"}
+CLUSTER_LAND_ID = {"type": "text", "name": "cluster_land_info_id", "label": "Land ID (cluster)", "required": "yes",
+                   "required_message": "Enter the Land ID (cluster)."}
+LAND_WHEN_NO = "${is_land_recorded} = 'no'"
+CLUSTER_WHEN_NO = "${is_cluster_land_recorded} = 'no'"
+INDEPENDENT_LAND = ("is_plot_registered", "land_category", "ownership_type", "land_area", "soil_fertility",
+                    "region_name_id", "zone_name_id", "woreda_name_id", "kebele_id")
+CLUSTER_LOCATION = ("cluster_region_id", "cluster_zone_id", "cluster_woreda_id", "cluster_kebele_id")
+CLUSTER_SUB_KEBELE = {"type": "text", "name": "cluster_sub_kebele", "label": "Sub-Kebele"}
+# The infestation Land ID must be one of the Sowing rows' Land IDs, either side.
+INFESTATION_LAND_RULE = "selected(join(' ', ${land_info_id}), .) or selected(join(' ', ${cluster_land_info_id}), .)"
+CLUSTER_GPS = {"type": "geopoint", "name": "cluster_gps", "label": "Cluster location", "appearance": "placement-map",
+               "hint": "Capture the location of the cluster land, or pick it on the map."}
 
 
 def read_lists(*folders: Path) -> dict[str, dict]:
@@ -297,6 +349,93 @@ def use_master_data(survey: list[dict], form_id: str) -> set[str]:
     return files_used
 
 
+def without_groups(survey: list[dict], names: set[str]) -> list[dict]:
+    """Drop the named top-level groups, from their begin_group to their end_group."""
+    out, depth = [], 0
+    for row in survey:
+        kind = row.get("type")
+        if depth:
+            depth += {"begin_group": 1, "begin_repeat": 1, "end_group": -1, "end_repeat": -1}.get(kind, 0)
+            continue
+        if kind == "begin_group" and row.get("name") in names:
+            depth = 1
+            continue
+        out.append(row)
+    return out
+
+
+def planning_rows(source: Path) -> dict[str, dict]:
+    """The Planning form's questions by name, as this builder writes them."""
+    _, survey = sheet_rows(openpyxl.load_workbook(source / "crop_sown_registry_plan.xlsx")["survey"])
+    survey = rebuild_identity(survey, "crop_sown_registry_plan")
+    use_master_data(survey, "crop_sown_registry_plan")
+    return {row["name"]: row for row in survey if row.get("name")}
+
+
+def land_rows(survey: list[dict], form_id: str, source: Path) -> None:
+    """Sowing / Harvest: the Land ID of each Cluster status, inside its group."""
+    planning = planning_rows(source)
+    old = next((row for row in survey if row.get("name") == "land_info_id"), None)
+    if old is None:
+        raise SystemExit(f"{form_id}: questions not found: land_info_id")
+    independent = [dict(LAND_RECORDED), dict(old),
+                   *({**planning[n], "relevant": LAND_WHEN_NO} for n in INDEPENDENT_LAND),
+                   {**LAND_GPS, "relevant": LAND_WHEN_NO}]
+    cluster = [dict(CLUSTER_LAND_RECORDED), dict(CLUSTER_LAND_ID),
+               *({**planning[n], "relevant": CLUSTER_WHEN_NO} for n in CLUSTER_LOCATION),
+               {**CLUSTER_SUB_KEBELE, "relevant": CLUSTER_WHEN_NO}, {**CLUSTER_GPS, "relevant": CLUSTER_WHEN_NO}]
+    out, found = [], set()
+    for row in survey:
+        if row is old:
+            continue  # moved into the Independent group
+        if row.get("name") == "cluster_status_ids":
+            row["required"] = "yes"  # the Land IDs depend on it
+        out.append(row)
+        if row.get("type") == "begin_group" and row.get("name") == "independant_details":
+            out.extend(independent)
+            found.add("independant_details")
+        elif row.get("type") == "begin_group" and row.get("name") == "clustered_details":
+            out.extend(cluster)
+            found.add("clustered_details")
+    if found != {"independant_details", "clustered_details"}:
+        raise SystemExit(f"{form_id}: Cluster status groups not found")
+    for row in out:
+        if row.get("name") == "infestation_land_info_id" and row.get("constraint"):
+            row["constraint"] = INFESTATION_LAND_RULE
+    survey[:] = out
+
+
+def match_web_form(survey: list[dict], form_id: str, source: Path) -> None:
+    """Land and crop locations of Planning and Cultivation, as on the web form."""
+    survey[:] = without_groups(survey, DROPPED_GROUPS.get(form_id, set()))
+    if form_id in LAND_ROW_FORMS:
+        land_rows(survey, form_id, source)
+        return
+    if form_id == "crop_sown_registry_plan":
+        after = {"kebele_id": [LAND_GPS], "crop_expected": [CROP_GPS]}
+    elif form_id == "crop_sown_registry_prep":
+        planning = planning_rows(source)
+        when_no = lambda names: [{**planning[n], "relevant": WHEN_NO} for n in names]
+        after = {"land_info_id": when_no(AFTER_LAND_ID),
+                 "land_area": when_no(AFTER_LAND_AREA) + [{**LAND_GPS, "relevant": WHEN_NO}],
+                 "actual_crop_area": [CROP_GPS]}
+        for row in survey:
+            if row.get("name") == "is_plot_registered":
+                row["relevant"] = WHEN_NO
+    else:
+        return
+    out = []
+    for row in survey:
+        if form_id == "crop_sown_registry_prep" and row.get("name") == "is_plot_registered":
+            out.append(dict(PLANNING_QUESTION))
+        out.append(row)
+        out.extend(dict(extra) for extra in after.get(row.get("name"), []))
+    missing = [name for name in after if not any(row.get("name") == name for row in survey)]
+    if missing:
+        raise SystemExit(f"{form_id}: questions not found: {', '.join(missing)}")
+    survey[:] = out
+
+
 def used_lists(survey: list[dict]) -> set[str]:
     """Names of the inline choice lists the questions use."""
     used = set()
@@ -330,7 +469,13 @@ def build_form(form_id: str, lists: dict[str, dict], version: str, source: Path,
     t_cols, settings = sheet_rows(book["settings"])
     survey = rebuild_identity(survey, form_id)
     files = use_master_data(survey, form_id)
+    match_web_form(survey, form_id, source)
+    # the media files of the questions match_web_form added
+    files |= {(row.get("type") or "").split()[1] for row in survey
+              if (row.get("type") or "").startswith("select_one_from_file ")}
     choices = build_choices(choices, lists, form_id, survey)
+    dropped = DROPPED_CHOICES.get(form_id, {})
+    choices = [c for c in choices if c.get("name") not in dropped.get(c.get("list_name"), ())]
     settings[0]["version"] = version
     s_cols = with_columns(s_cols, "required_message", "calculation")
     put_rows(book, "survey", s_cols, survey)

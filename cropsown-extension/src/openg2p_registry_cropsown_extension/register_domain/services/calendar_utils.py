@@ -1,9 +1,11 @@
 import datetime
-import re
+# import re  # not used in this file
 
-def convert_tuple_to_string_with_separator(tup: tuple, separator="/"):
-    result_string = separator.join(map(str, tup))
-    return result_string
+# Not used: nothing calls convert_tuple_to_string_with_separator. Kept for reference.
+#
+# def convert_tuple_to_string_with_separator(tup: tuple, separator="/"):
+#     result_string = separator.join(map(str, tup))
+#     return result_string
 
 
 def start_day_of_ethiopian(year) -> int:
@@ -82,45 +84,49 @@ def to_ethiopian(year, month, date) -> tuple:
     )
 
 
-def to_gregorian(year, month, date) -> datetime.date:
-    """Gregorian date object representation of provided Ethiopian date"""
-    inputs = (year, month, date)
-    if 0 in inputs or [data.__class__ for data in inputs].count(int) != 3:
-        raise ValueError("That date could not be converted. Enter a real day, month and year.")
-
-    new_year_day = start_day_of_ethiopian(year)
-    gregorian_year = year + 7
-
-    gregorian_months = [0, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31, 31, 30]
-
-    next_year = gregorian_year + 1
-    if (next_year % 4 == 0 and next_year % 100 != 0) or next_year % 400 == 0:
-        gregorian_months[6] = 29
-
-    until = ((month - 1) * 30) + date
-    if until <= 37 and year <= 1575:
-        until += 28
-        gregorian_months[0] = 31
-    else:
-        until += new_year_day - 1
-
-    if year - 1 % 4 == 3:
-        until += 1
-
-    m = 0
-    for i in range(0, gregorian_months.__len__()):
-        if until <= gregorian_months[i]:
-            m = i
-            gregorian_date = until
-            break
-        else:
-            m = i
-            until -= gregorian_months[i]
-
-    if m > 4:
-        gregorian_year += 1
-
-    order = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    gregorian_month = order[m]
-
-    return datetime.date(gregorian_year, gregorian_month, gregorian_date)
+# Not used: nothing calls to_gregorian. Dates are stored in the Gregorian calendar
+# (the web date picker and ODK convert them), so the server never converts back.
+# Kept commented out for reference.
+#
+# def to_gregorian(year, month, date) -> datetime.date:
+#     """Gregorian date object representation of provided Ethiopian date"""
+#     inputs = (year, month, date)
+#     if 0 in inputs or [data.__class__ for data in inputs].count(int) != 3:
+#         raise ValueError("That date could not be converted. Enter a real day, month and year.")
+#
+#     new_year_day = start_day_of_ethiopian(year)
+#     gregorian_year = year + 7
+#
+#     gregorian_months = [0, 30, 31, 30, 31, 31, 28, 31, 30, 31, 30, 31, 31, 30]
+#
+#     next_year = gregorian_year + 1
+#     if (next_year % 4 == 0 and next_year % 100 != 0) or next_year % 400 == 0:
+#         gregorian_months[6] = 29
+#
+#     until = ((month - 1) * 30) + date
+#     if until <= 37 and year <= 1575:
+#         until += 28
+#         gregorian_months[0] = 31
+#     else:
+#         until += new_year_day - 1
+#
+#     if year - 1 % 4 == 3:
+#         until += 1
+#
+#     m = 0
+#     for i in range(0, gregorian_months.__len__()):
+#         if until <= gregorian_months[i]:
+#             m = i
+#             gregorian_date = until
+#             break
+#         else:
+#             m = i
+#             until -= gregorian_months[i]
+#
+#     if m > 4:
+#         gregorian_year += 1
+#
+#     order = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+#     gregorian_month = order[m]
+#
+#     return datetime.date(gregorian_year, gregorian_month, gregorian_date)

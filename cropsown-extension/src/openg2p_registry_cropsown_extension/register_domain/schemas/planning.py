@@ -32,6 +32,10 @@ class G2PSchemaPlanning:
     woreda: Optional[str] = None
     kebele: Optional[str] = None
     gps_coordinate: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+    crop_latitude: Optional[str] = None
+    crop_longitude: Optional[str] = None
     season: Optional[str] = None
     commodity: Optional[str] = None
     crop_variety: Optional[str] = None

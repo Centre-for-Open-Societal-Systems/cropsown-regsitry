@@ -34,6 +34,16 @@ FORMS = {
 }
 IDENTITY = {'farmer_id', 'fayda_id', 'crop_year', 'production_season'}
 GEO = {'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'}
+# Columns a zz-oan overlay adds to a dialog table on top of the base section file:
+# 97c_planning_map_location.sql gives Crop planning rows their own Latitude and Longitude.
+SOWING_HARVEST_LAND = {'cluster_land_id', 'is_land_recorded', 'is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude', 'is_cluster_land_recorded', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude'}
+OVERLAY_COLUMNS = {'cs_planning_details': {'latitude', 'longitude'},
+                   # zz-oan/97f_cultivation_land_details.sql
+                   'cs_cultivation_details': {'is_planning_record_created', 'plot_category', 'ownership_type',
+                                              'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele',
+                                              'latitude', 'longitude', 'crop_latitude', 'crop_longitude'},
+                   # zz-oan/97g_sowing_harvest_land_rows.sql
+                   'cs_sowing_details': SOWING_HARVEST_LAND, 'cs_harvest_details': SOWING_HARVEST_LAND}
 CHILD_SECTIONS = {'cs_cluster_details', 'cs_cultivation_cluster_details', 'cs_infestation_details'}
 BASE = {'farmer_id': 'FR-000000000001', 'fayda_id': '0000 1234 5678 9012', 'crop_year': '2026',
         'production_season': 'SEASON_MEHER'}
@@ -99,7 +109,13 @@ def full_row(form):
         if name in IDENTITY:
             continue
         row[name] = {'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404', 'kebele': 'ET040404888003',
-                     'latitude': '9.01', 'longitude': '38.74'}.get(name) or sample(details[name])
+                     'latitude': '9.01', 'longitude': '38.74', 'crop_latitude': '9.02', 'crop_longitude': '38.75',
+                     'is_planning_record_created': 'no', 'plot_category': 'ANNUAL_CROP', 'ownership_type': 'OWNER',
+                     'soil_fertility_type': 'SF_HIGH', 'cluster_status': 'CLUSTER;INDEPENDENT', 'cluster_land_id': 'C1',
+                     'is_land_recorded': 'no', 'is_cluster_land_recorded': 'no', 'is_plot_not_registered': 'no',
+                     'land_area': '2', 'cluster_region': 'ET04', 'cluster_zone': 'ET0404', 'cluster_woreda': 'ET040404',
+                     'cluster_kebele': 'ET040404888003', 'cluster_sub_kebele': 'Goro', 'cluster_latitude': '9.1',
+                     'cluster_longitude': '38.8'}.get(name) or sample(details.get(name, {}))
     return row
 
 
@@ -181,6 +197,7 @@ def test_blank_file_is_header_only_and_every_column_is_documented(form):
 def test_columns_are_the_register_fields_and_every_column_is_read(form):
     spec = FORMS[form]
     details = section_columns()[spec['details']]
+    details = {**details, **{key: {} for key in OVERLAY_COLUMNS.get(spec['details'], ())}}
     columns = set(header(form))
     assert columns - IDENTITY - GEO <= set(details), 'a column that is no field of the register section'
     widget_required = {k for k, c in details.items() if c.get('widget-required')} - {'season'}
@@ -225,8 +242,9 @@ def test_minimal_rows_render_what_the_odk_template_renders_for_the_same_intake()
             if key in expected[FORMS[form]['details']][0] and key not in {'season', 'region', 'zone', 'woreda', 'kebele'}:
                 assert value == expected[FORMS[form]['details']][0][key], (form, key)
         if form == 'planning':
-            assert actual['cs_cropsown_location'][0]['geo_code_hierarchy_json'] == \
-                expected['cs_cropsown_location'][0]['geo_code_hierarchy_json']
+            # the location rides on the farmer lookup; the Address section is not on the form
+            assert actual['crop_farmer_lookup'][0]['geo_code_hierarchy_json'] == \
+                expected['crop_farmer_lookup'][0]['geo_code_hierarchy_json']
 
 
 def test_planning_row_maps_columns_to_the_sections_of_the_form():
@@ -239,8 +257,9 @@ def test_planning_row_maps_columns_to_the_sections_of_the_form():
     assert result['cs_planning_details'] == [{
         'land_id': 'L1', 'commodity': 'CROP_TEFF', 'land_area': 1.5, 'planned_labor': 4, 'is_plot_not_registered': False,
         'cropping_system': 'CSYS_PURE', 'start_gc': '2026-06-01', 'region': 'ET04', 'zone': 'ET0404',
-        'gps_coordinate': '9.0, 38.7', 'season': 'SEASON_MEHER'}]
-    location = result['cs_cropsown_location'][0]
+        'latitude': '9.0', 'longitude': '38.7', 'season': 'SEASON_MEHER'}]
+    assert 'cs_cropsown_location' not in result  # the Address comes from the Farmer Registry
+    location = result['crop_farmer_lookup'][0]
     assert location['geo_lowest_level_value_id'] == 'ET0404'
     assert [h['level_value_id'] for h in location['geo_code_hierarchy_json']['hierarchy']] == ['ET04', 'ET0404']
     assert 'cs_cluster_details' not in result
@@ -257,8 +276,9 @@ def test_cultivation_land_prep_methods_and_fin_identity():
 
 def test_sowing_and_harvest_cluster_status_are_lists_and_headers_ignore_case():
     sowing = render('sowing', {**BASE, 'Land_ID': ' L1 ', 'cluster_status': 'cluster; independent'})
-    assert sowing['cs_sowing_details'][0] == {'land_id': 'L1', 'cluster_status': ['CLUSTER', 'INDEPENDENT'],
-                                              'season': 'SEASON_MEHER'}
+    # a Clustered row without cluster_land_id takes its land_id as the Land ID (cluster)
+    assert sowing['cs_sowing_details'][0] == {'land_id': 'L1', 'cluster_land_id': 'L1',
+                                              'cluster_status': ['CLUSTER', 'INDEPENDENT'], 'season': 'SEASON_MEHER'}
     harvest = render('harvesting', {**BASE, 'land_id': 'L1', 'qty_harvested': '12'})
     assert harvest['cs_harvest_details'][0] == {'land_id': 'L1', 'qty_harvested': 12.0}
 
@@ -277,3 +297,46 @@ def test_sowing_and_harvest_cluster_status_are_lists_and_headers_ignore_case():
 def test_a_value_the_register_cannot_take_fails_the_row_naming_the_column(form, change, message):
     with pytest.raises(UndefinedError, match=message):
         render(form, {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', **change})
+
+
+def test_cultivation_yes_keeps_only_the_land_id_and_area():
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'land_area': '2', 'is_planning_record_created': 'yes',
+           'plot_category': 'ANNUAL_CROP', 'region': 'et04', 'latitude': '9.01', 'crop_latitude': '9.02',
+           'crop_longitude': '38.75'}
+    record = render('cultivation', row)['cs_cultivation_details'][0]
+    assert record['is_planning_record_created'] is True and (record['land_id'], record['land_area']) == ('L1', 2.0)
+    assert not {'plot_category', 'region', 'latitude'} & set(record)
+    assert (record['crop_latitude'], record['crop_longitude']) == ('9.02', '38.75')
+
+
+def test_cultivation_no_keeps_the_land_columns():
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'is_planning_record_created': 'no',
+           'plot_category': 'ANNUAL_CROP', 'region': 'et04', 'kebele': 'ET040404888003', 'latitude': '9.01',
+           'longitude': '38.74'}
+    record = render('cultivation', row)['cs_cultivation_details'][0]
+    assert record['is_planning_record_created'] is False
+    assert (record['plot_category'], record['region'], record['kebele'], record['latitude'], record['longitude']) == (
+        'ANNUAL_CROP', 'ET04', 'ET040404888003', '9.01', '38.74')
+
+
+@pytest.mark.parametrize('form', ('sowing', 'harvesting'))
+def test_a_clustered_row_without_cluster_land_id_uses_its_land_id(form):
+    record = render(form, {**BASE, 'land_id': 'L1', 'cluster_status': 'CLUSTER'})[FORMS[form]['details']][0]
+    assert record['cluster_land_id'] == 'L1' and 'land_id' not in record
+    record = render(form, {**BASE, 'land_id': 'L1', 'cluster_status': 'CLUSTER;INDEPENDENT'})[FORMS[form]['details']][0]
+    assert (record['land_id'], record['cluster_land_id']) == ('L1', 'L1')
+    record = render(form, {**BASE, 'land_id': 'L1', 'cluster_land_id': 'C9', 'cluster_status': 'CLUSTER;INDEPENDENT'})
+    assert (record[FORMS[form]['details']][0]['land_id'], record[FORMS[form]['details']][0]['cluster_land_id']) == ('L1', 'C9')
+
+
+@pytest.mark.parametrize('form', ('sowing', 'harvesting'))
+def test_yes_keeps_only_the_land_id_and_no_keeps_the_land(form):
+    row = {**BASE, 'land_id': 'L1', 'cluster_land_id': 'C1', 'cluster_status': 'CLUSTER;INDEPENDENT',
+           'plot_category': 'ANNUAL_CROP', 'region': 'et04', 'latitude': '9.01', 'cluster_region': 'ET04',
+           'cluster_sub_kebele': 'Goro'}
+    record = render(form, {**row, 'is_land_recorded': 'yes', 'is_cluster_land_recorded': 'yes'})[FORMS[form]['details']][0]
+    assert record['is_land_recorded'] is True and record['is_cluster_land_recorded'] is True
+    assert not {'plot_category', 'region', 'latitude', 'cluster_region', 'cluster_sub_kebele'} & set(record)
+    record = render(form, {**row, 'is_land_recorded': 'no', 'is_cluster_land_recorded': 'no'})[FORMS[form]['details']][0]
+    assert (record['plot_category'], record['region'], record['latitude'], record['cluster_region'],
+            record['cluster_sub_kebele']) == ('ANNUAL_CROP', 'ET04', '9.01', 'ET04', 'Goro')

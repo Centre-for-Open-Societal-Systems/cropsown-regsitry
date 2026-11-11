@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.06.2",
+  "version": "2026.11.11.5",
   "media_rows": {
     "crop_name.csv": 125,
     "seed_variety.csv": 794,
@@ -11,7 +11,7 @@
   "forms": [
     {
       "form_id": "crop_sown_registry_plan",
-      "version": "2026.11.06.2",
+      "version": "2026.11.11.1",
       "workbook": "crop_sown_registry_plan.xlsx",
       "media": [
         "crop_name.csv",
@@ -39,7 +39,7 @@
     },
     {
       "form_id": "crop_sown_registry_prep",
-      "version": "2026.11.06.2",
+      "version": "2026.11.11.1",
       "workbook": "crop_sown_registry_prep.xlsx",
       "media": [
         "crop_name.csv",
@@ -58,54 +58,65 @@
         "frequency": "WATER_SOURCE_FREQUENCY",
         "land_prep_method": "LAND_PREP_METHOD",
         "method": "WATER_SOURCE_METHOD",
+        "ownership": "OWNERSHIP_TYPE",
+        "plot_cat": "PLOT_CATEGORY",
         "seed_class": "SEED_TYPE",
         "seed_source": "SEED_SOURCE",
+        "soil_fertility": "SOIL_FERTILITY",
         "water_source": "WATER_SOURCE"
       },
       "lists_left_as_published": []
     },
     {
       "form_id": "crop_sown_registry_sown",
-      "version": "2026.11.06.2",
+      "version": "2026.11.11.5",
       "workbook": "crop_sown_registry_sown.xlsx",
       "media": [
-        "crop_name.csv"
+        "crop_name.csv",
+        "kebele.csv",
+        "region.csv",
+        "woreda.csv",
+        "zone.csv"
       ],
       "master_data_lists": {
         "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
         "crop_season": "CROP_SEASON",
         "fertilizer_type": "FERTILIZER_TYPE",
         "growth_stage": "CROP_GROWTH_STAGE",
+        "ownership": "OWNERSHIP_TYPE",
         "pest_control_action": "PEST_CONTROL_ACTION",
         "pest_type": "PEST",
+        "plot_cat": "PLOT_CATEGORY",
         "security_level": "INFESTATION_SEVERITY",
+        "soil_fertility": "SOIL_FERTILITY",
         "weed_type": "WEED"
       },
       "lists_left_as_published": [
         "cluster_status",
-        "fert_type",
         "fungicide_type",
         "infestation_type",
-        "m_control",
         "method_control",
-        "method_of_control",
-        "nutrient_type",
         "pesticides_type",
-        "recovery_type",
-        "shock_type",
         "sowing_status",
         "weedicides_type"
       ]
     },
     {
       "form_id": "crop_sown_registry_harvest",
-      "version": "2026.11.06.2",
+      "version": "2026.11.11.5",
       "workbook": "crop_sown_registry_harvest.xlsx",
       "media": [
-        "crop_name.csv"
+        "crop_name.csv",
+        "kebele.csv",
+        "region.csv",
+        "woreda.csv",
+        "zone.csv"
       ],
       "master_data_lists": {
-        "crop_season": "CROP_SEASON"
+        "crop_season": "CROP_SEASON",
+        "ownership": "OWNERSHIP_TYPE",
+        "plot_cat": "PLOT_CATEGORY",
+        "soil_fertility": "SOIL_FERTILITY"
       },
       "lists_left_as_published": [
         "cluster_status",

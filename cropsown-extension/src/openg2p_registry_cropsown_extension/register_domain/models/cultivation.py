@@ -26,6 +26,17 @@ class G2PCultivation:
     soil_fertility_type: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SOIL_FERTILITY)
     plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
+    # Yes: the land details are in this farmer's Planning row of the same Land ID
+    # (checked on save); No: they are entered here (zz-oan/97f_cultivation_land_details.sql).
+    is_planning_record_created: Mapped[bool] = mapped_column(Boolean, nullable=True)
+    region: Mapped[str] = mapped_column(String, nullable=True)
+    zone: Mapped[str] = mapped_column(String, nullable=True)
+    woreda: Mapped[str] = mapped_column(String, nullable=True)
+    kebele: Mapped[str] = mapped_column(String, nullable=True)
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    crop_latitude: Mapped[str] = mapped_column(String, nullable=True)
+    crop_longitude: Mapped[str] = mapped_column(String, nullable=True)
     season: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (CROP_SEASON)
     commodity: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (CROP_COMMODITY)
     crop_variety: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (CROP_VARIETY)
