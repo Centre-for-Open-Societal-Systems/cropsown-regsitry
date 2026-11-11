@@ -179,7 +179,7 @@ if ! err="$(kubectl get --raw /version --request-timeout=20s 2>&1 >/dev/null)"; 
     echo "ERROR: cannot reach the Kubernetes API at ${server:-<none>} from $(hostname): ${err}" >&2
     echo "  Nothing was deployed; the images are in ECR under :${TAG}. The dev cluster" >&2
     echo "  is reachable only over the openg2p-Gen2 WireGuard VPN — run this from a" >&2
-    echo "  machine on it (in Jenkins, the vpn-agent2 node), then re-run the build." >&2
+    echo "  machine on it (in Jenkins, the oan-ci-deploy-agent-1 node), then re-run the build." >&2
     exit 3
   fi
   die "the Kubernetes API at ${server:-<none>} rejected the request: ${err}"

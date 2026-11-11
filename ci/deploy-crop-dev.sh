@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy cropsown-registry to the dev cluster's `crop` namespace with helm.
 #
-# The Jenkinsfile's Deploy to Dev stage runs this on the vpn-agent2 node with the
+# The Jenkinsfile's Deploy to Dev stage runs this on the oan-ci-deploy-agent-1 node with the
 # crop-dev-kubeconfig credential (the crop-ci service account of the RKE2 cluster
 # at https://10.0.1.58:6443, set up by ci/k8s/crop-ci-dev.yaml). It is a script,
 # not inline Groovy, so a deploy by hand is the same command:

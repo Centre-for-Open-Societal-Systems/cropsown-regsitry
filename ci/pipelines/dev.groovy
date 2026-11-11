@@ -7,7 +7,7 @@ def call() {
 //   other    → build + push only
 //
 // Shaped after farmer-registry's Jenkinsfile: one linear pipeline, one Deploy
-// stage pinned to the `vpn-agent2` node — the only node that reaches either API
+// stage pinned to the `oan-ci-deploy-agent-1` node — the only node that reaches either API
 // server — and no build parameters. What the deploy does is chosen by the branch
 // below and by ci/deploy-crop-dev.sh's own defaults, so there is nothing to tick
 // before a build, and a deploy by hand is the same command:
@@ -73,6 +73,9 @@ pipeline {
         // Two deploys at once leave the release locked ("another operation is in
         // progress"); a second build waits for the first instead.
         disableConcurrentBuilds()
+        // Build agents are on-demand spot machines: if one is reclaimed mid-build,
+        // run the build again instead of failing it.
+        retry(count: 2, conditions: [agent(), nonresumable()])
     }
 
     stages {
@@ -233,8 +236,11 @@ pipeline {
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
 
                             # --pull, not --no-cache: unchanged layers are reused,
-                            # but a moved base tag is still refreshed.
+                            # but a moved base tag is still refreshed. Build agents are
+                            # on-demand and start with an empty Docker cache, so layers
+                            # come from the branch image in ECR (inline cache metadata).
                             docker build --pull \
+                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --build-arg RP_VERSION="${RP_VERSION}" \
                                 -f "docker/${SVC}/Dockerfile" \
                                 -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
@@ -285,6 +291,7 @@ pipeline {
                             IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
                             echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
                             docker build --pull \
+                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
                                 --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
                                 --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
@@ -375,7 +382,7 @@ pipeline {
                 branch 'develop'
                 expression { env.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh 'rm -rf ci helm'
                 unstash 'deploy'
@@ -403,7 +410,7 @@ pipeline {
                 branch 'develop'
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -419,7 +426,7 @@ pipeline {
             // db-seed against its data) and took the site down. A staging build
             // updates images only, in the next stage.
             //
-            // beforeAgent: decide before asking for vpn-agent2, so a build of any
+            // beforeAgent: decide before asking for oan-ci-deploy-agent-1, so a build of any
             // other branch never waits on that node.
             when {
                 beforeAgent true
@@ -428,9 +435,9 @@ pipeline {
                 // only; deploy and fresh-install are requested on purpose.
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options {
-                // Bounded, because an offline vpn-agent2 does not fail a build —
+                // Bounded, because an offline oan-ci-deploy-agent-1 does not fail a build —
                 // it QUEUES it, to the 150-minute pipeline timeout. 60 covers the
                 // wait for the node, helm's 20 minutes of hooks, the rollout waits
                 // and the diagnostics on failure.
@@ -498,7 +505,7 @@ pipeline {
                 beforeAgent true
                 branch 'staging'
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options {
                 // Five rollouts at up to 7 minutes each, db-seed's 15, and the wait
                 // for the node.
@@ -533,7 +540,7 @@ pipeline {
                 branch 'develop'
                 expression { (env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') == 'deploy' && currentBuild.currentResult == 'SUCCESS' }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -588,7 +595,7 @@ Console:    ${env.BUILD_URL}console
 
 If the images built and pushed they are in ECR under
 openg2p/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
-from vpn-agent2 with ci/deploy-crop-dev.sh.
+from oan-ci-deploy-agent-1 with ci/deploy-crop-dev.sh.
 
 Regards,
 Jenkins
