@@ -60,8 +60,6 @@ def test_land_prep_method_text_column_is_converted_to_a_list():
 # Sowing and harvest use a separate static multi-select with CLUSTER / INDEPENDENT
 # and are not covered here.
 INFESTATION_CLUSTER_CODES = {"CLUSTERED", "INDEPENDENT"}
-# The ODK mapping still emits the list value ids; it moves to the codes in its own change.
-INFESTATION_CLUSTER_IDS = {"CLUSTER_STATUS_CLUSTERED", "CLUSTER_STATUS_INDEPENDENT"}
 
 
 def test_infestation_cluster_status_rules_use_list_value_codes():
@@ -70,10 +68,12 @@ def test_infestation_cluster_status_rules_use_list_value_codes():
     assert values == INFESTATION_CLUSTER_CODES
 
 
-def test_odk_infestation_cluster_map_emits_list_value_ids():
+def test_odk_infestation_cluster_map_emits_list_value_codes():
+    # ODK keeps its published clustered / independent answers (the sowing and harvest
+    # forms share that list); the transform sends the infestation's CLUSTER_STATUS codes.
     template = (PACKAGE_DIR / "templates" / "odk_to_crop_intake.j2").read_text(encoding="utf-8")
     block = re.search(r"set inf_cluster_map = \{(.*?)\}", template, re.S).group(1)
-    assert set(re.findall(r':\s*"([^"]+)"', block)) == INFESTATION_CLUSTER_IDS
+    assert set(re.findall(r':\s*"([^"]+)"', block)) == INFESTATION_CLUSTER_CODES
 
 
 def test_cluster_leadership_fields_are_typed_in_not_empty_selects():
