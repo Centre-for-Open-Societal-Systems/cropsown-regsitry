@@ -743,8 +743,8 @@
       {% endif %}
     {% endfor %}
     {% set itype_val = itype_vals | join(',') %}
-    {#- Disease type has no Master Data list yet; the ODK form does not ask it. -#}
-    {% set dtype_val = '' %}
+    {#- Disease type: a CROP_DISEASE code, as on the web form (the form asks it from that list). -#}
+    {% set dtype_val = (dis.get('disease_type') or '') | upper %}
     {
       "land_id": "{{ inf.get('infestation_land_info_id') or '' }}",
       "commodity": "{{ crop_val }}",

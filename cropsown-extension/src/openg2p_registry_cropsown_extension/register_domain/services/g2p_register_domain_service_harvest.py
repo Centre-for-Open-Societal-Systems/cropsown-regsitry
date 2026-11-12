@@ -191,9 +191,14 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         if area_harvested is None or area_harvested <= 0:
             return
 
+        from .cropsown_intake_validation_service import cluster_sides, get_master_records_for_submission
+
         land_id = str(record.get("land_id") or "").strip()
-        if not land_id:
-            return  # a Clustered-only row: its land is Land ID (cluster), not compared here
+        clustered, independent = cluster_sides(record)
+        if not land_id or (clustered and not independent):
+            # A Clustered-only row: its land is Land ID (cluster), not compared with an
+            # Independent Area sown here, even when the row also carries land_id.
+            return
         submission_id = record.get("submission_id")
         link_internal_record_id = record.get("link_internal_record_id")
         season = record.get("season")
@@ -205,6 +210,20 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
         max_allowed_area = None
         stage_name = "Area Sown in Sowing"
+
+        # The farmer's crop records (this intake's farmer, crop year and season, and the record
+        # being edited): a Land ID is only looked up among them, never another farmer's.
+        farmer_record_ids = None
+
+        async def farmer_records() -> list:
+            nonlocal farmer_record_ids
+            if farmer_record_ids is None:
+                farmer_record_ids = []
+                if submission_id:
+                    farmer_record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
+                if link_internal_record_id:
+                    farmer_record_ids = [*farmer_record_ids, str(link_internal_record_id)]
+            return farmer_record_ids
 
         # 1. Check current submission (Intake Form)
         if submission_id:
@@ -237,19 +256,20 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
             if row and row[0] is not None:
                 max_allowed_area = float(row[0])
 
-        # 3. Check registered sowing by land_id + season
-        if max_allowed_area is None and land_id:
+        # 3. Check registered sowing by land_id + season, among the farmer's crop records
+        if max_allowed_area is None and land_id and await farmer_records():
+            ids = await farmer_records()
             if season_vars:
-                query_ls = "SELECT area_sown FROM g2p_register_sowings WHERE TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND area_sown IS NOT NULL AND season = ANY(:season_vars) ORDER BY created_at DESC"
-                res_ls = await session.execute(text(query_ls), {"land_id": land_id, "season_vars": season_vars})
+                query_ls = "SELECT area_sown FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:ids) AND TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND area_sown IS NOT NULL AND season = ANY(:season_vars) ORDER BY created_at DESC"
+                res_ls = await session.execute(text(query_ls), {"ids": ids, "land_id": land_id, "season_vars": season_vars})
                 row_ls = res_ls.fetchone()
                 if row_ls and row_ls[0] is not None:
                     max_allowed_area = float(row_ls[0])
 
             if max_allowed_area is None:
                 res_s = await session.execute(
-                    text("SELECT area_sown FROM g2p_register_sowings WHERE TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND area_sown IS NOT NULL ORDER BY created_at DESC"),
-                    {"land_id": land_id}
+                    text("SELECT area_sown FROM g2p_register_sowings WHERE link_internal_record_id = ANY(:ids) AND TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND area_sown IS NOT NULL ORDER BY created_at DESC"),
+                    {"ids": ids, "land_id": land_id}
                 )
                 row_s = res_s.fetchone()
                 if row_s and row_s[0] is not None:
@@ -270,9 +290,10 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 if row_c and row_c[0] is not None:
                     max_allowed_area = float(row_c[0])
 
-            if max_allowed_area is None and land_id:
-                query_cl = "SELECT actual_crop_area FROM g2p_register_cultivations WHERE TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND actual_crop_area IS NOT NULL"
-                p_cl = {"land_id": land_id}
+            if max_allowed_area is None and land_id and await farmer_records():
+                query_cl = ("SELECT actual_crop_area FROM g2p_register_cultivations WHERE link_internal_record_id = ANY(:ids) "
+                            "AND TRIM(land_id) = :land_id AND record_status = 'ACTIVE' AND actual_crop_area IS NOT NULL")
+                p_cl = {"ids": await farmer_records(), "land_id": land_id}
                 if season_vars:
                     query_cl += " AND season = ANY(:season_vars)"
                     p_cl["season_vars"] = season_vars
@@ -296,12 +317,7 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
                 if row and row[0] is not None:
                     max_allowed_area = float(row[0])
             if max_allowed_area is None:
-                from .cropsown_intake_validation_service import get_master_records_for_submission
-                record_ids = []
-                if submission_id:
-                    record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
-                if link_internal_record_id:
-                    record_ids = [*record_ids, str(link_internal_record_id)]
+                record_ids = await farmer_records()
                 if record_ids:
                     query = ("SELECT planned_area FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:ids) "
                              "AND record_status = 'ACTIVE' AND planned_area IS NOT NULL AND TRIM(land_id) = :land_id")

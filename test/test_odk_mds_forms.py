@@ -189,7 +189,7 @@ def test_the_questions_read_as_on_the_web_form(pack, tmp_path):
         assert [(r["name"], r["label"]) for r in choices if r["list_name"] == "yes_no"] == [("yes", "Yes"), ("no", "No")]
     survey = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"), "survey")
     assert [r["label"] for r in survey if r["name"] == "security_level"] == ["Severity level"]
-    assert not [r for r in survey if r["name"] == "disease_type"]  # until Master Data has a crop disease list
+    assert [r["type"] for r in survey if r["name"] == "disease_type"] == ["select_one disease_type"]  # CROP_DISEASE
 
 
 def test_committed_forms_offer_the_pack_lists():

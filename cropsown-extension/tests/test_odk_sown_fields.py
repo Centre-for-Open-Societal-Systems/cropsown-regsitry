@@ -59,3 +59,13 @@ def test_weed_control_method_is_kept_as_the_register_list_code():
         'weed_occurrence': {'weed_type': 'grassy', 'weed_control_method': 'hand_picking'},
     }])['cs_infestation_details'][0]
     assert inc['weed_control_method'] == 'hand_picking'
+
+
+def test_disease_type_is_kept_as_the_crop_disease_code():
+    # The Sowing form asks Disease Type from CROP_DISEASE (odk/tools/build_mds_forms.py), as the web form does.
+    inc = render([{'land_info_id': 'L1'}], [{
+        'infestation_land_info_id': 'L1', 'infestation_type_ids': 'disease',
+        'disease': {'disease_type': 'RUST', 'disease_name': 'Wheat stem rust'},
+    }])['cs_infestation_details'][0]
+    assert (inc['disease_type'], inc['disease_name']) == ('RUST', 'Wheat stem rust')
+    assert render([{'land_info_id': 'L1'}], [{'infestation_land_info_id': 'L1'}])['cs_infestation_details'][0]['disease_type'] == ''
