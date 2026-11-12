@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Put a staging-<n> build's images on staging's running Deployments, and change
 # nothing else. No helm upgrade: the release, its chart, its values and its
-# hostnames (crop-registry.oanstaging.com, ...) stay exactly as they are, and no
+# hostnames (crop-registry.qa.oanstaging.com, ...) stay exactly as they are, and no
 # hook Job (db-seed, keycloak-init, sanity) runs.
 #
 # That is deliberate. A staging build once ran helm upgrade on the live release:

@@ -25,7 +25,7 @@ commonEnv:
   CONNECTOR_CORS_ORIGINS: https://connector-cropsown-registry.crop.staging.openg2p.test
 
 # The image bakes the New Dev admin-auth issuer (docker/registry-connector/admin-auth.json). Staging
-# tokens come from keycloak.oanstaging.com, so the API must expect that issuer, or every admin call
+# tokens come from keycloak.qa.oanstaging.com, so the API must expect that issuer, or every admin call
 # (the definitions hook included) is 401 "Invalid issuer". Same values as the staging Farmer connector.
 #
 # Farmer-reference receivers (WebSub topics oan.farmer-reference.changed.v1 and
@@ -35,8 +35,8 @@ commonEnv:
 # key stays in the Secret crop-farmer-lookup-signing-ed25519 (key private-key.pem); the kid is that
 # Secret's kid. Once a key resolves, the beat task connector.oan_redrive_unsigned replays those entries.
 extraEnv:
-  CONNECTOR_ODK_CENTRAL_BASE_URL: https://odk-central.oanstaging.com
-  CONNECTOR_ADMIN_AUTH_ISSUER: https://keycloak.oanstaging.com/realms/staff
+  CONNECTOR_ODK_CENTRAL_BASE_URL: https://odk-central.qa.oanstaging.com
+  CONNECTOR_ADMIN_AUTH_ISSUER: https://keycloak.qa.oanstaging.com/realms/staff
   CONNECTOR_ADMIN_AUTH_JWKS_URL: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff/protocol/openid-connect/certs
   CONNECTOR_SIGNING_KID: crop-lookup-ed25519-3a077466c8436fc2
 extraEnvFrom:
