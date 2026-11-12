@@ -125,3 +125,21 @@ def test_without_sowing_or_cultivation_the_area_harvested_is_checked_against_the
     with pytest.raises(G2PRegistryException) as error:
         harvest_area({"g2p_intake_form_sowings": [(1.0,)], "g2p_intake_form_plannings": [(5.0,)]}, 2)
     assert "Area Sown in Sowing (1.0 hectares)" in error.value.message
+
+
+def test_registered_cultivation_is_the_farmers_own():
+    # The farmer's own registered Cultivation limits the area sown
+    with pytest.raises(G2PRegistryException) as error:
+        sow_area({"g2p_register_cultivations": [(1.0,)]}, 1.5)
+    assert "Actual Crop Area in Cultivation (1.0 hectares)" in error.value.message
+    sow_area({"g2p_register_cultivations": [(1.0,)]}, 0.9)
+
+
+def test_another_farmers_land_of_the_same_name_is_not_used():
+    # Without any of the farmer's crop sown records there is no registered Cultivation to compare with
+    # (a "Plot 1" of another farmer must not limit this farmer's sowing)
+    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "season": "SEASON_IRRIGATION", "area_sown": 0.9,
+              "submission_id": "sub-1"}
+    rows = {"g2p_register_cultivations": [(0.75,)]}
+    with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=([], "", "", ""))):
+        asyncio.run(G2PRegisterDomainServiceSowing()._validate_sowing_area_after_cultivation(record, Session(rows)))
