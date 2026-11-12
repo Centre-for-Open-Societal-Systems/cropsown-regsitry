@@ -29,7 +29,7 @@ class G2PInfestation:
     cluster_status: Mapped[str] = mapped_column(String, nullable=True)
     cluster_name: Mapped[str] = mapped_column(String, nullable=True)
     infestation_type: Mapped[str] = mapped_column(String, nullable=True)      # Attribute lookup (INFESTATION_TYPE)
-    pest_name: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (PEST)
+    pest_name: Mapped[str] = mapped_column(String, nullable=True)             # Typed text (zz-oan/97j_pest_name_text.sql)
     weed_name: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (WEED)
     disease_name: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (CROP_DISEASE)
     disease_type: Mapped[str] = mapped_column(String, nullable=True)

@@ -42,7 +42,8 @@ def submission(address, planning):
 ])
 def test_record_address_is_master_data_pcodes(address):
     result = render(submission(address, [{}]))
-    for section in ('crop_farmer_lookup', 'cs_cropsown_location'):
+    assert 'cs_cropsown_location' not in result  # the Address comes from the Farmer Registry
+    for section in ('crop_farmer_lookup',):
         row = result[section][0]
         assert (row['region'], row['zone'], row['woreda'], row['kebele']) == (
             'ET03', 'ET0303', 'ET030303', 'ET030303001001')

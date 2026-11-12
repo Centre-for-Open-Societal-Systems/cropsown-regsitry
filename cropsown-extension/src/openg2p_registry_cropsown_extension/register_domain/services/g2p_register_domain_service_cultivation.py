@@ -14,6 +14,16 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 
 class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
+    # Cultivation feeds the Harvest performance figures (harvest_metrics.py):
+    # recalculate them when a cultivation row reaches the register or is changed.
+    async def post_ingest(self, register_id, register_row, session):
+        from .harvest_metrics import refresh_after_change
+        await refresh_after_change(session, getattr(register_row, "link_internal_record_id", None))
+
+    async def post_approve(self, change_request, session):
+        from .harvest_metrics import refresh_after_change
+        await refresh_after_change(session, change_request.internal_record_id)
+
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         from .field_rules import validate_record_fields
         await validate_record_fields(records, table=True)
@@ -34,6 +44,14 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
                 validation_error("Season is required in Cultivation / land preparation.")
             if not str(record.get("commodity") or "").strip():
                 validation_error("Crop is required in Cultivation / land preparation.")
+            # The map can hand back numbers; the columns hold text, as in Planning.
+            for key in ("latitude", "longitude", "crop_latitude", "crop_longitude"):
+                if isinstance(record.get(key), (int, float)) and not isinstance(record.get(key), bool):
+                    record[key] = str(record[key])
+            # "Is planning record created?" Yes: this farmer's Planning (same crop year
+            # and season) must have the Land ID. No: the land details are entered here.
+            from .domain_validation_utils import run_record_cross_validation
+            await run_record_cross_validation(self._validate_planning_record_exists, record, session)
 
             from .domain_validation_utils import resolve_production_season
             prod_season = await resolve_production_season(record, session)
@@ -60,6 +78,46 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
         from .domain_validation_utils import run_previous_section_validation
         from .cropsown_intake_validation_service import validate_cultivation_against_planning
         await run_previous_section_validation(validate_cultivation_against_planning, active_records, session)
+
+    async def _validate_planning_record_exists(self, record: dict, session) -> None:
+        """Yes to "Is planning record created?": a Planning row with this Land ID exists
+        for the same farmer, crop year and season (this intake's own Planning rows, the
+        farmer's matching crop records, or the crop record being edited). When neither
+        the intake nor the record can be told, nothing is refused."""
+        answer = record.get("is_planning_record_created")
+        if not (answer is True or str(answer).strip().lower() in ("true", "yes")):
+            return
+        land_id = str(record.get("land_id") or "").strip()
+        if not land_id or session is None:
+            return
+        from sqlalchemy import text
+
+        from .cropsown_intake_validation_service import get_master_records_for_submission
+
+        record_ids: list[str] = []
+        submission_id = record.get("submission_id")
+        if submission_id:
+            found = (await session.execute(
+                text("SELECT 1 FROM g2p_intake_form_plannings WHERE submission_id = :sid AND TRIM(land_id) = :land LIMIT 1"),
+                {"sid": str(submission_id), "land": land_id})).first()
+            if found:
+                return
+            record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
+        if record.get("link_internal_record_id"):
+            record_ids = [*record_ids, str(record["link_internal_record_id"])]
+        if not submission_id and not record_ids:
+            return
+        if record_ids:
+            found = (await session.execute(
+                text("SELECT 1 FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:ids) "
+                     "AND record_status = 'ACTIVE' AND TRIM(land_id) = :land LIMIT 1"),
+                {"ids": record_ids, "land": land_id})).first()
+            if found:
+                return
+        validation_error(
+            f"No planning record found for Land ID '{land_id}' for this farmer in this crop year and season. "
+            "Check the Land ID, or choose No for \"Is planning record created?\" and enter the land details."
+        )
 
     def _validate_no_duplicate_commodity_season(self, records: list[dict]) -> None:
         seen: set[tuple[str, str, str]] = set()

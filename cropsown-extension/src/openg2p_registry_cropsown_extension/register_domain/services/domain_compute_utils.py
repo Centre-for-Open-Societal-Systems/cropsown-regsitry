@@ -55,9 +55,16 @@ def compute_production_results(record: dict) -> None:
 
 
 def compute_harvest_yield(record: dict) -> None:
-    """The harvest register carries the same yield_per_ha as production."""
-    qty = as_float(record.get("qty_harvested")) or 0.0
-    record["yield_per_ha"] = round(_ratio(qty * QUINTAL_TO_KG, record.get("area_harvested")), 4)
+    """Yield (kg per hectare) on the harvest row as it is saved, so the intake shows it.
+
+    It is the harvest's own `yield_kg_ha` column (an earlier version wrote
+    `yield_per_ha`, which the harvest row does not have, so the value was dropped).
+    The figures that need Planning and Cultivation are filled in by
+    harvest_metrics.refresh_harvest_metrics when the rows reach the register.
+    """
+    from .harvest_metrics import yield_kg_ha
+
+    record["yield_kg_ha"] = yield_kg_ha(record)
 
 
 def compute_cluster_area(record: dict) -> None:

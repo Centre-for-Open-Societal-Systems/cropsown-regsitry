@@ -78,9 +78,9 @@
 {% endif %}
 {% set latitude = record.pop('latitude', none) %}{% set longitude = record.pop('longitude', none) %}
 {% if latitude is not none and longitude is not none %}
-  {% set _ = geo.update({'latitude': latitude, 'longitude': longitude}) %}{% set _ = record.update({'gps_coordinate': latitude ~ ', ' ~ longitude}) %}
+  {% set _ = geo.update({'latitude': latitude, 'longitude': longitude}) %}{% set _ = record.update({'latitude': latitude | string, 'longitude': longitude | string}) %}
 {% endif %}
-{% if geo %}{% set _ = sections.update({'cs_cropsown_location': [geo]}) %}{% endif %}
+{#- The farmer's address comes from the Farmer Registry; the location stays on crop_farmer_lookup. -#}
 {% set _ = lookup.update({'record_name': farmer_id}) %}
 
 {{ sections | tojson }}

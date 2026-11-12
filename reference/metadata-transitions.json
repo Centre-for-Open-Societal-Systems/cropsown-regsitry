@@ -220,6 +220,13 @@
       "mechanism": "retired_field",
       "replaced_by": "establishing_date",
       "reason": "Read-only Ethiopian-calendar copy retired; the date picker already shows Ethiopian dates. The database column stays"
+    },
+    {
+      "from_section": "cropsown_planning_details_section_01",
+      "path": "gps_coordinate",
+      "mechanism": "retired_field",
+      "replaced_by": "latitude",
+      "reason": "The plot position is taken from the Map location (Latitude and Longitude) instead of a typed GPS coordinate; the database column stays"
     }
   ]
 }

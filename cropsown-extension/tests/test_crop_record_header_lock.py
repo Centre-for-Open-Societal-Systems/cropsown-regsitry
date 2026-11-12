@@ -50,7 +50,7 @@ class FakeSession:
         return Rows([])
 
 
-ESTABLISHED = (RECORD_ID, "2026", "SEASON_BELG", "REG/S2/2026/98176")
+ESTABLISHED = (RECORD_ID, "2026", "SEASON_BELG", "REG/S2/2026/98176", "FR-123456789054", "1234567890873598")
 
 
 def save(record, established=ESTABLISHED):
@@ -60,7 +60,8 @@ def save(record, established=ESTABLISHED):
 
 def same(**changes):
     return {"internal_record_id": RECORD_ID, PREFIX + "functional_record_id": "REG/S2/2026/98176",
-            PREFIX + "crop_year": "2026", PREFIX + "production_season": "SEASON_BELG", **changes}
+            PREFIX + "crop_year": "2026", PREFIX + "production_season": "SEASON_BELG",
+            PREFIX + "farmer_id": "FR-123456789054", PREFIX + "fayda_fan_id": "1234 5678 9087 3598", **changes}
 
 
 def test_saving_the_same_values_is_allowed():
@@ -71,6 +72,8 @@ def test_saving_the_same_values_is_allowed():
     ("functional_record_id", "REG/S2/2026/98177", "Crop sown ID cannot be changed"),
     ("production_season", "SEASON_MEHER", "Production season cannot be changed"),
     ("crop_year", "2025", "Crop year cannot be changed"),
+    ("farmer_id", "FR-999999999999", "Farmer ID cannot be changed"),
+    ("fayda_fan_id", "9999999999999999", "Fayda FAN ID cannot be changed"),
 ])
 def test_changing_an_established_value_fails_on_save(field, value, message):
     with pytest.raises(G2PRegistryException) as error:
@@ -84,7 +87,7 @@ def test_a_record_that_is_not_in_the_register_yet_is_not_checked():
 
 def test_a_record_without_a_crop_sown_id_yet_can_get_one():
     save(same(**{PREFIX + "functional_record_id": "REG/S2/2026/98176"}),
-         established=(RECORD_ID, "2026", "SEASON_BELG", None))
+         established=(RECORD_ID, "2026", "SEASON_BELG", None, "FR-123456789054", "1234567890873598"))
 
 
 def test_without_a_session_the_check_opens_its_own():
@@ -131,13 +134,17 @@ def test_without_ids_or_a_database_the_save_check_is_skipped():
 @pytest.mark.parametrize("item, fails", [
     ({"internal_record_id": RECORD_ID, "functional_record_id": "REG/S2/2026/98176",
       "crop_year": "2026", "production_season": "SEASON_BELG"}, False),
+    ({"internal_record_id": RECORD_ID, "farmer_id": "FR-123456789054", "fayda_fan_id": "1234 5678 9087 3598"}, False),
+    ({"internal_record_id": RECORD_ID, "farmer_id": "FR-999999999999"}, True),
+    ({"internal_record_id": RECORD_ID, "fayda_fan_id": "9999999999999999"}, True),
     ({"internal_record_id": RECORD_ID, "functional_record_id": "REG/S2/2026/98177"}, True),
     ({"internal_record_id": RECORD_ID, "production_season": "SEASON_MEHER"}, True),
 ])
 def test_approval_rejects_a_changed_crop_sown_id_year_or_season(item, fails):
     service = G2PRegisterDomainServiceCropSown()
     record = SimpleNamespace(internal_record_id=RECORD_ID, functional_record_id="REG/S2/2026/98176",
-                             crop_year="2026", production_season="SEASON_BELG")
+                             crop_year="2026", production_season="SEASON_BELG",
+                             farmer_id="FR-123456789054", fayda_fan_id="1234567890873598")
     session = SimpleNamespace(get=AsyncMock(return_value=record))
     change_request = SimpleNamespace(internal_record_id=RECORD_ID, change_request_id="cr-1",
                                      section_id="cropsown_cropsown_record_section_01")
@@ -156,7 +163,7 @@ def test_approval_rejects_a_changed_crop_sown_id_year_or_season(item, fails):
 def test_the_crop_record_section_shows_the_three_fields_as_not_editable():
     sql = OVERLAY.read_text(encoding="utf-8")
     assert "'cropsown_cropsown_record_section_01'" in sql
-    assert "IN ('functional_record_id', 'crop_year')" in sql and '"widget": "display"' in sql
+    assert "IN ('functional_record_id', 'crop_year', 'farmer_id', 'fayda_fan_id')" in sql and '"widget": "display"' in sql
     assert "= 'production_season'" in sql and '{"widget-readonly": true}' in sql
     # the intake record name label shares this file (98 must be the last overlay)
     assert "jsonb_build_object('intake_record_id', 'ID')" in sql

@@ -282,6 +282,30 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # values; the field is not required and every other widget is kept.
         if path.name.endswith("_plot_registered_question.sql"):
             continue
+        # The harvest results overlay only left-aligns the five read-only calculated
+        # figures; none of them is required and every other widget is kept.
+        if path.name.endswith("_harvest_results_left_aligned.sql"):
+            continue
+        # The cascading location overlay only marks the Zone, Woreda and Kebele columns with
+        # the column above them; none is required and every other widget key is kept.
+        if path.name.endswith("_cascading_location.sql"):
+            continue
+        # The planning map overlay only swaps the optional GPS coordinate column for the
+        # optional Map location, Latitude and Longitude; widget-required is untouched.
+        if path.name.endswith("_planning_map_location.sql"):
+            continue
+        # The cultivation land overlay adds an optional question and optional land fields
+        # shown only for No; widget-required of the existing columns is untouched.
+        if path.name.endswith("_cultivation_land_details.sql"):
+            continue
+        # The Sowing / Harvest land rows overlay shows Land ID for Independent and Land ID
+        # (cluster) for Clustered, each required while shown by a `require` rule, then adds
+        # the optional "Is planning record created?" questions and the land fields for No.
+        if path.name.endswith("_sowing_harvest_land_rows.sql"):
+            continue
+        # The dates overlay only adds the Sowing date and Date of observation pickers' "today" limit and message.
+        if path.name.endswith("_dates_not_future.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):

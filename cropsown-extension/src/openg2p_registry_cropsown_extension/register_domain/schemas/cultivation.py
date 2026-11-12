@@ -38,6 +38,15 @@ class G2PSchemaCultivation:
     soil_fertility_type: Optional[str] = None
     plot_category: Optional[str] = None
     land_area: Optional[float] = None
+    is_planning_record_created: Optional[bool] = None
+    region: Optional[str] = None
+    zone: Optional[str] = None
+    woreda: Optional[str] = None
+    kebele: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+    crop_latitude: Optional[str] = None
+    crop_longitude: Optional[str] = None
     season: Optional[str] = None
     commodity: Optional[str] = None
     crop_variety: Optional[str] = None

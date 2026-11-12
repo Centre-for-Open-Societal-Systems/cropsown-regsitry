@@ -10,7 +10,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from ...farmer_reference.profile import FarmerReferenceError, normalize_uid
 
-from .domain_validation_utils import as_float, as_int, validation_error, get_row_field, field_label
+from .domain_validation_utils import as_float, as_int, validation_error, get_row_field
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -18,8 +18,6 @@ _logger = logging.getLogger("g2p-register-domain-service")
 # Register id of the Crop Sown register definition; its child TABLE registers
 # carry other ids and have no Farmer identity to mirror.
 CROP_SOWN_REGISTER_ID = "6b06a95a-9a6c-5a33-a33d-c1625716c59c"
-
-_MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
 
 # Farmer ids are issued by the farmer registry as FR- followed by twelve digits.
 _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
@@ -82,7 +80,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
 
         rid = str(getattr(register_row, "internal_record_id", "") or "")
         farmer_id = str(getattr(register_row, "farmer_id", "") or "").strip()
-        fayda = str(getattr(register_row, "fayda_fan_id", "") or "").strip()
+        # A farmer is identified by a FAN (16 digits) or a FIN (12 digits); either one.
+        fayda = str(getattr(register_row, "fayda_fan_id", "") or getattr(register_row, "fayda_fin", "") or "").strip()
         crop_year = str(getattr(register_row, "crop_year", "") or "").strip()
         season_clean = clean_season(getattr(register_row, "production_season", "") or "")
         if not rid or not fayda:
@@ -97,7 +96,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 WHERE internal_record_id != :rid
                   AND record_status = 'ACTIVE'
                   AND (:farmer = '' OR farmer_id = :farmer)
-                  AND (TRIM(fayda_fan_id) = :fayda OR REPLACE(fayda_fan_id, ' ', '') = :fayda_ns)
+                  AND (REPLACE(COALESCE(fayda_fan_id, ''), ' ', '') = :fayda_ns
+                       OR REPLACE(COALESCE(fayda_fin, ''), ' ', '') = :fayda_ns)
                   AND (:year = '' OR crop_year = :year)
                 ORDER BY created_at ASC
                 """
@@ -269,21 +269,40 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         existing_year = None
         existing_season = None
         existing_functional_id = None
+        existing_farmer_id = None
+        existing_fayda_fan_id = None
         found_rec_id = None
 
         from sqlalchemy import text
 
         if internal_id:
             res = await session.execute(
-                text("SELECT internal_record_id, crop_year, production_season, functional_record_id FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
+                text("SELECT internal_record_id, crop_year, production_season, functional_record_id, farmer_id, fayda_fan_id FROM g2p_register_crop_sowns WHERE internal_record_id = :rec_id"),
                 {"rec_id": str(internal_id)}
             )
             existing = res.fetchone()
             if existing:
                 found_rec_id, existing_year, existing_season, existing_functional_id = existing[0], existing[1], existing[2], existing[3]
+                existing_farmer_id, existing_fayda_fan_id = existing[4], existing[5]
 
         if not found_rec_id:
             return
+
+        # The Farmer ID and Fayda FAN ID come from the linked Farmer reference; staff cannot
+        # change them on an approved crop record (the Farmer Registry sync still updates them).
+        for field, label, existing_value in (("farmer_id", "Farmer ID", existing_farmer_id),
+                                             ("fayda_fan_id", "Fayda FAN ID", existing_fayda_fan_id)):
+            proposed = record.get(field)
+            if not proposed:
+                for k, v in record.items():
+                    if isinstance(k, str) and k.endswith("." + field) and v:
+                        proposed = v
+                        break
+            if proposed and existing_value and \
+                    str(proposed).replace(" ", "").strip() != str(existing_value).replace(" ", "").strip():
+                validation_error(
+                    f"{label} cannot be changed once established for a crop sown record (Existing: '{existing_value}', Attempted: '{proposed}')."
+                )
 
         # The Crop sown ID is generated at the first approval and never changes.
         new_functional_id = record.get("functional_record_id")
@@ -472,13 +491,6 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         from .domain_validation_utils import validate_land_id
         validate_land_id(record.get("land_id"), "Land ID")
 
-    def _validate_mobile_number(self, record: dict, field: str) -> None:
-        value = record.get(field)
-        if value is None or str(value).strip() == "":
-            return
-        if not _MOBILE_NUMBER_PATTERN.match(str(value).strip()):
-            validation_error(f"{field_label(field)} is not a valid mobile number. Enter a number such as +251911234567 or 0911234567")
-
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for crop sown record")
 
@@ -542,7 +554,7 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         await self._check_immutable_header_season_and_year(change_request, session)
         await self._check_unique_farmer_per_year(change_request, session)
         await self._check_crop_area_within_plot(change_request, session)
-        await self._check_matching_land_id_across_sections(change_request, session)
+        # await self._check_matching_land_id_across_sections(change_request, session)  # Land ID match not used in the current workflow
         await self._check_matching_season_across_sections(change_request, session)
         await self._check_section_dates_validity(change_request, session)
         await self._recompute_ec_dates_across_sections(change_request, session)
@@ -573,7 +585,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
             if item.get("edit_action") == "DELETE" or item.get("internal_record_id", record.internal_record_id) != record.internal_record_id:
                 continue
             for field, label in (("production_season", "Production season"), ("crop_year", "Crop year"),
-                                 ("functional_record_id", "Crop sown ID")):
+                                 ("functional_record_id", "Crop sown ID"), ("farmer_id", "Farmer ID"),
+                                 ("fayda_fan_id", "Fayda FAN ID")):
                 established = getattr(record, field, None)
                 if field not in item or not established:
                     continue
@@ -582,6 +595,8 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 if field == "production_season":
                     proposed = proposed.upper().removeprefix("CROP_SEASON_").removeprefix("SEASON_")
                     existing = existing.upper().removeprefix("CROP_SEASON_").removeprefix("SEASON_")
+                if field == "fayda_fan_id":
+                    proposed, existing = proposed.replace(" ", ""), existing.replace(" ", "")
                 if proposed != existing:
                     validation_error(
                         f"{label} cannot be changed for an existing crop sown record. Keep its original value."
@@ -940,219 +955,222 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                         f"its registered area of {plot_area:g} hectares"
                     )
 
-    async def _check_matching_land_id_across_sections(
-        self, change_request: G2PRegisterChangeRequest, session: AsyncSession
-    ) -> None:
-        """Check that Land IDs in Cluster Information sections match a Land ID specified in Crop Planning."""
-        from ..models import (
-            G2PRegisterPlanning, G2PRegisterCluster, G2PRegisterCultivationCluster, G2PRegisterCultivation,
-            G2PIntakeFormPlanning, G2PIntakeFormCluster, G2PIntakeFormCultivationCluster, G2PIntakeFormCultivation,
-            G2PRegisterSowing, G2PIntakeFormSowing, G2PRegisterInfestation, G2PIntakeFormInfestation,
-            G2PRegisterHarvest, G2PIntakeFormHarvest,
-        )
-
-        planning_land_ids = set()
-        cultivation_land_ids = set()
-
-        planning_rows = (
-            await session.execute(
-                select(G2PRegisterPlanning).where(
-                    G2PRegisterPlanning.link_internal_record_id == change_request.internal_record_id,
-                    G2PRegisterPlanning.record_status == "ACTIVE",
-                )
-            )
-        ).scalars().all()
-        for r in planning_rows:
-            lid = getattr(r, "land_id", None)
-            if lid and str(lid).strip():
-                planning_land_ids.add(str(lid).strip())
-
-        cultivation_rows = (
-            await session.execute(
-                select(G2PRegisterCultivation).where(
-                    G2PRegisterCultivation.link_internal_record_id == change_request.internal_record_id,
-                    G2PRegisterCultivation.record_status == "ACTIVE",
-                )
-            )
-        ).scalars().all()
-        for r in cultivation_rows:
-            lid = getattr(r, "land_id", None)
-            if lid and str(lid).strip():
-                cultivation_land_ids.add(str(lid).strip())
-
-        sub_id = getattr(change_request, "submission_id", None)
-        if sub_id:
-            intake_planning = (
-                await session.execute(
-                    select(G2PIntakeFormPlanning).where(
-                        G2PIntakeFormPlanning.submission_id == sub_id
-                    )
-                )
-            ).scalars().all()
-            for ip in intake_planning:
-                lid = getattr(ip, "land_id", None)
-                if lid and str(lid).strip():
-                    planning_land_ids.add(str(lid).strip())
-
-            intake_cultivation = (
-                await session.execute(
-                    select(G2PIntakeFormCultivation).where(
-                        G2PIntakeFormCultivation.submission_id == sub_id
-                    )
-                )
-            ).scalars().all()
-            for ip in intake_cultivation:
-                lid = getattr(ip, "land_id", None)
-                if lid and str(lid).strip():
-                    cultivation_land_ids.add(str(lid).strip())
-
-        if planning_land_ids:
-            cluster_rows = []
-            c_rows = (
-                await session.execute(
-                    select(G2PRegisterCluster).where(
-                        G2PRegisterCluster.link_internal_record_id == change_request.internal_record_id,
-                        G2PRegisterCluster.record_status == "ACTIVE",
-                    )
-                )
-            ).scalars().all()
-            cluster_rows.extend(c_rows)
-
-            if sub_id:
-                ic_rows = (
-                    await session.execute(
-                        select(G2PIntakeFormCluster).where(
-                            G2PIntakeFormCluster.submission_id == sub_id
-                        )
-                    )
-                ).scalars().all()
-                cluster_rows.extend(ic_rows)
-
-            for c in cluster_rows:
-                lid = getattr(c, "land_id", None)
-                if lid and str(lid).strip() and str(lid).strip() not in planning_land_ids:
-                    validation_error(
-                        f"Land ID '{lid}' in Cluster information does not match any Land ID specified in Crop planning."
-                    )
-
-        if cultivation_land_ids:
-            cultivation_cluster_rows = []
-            c_rows = (
-                await session.execute(
-                    select(G2PRegisterCultivationCluster).where(
-                        G2PRegisterCultivationCluster.link_internal_record_id == change_request.internal_record_id,
-                        G2PRegisterCultivationCluster.record_status == "ACTIVE",
-                    )
-                )
-            ).scalars().all()
-            cultivation_cluster_rows.extend(c_rows)
-
-            if sub_id:
-                ic_rows = (
-                    await session.execute(
-                        select(G2PIntakeFormCultivationCluster).where(
-                            G2PIntakeFormCultivationCluster.submission_id == sub_id
-                        )
-                    )
-                ).scalars().all()
-                cultivation_cluster_rows.extend(ic_rows)
-
-            for c in cultivation_cluster_rows:
-                lid = getattr(c, "land_id", None)
-                if lid and str(lid).strip() and str(lid).strip() not in cultivation_land_ids:
-                    validation_error(
-                        f"Land ID '{lid}' in Cultivation cluster does not match any Land ID specified in Cultivation / land preparation."
-                    )
-
-        if planning_land_ids:
-            sowing_rows = []
-            s_rows = (
-                await session.execute(
-                    select(G2PRegisterSowing).where(
-                        G2PRegisterSowing.link_internal_record_id == change_request.internal_record_id,
-                        G2PRegisterSowing.record_status == "ACTIVE",
-                    )
-                )
-            ).scalars().all()
-            sowing_rows.extend(s_rows)
-
-            if sub_id:
-                is_rows = (
-                    await session.execute(
-                        select(G2PIntakeFormSowing).where(
-                            G2PIntakeFormSowing.submission_id == sub_id
-                        )
-                    )
-                ).scalars().all()
-                sowing_rows.extend(is_rows)
-
-            sowing_land_ids = set()
-            for c in sowing_rows:
-                lid = getattr(c, "land_id", None)
-                if lid and str(lid).strip():
-                    sowing_land_ids.add(str(lid).strip())
-                    if str(lid).strip() not in planning_land_ids:
-                        validation_error(
-                            f"Land ID '{lid}' in Sowing does not match any Land ID specified in Crop planning."
-                        )
-
-            infestation_rows = []
-            i_rows = (
-                await session.execute(
-                    select(G2PRegisterInfestation).where(
-                        G2PRegisterInfestation.link_internal_record_id == change_request.internal_record_id,
-                        G2PRegisterInfestation.record_status == "ACTIVE",
-                    )
-                )
-            ).scalars().all()
-            infestation_rows.extend(i_rows)
-
-            if sub_id:
-                ii_rows = (
-                    await session.execute(
-                        select(G2PIntakeFormInfestation).where(
-                            G2PIntakeFormInfestation.submission_id == sub_id
-                        )
-                    )
-                ).scalars().all()
-                infestation_rows.extend(ii_rows)
-
-            # 3. Validate Infestation Land IDs against the collected Sowing Land IDs
-            for c in infestation_rows:
-                lid = getattr(c, "land_id", None)
-                if lid and str(lid).strip() and str(lid).strip() not in sowing_land_ids:
-                    validation_error(
-                        f"Land ID '{lid}' in Pest or disease infestation does not match any Land ID specified in Sowing."
-                    )
-
-            harvest_rows = []
-            h_rows = (
-                await session.execute(
-                    select(G2PRegisterHarvest).where(
-                        G2PRegisterHarvest.link_internal_record_id == change_request.internal_record_id,
-                        G2PRegisterHarvest.record_status == "ACTIVE",
-                    )
-                )
-            ).scalars().all()
-            harvest_rows.extend(h_rows)
-
-            if sub_id:
-                ih_rows = (
-                    await session.execute(
-                        select(G2PIntakeFormHarvest).where(
-                            G2PIntakeFormHarvest.submission_id == sub_id
-                        )
-                    )
-                ).scalars().all()
-                harvest_rows.extend(ih_rows)
-
-            valid_harvest_land_ids = sowing_land_ids or planning_land_ids
-            for c in harvest_rows:
-                lid = getattr(c, "land_id", None)
-                if lid and str(lid).strip() and str(lid).strip() not in valid_harvest_land_ids:
-                    validation_error(
-                        f"Land ID '{lid}' in Harvest does not match any Land ID specified in Sowing or Crop planning."
-                    )
+    # Not used in the current workflow: a Land ID does not have to match an earlier
+    # section (any stage may start a crop record). Date and area checks stay.
+    # Kept commented out for reference.
+    # async def _check_matching_land_id_across_sections(
+    #     self, change_request: G2PRegisterChangeRequest, session: AsyncSession
+    # ) -> None:
+    #     """Check that Land IDs in Cluster Information sections match a Land ID specified in Crop Planning."""
+    #     from ..models import (
+    #         G2PRegisterPlanning, G2PRegisterCluster, G2PRegisterCultivationCluster, G2PRegisterCultivation,
+    #         G2PIntakeFormPlanning, G2PIntakeFormCluster, G2PIntakeFormCultivationCluster, G2PIntakeFormCultivation,
+    #         G2PRegisterSowing, G2PIntakeFormSowing, G2PRegisterInfestation, G2PIntakeFormInfestation,
+    #         G2PRegisterHarvest, G2PIntakeFormHarvest,
+    #     )
+    #
+    #     planning_land_ids = set()
+    #     cultivation_land_ids = set()
+    #
+    #     planning_rows = (
+    #         await session.execute(
+    #             select(G2PRegisterPlanning).where(
+    #                 G2PRegisterPlanning.link_internal_record_id == change_request.internal_record_id,
+    #                 G2PRegisterPlanning.record_status == "ACTIVE",
+    #             )
+    #         )
+    #     ).scalars().all()
+    #     for r in planning_rows:
+    #         lid = getattr(r, "land_id", None)
+    #         if lid and str(lid).strip():
+    #             planning_land_ids.add(str(lid).strip())
+    #
+    #     cultivation_rows = (
+    #         await session.execute(
+    #             select(G2PRegisterCultivation).where(
+    #                 G2PRegisterCultivation.link_internal_record_id == change_request.internal_record_id,
+    #                 G2PRegisterCultivation.record_status == "ACTIVE",
+    #             )
+    #         )
+    #     ).scalars().all()
+    #     for r in cultivation_rows:
+    #         lid = getattr(r, "land_id", None)
+    #         if lid and str(lid).strip():
+    #             cultivation_land_ids.add(str(lid).strip())
+    #
+    #     sub_id = getattr(change_request, "submission_id", None)
+    #     if sub_id:
+    #         intake_planning = (
+    #             await session.execute(
+    #                 select(G2PIntakeFormPlanning).where(
+    #                     G2PIntakeFormPlanning.submission_id == sub_id
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         for ip in intake_planning:
+    #             lid = getattr(ip, "land_id", None)
+    #             if lid and str(lid).strip():
+    #                 planning_land_ids.add(str(lid).strip())
+    #
+    #         intake_cultivation = (
+    #             await session.execute(
+    #                 select(G2PIntakeFormCultivation).where(
+    #                     G2PIntakeFormCultivation.submission_id == sub_id
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         for ip in intake_cultivation:
+    #             lid = getattr(ip, "land_id", None)
+    #             if lid and str(lid).strip():
+    #                 cultivation_land_ids.add(str(lid).strip())
+    #
+    #     if planning_land_ids:
+    #         cluster_rows = []
+    #         c_rows = (
+    #             await session.execute(
+    #                 select(G2PRegisterCluster).where(
+    #                     G2PRegisterCluster.link_internal_record_id == change_request.internal_record_id,
+    #                     G2PRegisterCluster.record_status == "ACTIVE",
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         cluster_rows.extend(c_rows)
+    #
+    #         if sub_id:
+    #             ic_rows = (
+    #                 await session.execute(
+    #                     select(G2PIntakeFormCluster).where(
+    #                         G2PIntakeFormCluster.submission_id == sub_id
+    #                     )
+    #                 )
+    #             ).scalars().all()
+    #             cluster_rows.extend(ic_rows)
+    #
+    #         for c in cluster_rows:
+    #             lid = getattr(c, "land_id", None)
+    #             if lid and str(lid).strip() and str(lid).strip() not in planning_land_ids:
+    #                 validation_error(
+    #                     f"Land ID '{lid}' in Cluster information does not match any Land ID specified in Crop planning."
+    #                 )
+    #
+    #     if cultivation_land_ids:
+    #         cultivation_cluster_rows = []
+    #         c_rows = (
+    #             await session.execute(
+    #                 select(G2PRegisterCultivationCluster).where(
+    #                     G2PRegisterCultivationCluster.link_internal_record_id == change_request.internal_record_id,
+    #                     G2PRegisterCultivationCluster.record_status == "ACTIVE",
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         cultivation_cluster_rows.extend(c_rows)
+    #
+    #         if sub_id:
+    #             ic_rows = (
+    #                 await session.execute(
+    #                     select(G2PIntakeFormCultivationCluster).where(
+    #                         G2PIntakeFormCultivationCluster.submission_id == sub_id
+    #                     )
+    #                 )
+    #             ).scalars().all()
+    #             cultivation_cluster_rows.extend(ic_rows)
+    #
+    #         for c in cultivation_cluster_rows:
+    #             lid = getattr(c, "land_id", None)
+    #             if lid and str(lid).strip() and str(lid).strip() not in cultivation_land_ids:
+    #                 validation_error(
+    #                     f"Land ID '{lid}' in Cultivation cluster does not match any Land ID specified in Cultivation / land preparation."
+    #                 )
+    #
+    #     if planning_land_ids:
+    #         sowing_rows = []
+    #         s_rows = (
+    #             await session.execute(
+    #                 select(G2PRegisterSowing).where(
+    #                     G2PRegisterSowing.link_internal_record_id == change_request.internal_record_id,
+    #                     G2PRegisterSowing.record_status == "ACTIVE",
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         sowing_rows.extend(s_rows)
+    #
+    #         if sub_id:
+    #             is_rows = (
+    #                 await session.execute(
+    #                     select(G2PIntakeFormSowing).where(
+    #                         G2PIntakeFormSowing.submission_id == sub_id
+    #                     )
+    #                 )
+    #             ).scalars().all()
+    #             sowing_rows.extend(is_rows)
+    #
+    #         sowing_land_ids = set()
+    #         for c in sowing_rows:
+    #             lid = getattr(c, "land_id", None)
+    #             if lid and str(lid).strip():
+    #                 sowing_land_ids.add(str(lid).strip())
+    #                 if str(lid).strip() not in planning_land_ids:
+    #                     validation_error(
+    #                         f"Land ID '{lid}' in Sowing does not match any Land ID specified in Crop planning."
+    #                     )
+    #
+    #         infestation_rows = []
+    #         i_rows = (
+    #             await session.execute(
+    #                 select(G2PRegisterInfestation).where(
+    #                     G2PRegisterInfestation.link_internal_record_id == change_request.internal_record_id,
+    #                     G2PRegisterInfestation.record_status == "ACTIVE",
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         infestation_rows.extend(i_rows)
+    #
+    #         if sub_id:
+    #             ii_rows = (
+    #                 await session.execute(
+    #                     select(G2PIntakeFormInfestation).where(
+    #                         G2PIntakeFormInfestation.submission_id == sub_id
+    #                     )
+    #                 )
+    #             ).scalars().all()
+    #             infestation_rows.extend(ii_rows)
+    #
+    #         # 3. Validate Infestation Land IDs against the collected Sowing Land IDs
+    #         for c in infestation_rows:
+    #             lid = getattr(c, "land_id", None)
+    #             if lid and str(lid).strip() and str(lid).strip() not in sowing_land_ids:
+    #                 validation_error(
+    #                     f"Land ID '{lid}' in Pest or disease infestation does not match any Land ID specified in Sowing."
+    #                 )
+    #
+    #         harvest_rows = []
+    #         h_rows = (
+    #             await session.execute(
+    #                 select(G2PRegisterHarvest).where(
+    #                     G2PRegisterHarvest.link_internal_record_id == change_request.internal_record_id,
+    #                     G2PRegisterHarvest.record_status == "ACTIVE",
+    #                 )
+    #             )
+    #         ).scalars().all()
+    #         harvest_rows.extend(h_rows)
+    #
+    #         if sub_id:
+    #             ih_rows = (
+    #                 await session.execute(
+    #                     select(G2PIntakeFormHarvest).where(
+    #                         G2PIntakeFormHarvest.submission_id == sub_id
+    #                     )
+    #                 )
+    #             ).scalars().all()
+    #             harvest_rows.extend(ih_rows)
+    #
+    #         valid_harvest_land_ids = sowing_land_ids or planning_land_ids
+    #         for c in harvest_rows:
+    #             lid = getattr(c, "land_id", None)
+    #             if lid and str(lid).strip() and str(lid).strip() not in valid_harvest_land_ids:
+    #                 validation_error(
+    #                     f"Land ID '{lid}' in Harvest does not match any Land ID specified in Sowing or Crop planning."
+    #                 )
 
     async def _recompute_ec_dates_across_sections(
         self, change_request: G2PRegisterChangeRequest, session: AsyncSession

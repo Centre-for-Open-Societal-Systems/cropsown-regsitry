@@ -33,7 +33,15 @@ class G2PPlanning:
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
     kebele: Mapped[str] = mapped_column(String, nullable=True)
+    # Retired from the form (zz-oan/97c_planning_map_location.sql); kept so stored
+    # values stay readable.
     gps_coordinate: Mapped[str] = mapped_column(String, nullable=True)
+    # Filled from the Map location in the row dialog, or typed in the map's boxes.
+    latitude: Mapped[str] = mapped_column(String, nullable=True)
+    longitude: Mapped[str] = mapped_column(String, nullable=True)
+    # The crop's own position, from the Crop location map after Expected yield.
+    crop_latitude: Mapped[str] = mapped_column(String, nullable=True)
+    crop_longitude: Mapped[str] = mapped_column(String, nullable=True)
     season: Mapped[str] = mapped_column(String, nullable=True)                # Attribute lookup (CROP_SEASON)
     commodity: Mapped[str] = mapped_column(String, nullable=True)             # Attribute lookup (CROP_COMMODITY)
     crop_variety: Mapped[str] = mapped_column(String, nullable=True)          # Attribute lookup (CROP_VARIETY)

@@ -48,7 +48,8 @@ DATE_FIELDS = frozenset(
         "start_gc",
     ]
 )
-PAST_ONLY = frozenset({"date_of_birth", "registration_date"})
+# Sowing date and Date of observation: today or earlier, on every channel (web, ODK, file import).
+PAST_ONLY = frozenset({"date_of_birth", "registration_date", "sowing_date", "observation_date"})
 
 # Numeric-value fields. Rule is keyed by field name, so one entry covers every
 # section (and both intake and change-request, since clean_records runs in both).
