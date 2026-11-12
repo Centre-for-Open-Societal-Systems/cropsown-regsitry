@@ -91,6 +91,8 @@ pipeline {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_deployment_guard.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_onboarding_runner_failure.py -v'
+                // Sample-approver password hook against a fake Keycloak (stdlib only, no network).
+                sh 'python3 -m unittest discover -s test -p test_sample_approver_password.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src oan/cropsown-reference-tests:rc557 -m unittest discover -s cropsown-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
