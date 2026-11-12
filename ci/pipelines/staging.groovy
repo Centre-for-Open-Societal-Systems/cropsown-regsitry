@@ -1,7 +1,8 @@
 // The staging branch builds nothing. A merge into staging promotes the chart that develop built from this source tree
 // (the same image digests, under an rc version), deploys it and publishes it. See scripts/ci/deliver_staging.sh of oan-helm.
 // The build fails if develop never built this tree: staging only runs what New Dev ran first.
-// The connector release follows the registry in a second stage, with the connector images of that same develop build.
+// The connector release follows the registry in a second stage, with the connector images of that same develop build,
+// and the dashboard UI release in a third, from oan-helm.
 def call() {
     pipeline {
         agent { label 'oan-ci-deploy' }
@@ -49,6 +50,32 @@ def call() {
                         [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-ecr-creds']
                     ]) {
                         sh 'bash ci/deploy/upgrade-crop-connector-staging.sh'
+                    }
+                }
+            }
+            stage('Deliver dashboard') {
+                // The cropsown-registry-dashboard release (the dashboard UI; its dashboard-api comes with the registry chart),
+                // from oan-helm: chart repository/cropsown-registry-dashboard-0.1.2.tgz with
+                // environments/staging/values/cropsown-dashboard.yaml, the release scripts/ci/deliver_staging_dashboards.sh
+                // installs. The chart generates its Keycloak client secret, registers the client and the staff-portal tile
+                // (IAM setup hook) and refreshes its own ECR pull secret, so nothing is set by hand. --atomic restores the
+                // previous revision when the upgrade fails; a failed first install is removed.
+                when { allOf { branch 'staging'; not { changeRequest() } } }
+                steps {
+                    withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
+                        sh '''
+                          set -eu
+                          rm -rf .oan-helm-dashboard
+                          git clone --quiet --depth 1 --filter=blob:none --sparse \\
+                            https://github.com/Centre-for-Open-Societal-Systems/oan-helm.git .oan-helm-dashboard
+                          git -C .oan-helm-dashboard sparse-checkout set --no-cone \\
+                            /repository/cropsown-registry-dashboard-0.1.2.tgz /environments/staging/values/cropsown-dashboard.yaml
+                          helm upgrade --install cropsown-registry-dashboard \\
+                            .oan-helm-dashboard/repository/cropsown-registry-dashboard-0.1.2.tgz --namespace crop \\
+                            --values .oan-helm-dashboard/environments/staging/values/cropsown-dashboard.yaml \\
+                            --reset-values --atomic --wait --timeout 10m
+                          helm status cropsown-registry-dashboard -n crop | sed -n '1,6p'
+                        '''
                     }
                 }
             }
