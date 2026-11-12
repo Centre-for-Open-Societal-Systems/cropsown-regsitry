@@ -59,7 +59,8 @@ grep -q "image: \"$repo/registry-connector-ui@$sui\"" "$staging"
 if grep -q 'connector-service\|postgres-init:develop' "$staging"; then echo "FAIL: staging renders a retired image or the database init Job" >&2; exit 1; fi
 test "$(grep -c 'kind: Job' "$staging")" -eq 1
 grep -q 'name: cropsown-connector-postgres-init$' "$staging"  # kept by preserved-init-serviceaccount.yaml
-grep -q 'connector-cropsown-registry.crop.staging.openg2p.test' "$staging"
+grep -q 'connector-cropsown-registry.qa.oanstaging.com' "$staging"
+grep -q '"istio-system/staging"' "$staging" || { echo "FAIL: the staging route does not bind istio-system/staging" >&2; exit 1; }
 grep -q 'cropsown_connector_crop' "$staging"
 # The API must expect the issuer of the tokens the definitions hook fetches (tokenUrl in
 # definitions.staging.yaml), not the New Dev issuer baked into the image.

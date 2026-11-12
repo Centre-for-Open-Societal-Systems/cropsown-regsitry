@@ -39,7 +39,7 @@ builder rewrites them:
    places share a name).
 3. Questions. "Plot not registered" (a tick box) becomes the Yes/No question "Is plot
    registered?" (is_plot_registered), as on the web form; "Security Level" is labelled
-   "Severity level"; Disease Type is dropped until Master Data has a crop disease list;
+   "Severity level"; Disease Type reads CROP_DISEASE, as on the web form;
    Pest name is typed text and Method of control (pest) reads PEST_CONTROL_ACTION; dates use the
    Ethiopian calendar (the stored value stays Gregorian); the cluster Land ID questions
    carry no rule tying them to the planning or cultivation Land ID, as on the web form.
@@ -72,7 +72,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.11.5"
+VERSION = "2026.11.12.1"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -96,6 +96,7 @@ INLINE_LISTS = {
     "security_level": "INFESTATION_SEVERITY",
     "pest_type": "PEST",
     "weed_type": "WEED",
+    "disease_type": "CROP_DISEASE",
     "pest_control_action": "PEST_CONTROL_ACTION",
 }
 # Source choice lists replaced by an inline Master Data list
@@ -104,7 +105,7 @@ REPLACES = {"production_season": "crop_season", "season": "crop_season", "ecolog
 FILE_LISTS = {"crop_name.csv": "CROP_COMMODITY", "seed_variety.csv": "SEED_VARIETY"}
 GEO_FILES = {"region.csv": "region", "zone.csv": "zone", "woreda.csv": "woreda", "kebele1.csv": "kebele"}
 # Source questions dropped from the forms: the registry has one variety field (seed_variety)
-DROPPED_QUESTIONS = {"crop_variety_id", "disease_type"}
+DROPPED_QUESTIONS = {"crop_variety_id"}
 # "Plot not registered" tick box -> the web form's Yes/No question; the transform reads
 # is_plot_registered (yes = registered) and stores is_plot_not_registered.
 PLOT_QUESTION = {"is_plot_not_registered": {"type": "select_one yes_no", "name": "is_plot_registered",

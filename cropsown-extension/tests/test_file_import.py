@@ -278,7 +278,7 @@ def test_sowing_and_harvest_cluster_status_are_lists_and_headers_ignore_case():
     sowing = render('sowing', {**BASE, 'Land_ID': ' L1 ', 'cluster_status': 'cluster; independent'})
     # a Clustered row without cluster_land_id takes its land_id as the Land ID (cluster)
     assert sowing['cs_sowing_details'][0] == {'land_id': 'L1', 'cluster_land_id': 'L1',
-                                              'cluster_status': ['CLUSTER', 'INDEPENDENT'], 'season': 'SEASON_MEHER'}
+                                              'cluster_status': ['CLUSTERED', 'INDEPENDENT'], 'season': 'SEASON_MEHER'}
     harvest = render('harvesting', {**BASE, 'land_id': 'L1', 'qty_harvested': '12'})
     assert harvest['cs_harvest_details'][0] == {'land_id': 'L1', 'qty_harvested': 12.0}
 
@@ -292,7 +292,7 @@ def test_sowing_and_harvest_cluster_status_are_lists_and_headers_ignore_case():
     ('planning', {'planned_labor': 'x'}, 'column planned_labor must be a whole number'),
     ('planning', {'start_gc': '01/06/2026'}, 'column start_gc must be a date'),
     ('planning', {'is_plot_not_registered': 'maybe'}, 'column is_plot_not_registered must be yes or no'),
-    ('sowing', {'cluster_status': 'FIELD'}, 'column cluster_status takes CLUSTER and INDEPENDENT'),
+    ('sowing', {'cluster_status': 'FIELD'}, 'column cluster_status takes CLUSTERED and INDEPENDENT'),
 ])
 def test_a_value_the_register_cannot_take_fails_the_row_naming_the_column(form, change, message):
     with pytest.raises(UndefinedError, match=message):

@@ -57,8 +57,8 @@ def test_land_prep_method_text_column_is_converted_to_a_list():
 # The infestation cluster_status select reads the CLUSTER_STATUS register list with
 # valueKey value_code, so what is stored is the value code (CLUSTERED, INDEPENDENT),
 # the code the registry validates against. The show rules must use the codes.
-# Sowing and harvest use a separate static multi-select with CLUSTER / INDEPENDENT
-# and are not covered here.
+# Sowing and harvest read the same list through zz-oan/97k_cluster_status_list.sql
+# (tests/test_cluster_status_list.py).
 INFESTATION_CLUSTER_CODES = {"CLUSTERED", "INDEPENDENT"}
 
 

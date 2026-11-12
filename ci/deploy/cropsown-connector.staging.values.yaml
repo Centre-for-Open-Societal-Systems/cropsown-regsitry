@@ -7,7 +7,7 @@
 fullnameOverride: cropsown-connector
 
 global:
-  hostname: connector-cropsown-registry.crop.staging.openg2p.test
+  hostname: connector-cropsown-registry.qa.oanstaging.com
   postgresqlHost: commons-postgresql.commons.svc.cluster.local
   postgresqlPort: 5432
   redisHost: cropsown-registry-redis-master
@@ -22,7 +22,7 @@ imagePullSecrets:
   - name: ecr-pull-secret
 
 commonEnv:
-  CONNECTOR_CORS_ORIGINS: https://connector-cropsown-registry.crop.staging.openg2p.test
+  CONNECTOR_CORS_ORIGINS: https://connector-cropsown-registry.qa.oanstaging.com
 
 # The image bakes the New Dev admin-auth issuer (docker/registry-connector/admin-auth.json). Staging
 # tokens come from keycloak.qa.oanstaging.com, so the API must expect that issuer, or every admin call
@@ -59,14 +59,16 @@ ui:
   image:
     pullPolicy: IfNotPresent
 
+# The public name is connector-cropsown-registry.qa.oanstaging.com on the staging Gateway (istio-system/staging, the
+# *.qa.oanstaging.com wildcard certificate), like the Farmer connector. The namespace's own Gateway crop/internal lists
+# only the old names.
 istio:
   enabled: true
   gateway:
     create: false
-    name: internal
   virtualservice:
     enabled: true
-    gateway: internal
+    gateway: istio-system/staging
 
 # The connector database and user exist since the first install. With the init enabled, the chart's
 # pre-upgrade hooks would run again against the Secret that holds the database password; the
