@@ -124,12 +124,14 @@ def test_each_stage_with_rows_is_one_intake_in_stage_order(loader):
     planning = planned[0]["stages"][0]["sections"]
     root = planned[0]["stages"][0]["root"]
     assert list(planning) == ["crop_farmer_lookup", "cropsown_intake_season_section_01",
-                              "cropsown_cropsown_location_section_03", "cropsown_planning_details_section_01",
+                              "cropsown_planning_details_section_01",
                               "cropsown_cluster_details_section_01"]
     assert planning["crop_farmer_lookup"] == [{"internal_record_id": root, "fayda_id": "502628318720"}]  # no Farmer ID yet
     assert planning["cropsown_intake_season_section_01"][0]["crop_year"] == "2028"
     line = planning["cropsown_planning_details_section_01"][0]
     assert line["link_internal_record_id"] == root and "land_ref" not in line and line["land_id"] == "Plot 1"
+    assert (line["latitude"], line["longitude"]) == (14.4, 37.7)  # the land position, on the row
+    assert "latitude" not in planned[1]["stages"][0]["sections"]["cropsown_planning_details_section_01"][0]
     sowing = planned[0]["stages"][2]["sections"]
     assert "cropsown_common_intake_season_section_01" in sowing and "cropsown_infestation_details_section_01" in sowing
     roots = {s["root"] for s in planned[0]["stages"]}

@@ -177,7 +177,9 @@ SEED_KEYS = {
     "Crop sowing intake": "3.Crop Sown Sowing Intake",
     "Crop harvesting intake": "4.Crop Sown Harvesting Intake",
 }
-LOCATION = "cropsown_cropsown_location_section_03"  # Planning only
+# The intake forms have no location section: the Address comes from the Farmer Registry, and each
+# Planning row takes its land position in latitude and longitude (97c_planning_map_location.sql).
+PLANNING = "cropsown_planning_details_section_01"
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -247,12 +249,13 @@ def plan(people: list[dict], crops: list[dict], year: int,
                 season_section: [{"internal_record_id": root, "crop_year": str(year),
                                   "production_season": season}],
             }
-            if own == "planning" and sample.get("location"):
-                sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
             for section, key in lists:
                 rows = [{"internal_record_id": new_id(), "link_internal_record_id": root,
                          **{k: in_year(v, year) for k, v in line.items() if k != "land_ref"}}
                         for line in sample.get(key) or []]
+                if section == PLANNING and sample.get("location"):
+                    where = {k: sample["location"][k] for k in ("latitude", "longitude") if k in sample["location"]}
+                    rows = [{**where, **row} for row in rows]
                 if rows:
                     sections[section] = rows
             stages.append({"form": form, "root": root, "sections": sections})
