@@ -2,6 +2,58 @@
   OpenG2P Gen 2 Crop Sown Registry Transformation Template
   Transforms ODK survey submissions across all 4 stages to OpenG2P domain model sections.
 #}
+{#- A GPS point's latitude or longitude ('lat' / 'lon'): ODK Central's JSON gives GeoJSON
+    (coordinates = [longitude, latitude, altitude]); the text form is
+    "latitude longitude altitude accuracy". Empty when there is no point. -#}
+{% macro gps_part(value, part) -%}
+{%- if value is mapping -%}
+{%- set c = value.get('coordinates') or [] -%}
+{%- if c | length > 1 and c[0] is number -%}{{ c[1] if part == 'lat' else c[0] }}{%- endif -%}
+{%- elif value is string and value | trim -%}
+{%- set c = (value | trim).split() -%}
+{%- if c | length > 1 -%}{{ c[0] if part == 'lat' else c[1] }}{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+{#- A Yes/No answer as JSON: true, false or null. -#}
+{% macro yes_no(value) -%}{{ 'true' if value == 'yes' else ('false' if value == 'no' else 'null') }}{%- endmacro %}
+{#- A Region / Zone / Woreda / Kebele answer as the Master Data P-code. -#}
+{% macro place(value, level, region_map) -%}
+{%- set v = value or '' -%}
+{%- if level == 'region' -%}{{ region_map.get(v | lower, v | replace('REGION_', '')) }}
+{%- elif level == 'kebele' -%}
+{%- set k = v | replace('KEBELE_', '') -%}
+{{ k if (k == '' or k.startswith('ET')) else ('ET' ~ k if k | length == 12 else ('ET0' ~ k if k | length == 11 else k)) }}
+{%- else -%}{{ v | replace(level | upper ~ '_', '') }}{%- endif -%}
+{%- endmacro %}
+{#- Sowing / Harvest row: the Land ID of each Cluster status, "Is planning record
+    created?" for each, and the land (Independent) or cluster location (Clustered) for No.
+    Forms before 2026.11.11 ask one Land ID at the top of the row: it goes to the side
+    that is ticked. -#}
+{% macro land_rows(row, ind, cl, has_ind, has_cl, region_map) -%}
+{%- set old = row.get('land_info_id') or '' -%}
+      "land_id": "{{ ind.get('land_info_id') or (old if (has_ind or not has_cl) else '') }}",
+      "cluster_land_id": "{{ cl.get('cluster_land_info_id') or (old if has_cl else '') }}",
+      "is_land_recorded": {{ yes_no(ind.get('is_land_recorded')) }},
+      "is_plot_not_registered": {{ ('false' if ind.get('is_plot_registered') == 'yes' else 'true') if ind.get('is_plot_registered') in ('yes', 'no') else 'null' }},
+      "plot_category": "{{ (ind.get('land_category') or '') | trim }}",
+      "ownership_type": "{{ (ind.get('ownership_type') or '') | trim }}",
+      "land_area": {{ (ind.get('land_area') | float) if ind.get('land_area') not in (none, '') else 'null' }},
+      "soil_fertility_type": "{{ (ind.get('soil_fertility') or '') | trim }}",
+      "region": "{{ place(ind.get('region_name_id'), 'region', region_map) }}",
+      "zone": "{{ place(ind.get('zone_name_id'), 'zone', region_map) }}",
+      "woreda": "{{ place(ind.get('woreda_name_id'), 'woreda', region_map) }}",
+      "kebele": "{{ place(ind.get('kebele_id'), 'kebele', region_map) }}",
+      "latitude": "{{ gps_part(ind.get('planning_gps'), 'lat') | trim }}",
+      "longitude": "{{ gps_part(ind.get('planning_gps'), 'lon') | trim }}",
+      "is_cluster_land_recorded": {{ yes_no(cl.get('is_cluster_land_recorded')) }},
+      "cluster_region": "{{ place(cl.get('cluster_region_id'), 'region', region_map) }}",
+      "cluster_zone": "{{ place(cl.get('cluster_zone_id'), 'zone', region_map) }}",
+      "cluster_woreda": "{{ place(cl.get('cluster_woreda_id'), 'woreda', region_map) }}",
+      "cluster_kebele": "{{ place(cl.get('cluster_kebele_id'), 'kebele', region_map) }}",
+      "cluster_sub_kebele": "{{ (cl.get('cluster_sub_kebele') or '') | trim }}",
+      "cluster_latitude": "{{ gps_part(cl.get('cluster_gps'), 'lat') | trim }}",
+      "cluster_longitude": "{{ gps_part(cl.get('cluster_gps'), 'lon') | trim }}",
+{%- endmacro %}
 {% set d = expanded if expanded is defined else {} %}
 {% set is_plan = d.get('planning') is defined and d.get('planning') is not none and d.get('planning') | length > 0 %}
 {% set is_prep = d.get('cult_land_prep') is defined and d.get('cult_land_prep') is not none and d.get('cult_land_prep') | length > 0 %}
@@ -178,24 +230,8 @@
     "crop_year": {{ crop_year | string | tojson }},
     "production_season": {{ season_val | tojson }}
   }],
-  "cs_cropsown_location": [
-    {
-      "region": "{{ reg_val }}",
-      "region_name": "{{ reg_name }}",
-      "zone": "{{ zone_val }}",
-      "zone_name": "{{ raw_zone }}",
-      "woreda": "{{ woreda_val }}",
-      "woreda_name": "{{ raw_woreda }}",
-      "kebele": "{{ kebele_val }}",
-      "kebele_name": "{{ raw_kebele }}",
-      "latitude": "{{ lat_val }}",
-      "longitude": "{{ lon_val }}",
-      "altitude": "{{ alt_val }}",
-      "gps_coordinate": "{{ gps_str }}",
-      "geo_lowest_level_value_id": {{ (kebele_val or none) | tojson }},
-      "geo_code_hierarchy_json": {{ geo_hierarchy | tojson }}
-    }
-  ],
+  {#- The farmer's address comes from the Farmer Registry (Address section, not on
+      the Planning form); the location stays on crop_farmer_lookup above. -#}
   "cs_planning_details": [
   {% for p in plan_list %}
     {% set cd = p.get('crop_details') if p.get('crop_details') else p %}
@@ -231,7 +267,7 @@
       {% else %}
       {% set p_kebele = raw_pk_code %}
       {% endif %}
-    {% set p_gps = p.get('planning_gps') or {} %}
+    {% set p_gps = p.get('planning_gps') if p.get('planning_gps') is mapping else {} %}
     {% set p_coords = p_gps.get('coordinates', []) if p_gps else [] %}
     {% if p_coords | length > 0 and p_coords[0] is iterable and p_coords[0] is not string and p_coords[0] is not mapping %}
       {% set poly_pt = p_coords[0][0] if (p_coords[0] | length > 0 and p_coords[0][0] is iterable) else p_coords[0] %}
@@ -241,10 +277,9 @@
       {% set p_lat = p_coords[1] %}
       {% set p_lon = p_coords[0] %}
     {% else %}
-      {% set p_lat = '' %}
-      {% set p_lon = '' %}
+      {% set p_lat = gps_part(p.get('planning_gps'), 'lat') | trim %}
+      {% set p_lon = gps_part(p.get('planning_gps'), 'lon') | trim %}
     {% endif %}
-    {% set p_gps_str = (p_lat ~ ', ' ~ p_lon) if (p_lat != '' and p_lon != '') else '' %}
     {% set raw_crop = (cd.get('crop_name_id') or '') | lower %}
     {% set crop_val = crop_map.get(raw_crop, cd.get('crop_name_id') or '') %}
     {% set raw_ccat = (cd.get('crop_category_id') or '') | lower %}
@@ -270,7 +305,8 @@
       "zone": "{{ p_zone }}",
       "woreda": "{{ p_woreda }}",
       "kebele": "{{ p_kebele }}",
-      "gps_coordinate": "{{ p_gps_str }}",
+      "latitude": "{{ p_lat }}",
+      "longitude": "{{ p_lon }}",
       "season": "{{ p_season }}",
       "start_gc": "{{ p.get('start_gc') or '' }}",
       "end_gc": "{{ p.get('end_gc') or '' }}",
@@ -287,6 +323,8 @@
       "growth_duration_days": {{ (cpi.get('crop_growth_duration') or 60) | int }},
       "planned_area": {{ (cpi.get('crop_planned_area') or 1.0) | float }},
       "expected_yield": {{ (cpi.get('crop_expected') or 10.0) | float }},
+      "crop_latitude": "{{ gps_part(p.get('crop_gps'), 'lat') | trim }}",
+      "crop_longitude": "{{ gps_part(p.get('crop_gps'), 'lon') | trim }}",
       "seed_class": "{{ (spi.get('seed_planned') or '') | upper }}",
       "seed_source": "{{ src_val }}",
       "seed_variety": "{{ spi.get('seed_variety') or '' }}",
@@ -432,6 +470,25 @@
     {% set cult_dt = p.get('start_gc') if (raw_cult_dt > sub_dt and p.get('start_gc')) else (sub_dt if raw_cult_dt > sub_dt else raw_cult_dt) %}
     {#- ODK asks "Is plot registered?" (is_plot_registered): yes stores is_plot_not_registered false. -#}
     {% set is_plot_unreg = ('false' if p.get('is_plot_registered') == 'yes' else 'true') if p.get('is_plot_registered') else ('true' if p.get('is_plot_not_registered') == 'yes' else 'false') %}
+    {#- "Is planning record created?": yes keeps only Land ID and land area (the land is in
+        Planning); no adds the land details, as on the web form. -#}
+    {% set planned = (p.get('is_planning_record_created') or '') | lower %}
+    {% set planned_val = 'true' if planned == 'yes' else ('false' if planned == 'no' else 'null') %}
+    {% if planned == 'yes' and not p.get('is_plot_registered') %}{% set is_plot_unreg = 'null' %}{% endif %}
+    {% set raw_preg = (p.get('region_name_id') or '') | lower %}
+    {% set p_reg = region_map.get(raw_preg, (p.get('region_name_id') or '') | replace('REGION_', '')) %}
+    {% set p_zone = (p.get('zone_name_id') or '') | replace('ZONE_', '') %}
+    {% set p_woreda = (p.get('woreda_name_id') or '') | replace('WOREDA_', '') %}
+    {% set raw_pk_code = (p.get('kebele_id') or '') | replace('KEBELE_', '') %}
+      {% if raw_pk_code == '' or raw_pk_code.startswith('ET') %}
+      {% set p_kebele = raw_pk_code %}
+      {% elif raw_pk_code | length == 12 %}
+      {% set p_kebele = 'ET' ~ raw_pk_code %}
+      {% elif raw_pk_code | length == 11 %}
+      {% set p_kebele = 'ET0' ~ raw_pk_code %}
+      {% else %}
+      {% set p_kebele = raw_pk_code %}
+      {% endif %}
     {% set raw_crop = (cd.get('crop_name_id') or '') | lower %}
     {% set crop_val = crop_map.get(raw_crop, cd.get('crop_name_id') or '') %}
     {% set raw_ccat = (cd.get('crop_category_id') or '') | lower %}
@@ -449,9 +506,19 @@
     {% set raw_wfreq = (p.get('frequency') or p.get('water_source_frequency') or '') | lower %}
     {% set wfreq_val = p.get('frequency') or p.get('water_source_frequency') or '' %}
     {
+      "is_planning_record_created": {{ planned_val }},
       "is_plot_not_registered": {{ is_plot_unreg }},
       "land_id": "{{ p.get('land_info_id') or '' }}",
+      "plot_category": "{{ (p.get('land_category') or '') | trim }}",
+      "ownership_type": "{{ (p.get('ownership_type') or '') | trim }}",
       "land_area": {{ (p.get('land_area') or 0.0) | float }},
+      "soil_fertility_type": "{{ (p.get('soil_fertility') or '') | trim }}",
+      "region": "{{ p_reg }}",
+      "zone": "{{ p_zone }}",
+      "woreda": "{{ p_woreda }}",
+      "kebele": "{{ p_kebele }}",
+      "latitude": "{{ gps_part(p.get('planning_gps'), 'lat') | trim }}",
+      "longitude": "{{ gps_part(p.get('planning_gps'), 'lon') | trim }}",
       "season": "{{ p_season }}",
       "start_gc": "{{ p.get('start_gc') or '' }}",
       "end_gc": "{{ p.get('end_gc') or '' }}",
@@ -468,6 +535,8 @@
       "remark": "{{ p.get('remark') or '' }}",
       "actual_growth_duration_days": {{ (cai.get('actual_growth_duration') or 60) | int }},
       "actual_crop_area": {{ (cai.get('actual_crop_area') or 1.0) | float }},
+      "crop_latitude": "{{ gps_part(p.get('crop_gps'), 'lat') | trim }}",
+      "crop_longitude": "{{ gps_part(p.get('crop_gps'), 'lon') | trim }}",
       "actual_yield": {{ (cai.get('actual_yield') or 0.0) | float }},
       "cultivation_type": "{{ mach_val }}",
       "land_prep_method": "{{ prep_methods_str }}",
@@ -630,7 +699,7 @@
     {% set raw_cls = (cl_details.get('season_id') or sow_season) | lower %}
     {% set cl_season = season_map.get(raw_cls, raw_cls | upper) %}
     {
-      "land_id": "{{ s.get('land_info_id') or '' }}",
+{{ land_rows(s, id_details, cl_details, has_ind, has_cl, region_map) }}
       "cluster_status": {{ cs_json }},
       "cluster_id": "{{ cl_details.get('cluster_id') or '' }}",
       "cluster_name": "{{ cl_details.get('cluster_name') or '' }}",
@@ -796,7 +865,7 @@
     {% set crop_val = crop_map.get(raw_crop, ih_info.get('actual_crop_name') or ih_info.get('crop_name_id') or h.get('commodity') or ih_info.get('commodity') or '') %}
     {% set cl_name = cl_info.get('cluster_fpc_name') or cl_info.get('cluster_name') or cl_info.get('harvest_fpc_name') or h.get('cluster_name') or '' %}
     {
-      "land_id": "{{ h_land_id }}",
+{{ land_rows(h, ih_info, cl_info, has_ind, has_cl, region_map) }}
       "cluster_status": {{ cs_json }},
       "cluster_name": "{{ cl_name }}",
       "commodity": "{{ crop_val }}",

@@ -1,17 +1,18 @@
--- The Crop record's Crop sown ID, crop year and production season cannot be
--- edited on an approved record.
+-- The Crop record's Crop sown ID, crop year, production season, Farmer ID and
+-- Fayda FAN ID cannot be edited on an approved record.
 --
 -- Crop record section (cropsown_cropsown_record_section_01, "Edit Details" on an
 -- approved record) only:
---   Crop sown ID, Crop year  -> display widgets (shown, not editable), like
---                               Farmer name and Fayda FIN next to them
+--   Crop sown ID, Crop year,  -> display widgets (shown, not editable), like
+--   Farmer ID, Fayda FAN ID     Farmer name and Fayda FIN next to them
 --   Production season        -> read-only select, so it keeps showing the
 --                               season's name rather than its code
 -- The values are still sent on save, and the server rejects any change to them
--- (g2p_register_domain_service_crop_sown.py). The intake forms use their own
--- sections, so a new intake still chooses its crop year and season.
+-- (g2p_register_domain_service_crop_sown.py). The Farmer ID and Fayda FAN ID come
+-- from the linked Farmer reference; the Farmer Registry sync still updates them.
+-- The intake forms use their own sections, so a new intake still enters them.
 --
--- Only these three widgets change. A second run changes nothing. Sorts after
+-- Only these five widgets change. A second run changes nothing. Sorts after
 -- 41_crop_record_tab_layout.sql, which lays this section out.
 --
 -- This file also labels an intake's record name "ID" (the second part below).
@@ -22,7 +23,7 @@ LANGUAGE sql IMMUTABLE AS $$
     SELECT CASE jsonb_typeof(node)
         WHEN 'object' THEN
             CASE
-                WHEN node->>'widget-id' IN ('functional_record_id', 'crop_year') AND node ? 'widget-data-path'
+                WHEN node->>'widget-id' IN ('functional_record_id', 'crop_year', 'farmer_id', 'fayda_fan_id') AND node ? 'widget-data-path'
                     THEN node || '{"widget": "display", "widget-type": "display", "widget-readonly": true, "widget-required": false}'::jsonb
                 WHEN node->>'widget-id' = 'production_season' AND node ? 'widget-data-path'
                     THEN node || '{"widget-readonly": true}'::jsonb
@@ -48,7 +49,7 @@ BEGIN
       FROM "public"."g2p_register_sections" s,
            jsonb_path_query(s."section_ui_schema"::jsonb, 'strict $.** ? (@."widget-data-path" != null)') w
      WHERE s."section_id" = 'cropsown_cropsown_record_section_01'
-       AND w->>'widget-id' IN ('functional_record_id', 'crop_year', 'production_season')
+       AND w->>'widget-id' IN ('functional_record_id', 'crop_year', 'production_season', 'farmer_id', 'fayda_fan_id')
        AND COALESCE((w->>'widget-readonly')::boolean, false) IS NOT TRUE;
     IF editable IS NOT NULL THEN
         RAISE EXCEPTION 'Crop record fields still editable: %', editable;

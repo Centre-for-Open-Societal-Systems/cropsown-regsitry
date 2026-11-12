@@ -1,8 +1,9 @@
 """Approved identity mirrors through native domain hooks, in their transaction.
 
 The complete profile stays in the local Farmer reference. Only existing domain
-identity/display columns are mirrored; plot/holding geography and business fields
-are owned by the domain. This service never discovers or creates a relationship
+identity/display columns and the farmer's address (the record's Address section)
+are mirrored; plot/holding geography (the stage rows' own location) and business
+fields are owned by the domain. This service never discovers or creates a relationship
 from a mutable UID, a matching name, or a sibling submission.
 """
 from sqlalchemy import select
@@ -50,10 +51,52 @@ def _mirror(domain_row, farmer):
     changed = any(getattr(domain_row, key) != value for key, value in proposed.items())
     for key, value in proposed.items():
         setattr(domain_row, key, value)
+    changed = _mirror_address(domain_row, farmer) or changed
     if changed:
         domain_row.search_text = domain_row.get_search_text_fields()
         domain_row.record_name = domain_row.get_record_name_fields()
     return int(changed)
+
+
+# The farmer's address, from the approved Farmer, shown in the record's Address
+# section (zz-oan/97e_address_section.sql). Farmer column -> record column.
+ADDRESS_FIELDS = {
+    "region_id": "region", "zone_id": "zone", "woreda_id": "woreda", "kebele_id": "kebele",
+    "region_name": "region_name", "zone_name": "zone_name",
+    "woreda_name": "woreda_name", "kebele_name": "kebele_name",
+    "latitude": "latitude", "longitude": "longitude",
+}
+
+
+def _mirror_address(domain_row, farmer) -> bool:
+    """Copy the approved Farmer's address onto a record that has the same columns.
+
+    Only when the Farmer has an address (a location in the hierarchy or a woreda),
+    so a Farmer without one never clears the address a record already holds.
+    """
+    if not hasattr(domain_row, "woreda") or not hasattr(domain_row, "geo_lowest_level_value_id"):
+        return False
+    if not (getattr(farmer, "geo_lowest_level_value_id", None) or getattr(farmer, "woreda_id", None)):
+        return False
+    changed = False
+    for source, target in ADDRESS_FIELDS.items():
+        value = getattr(farmer, source, None)
+        if target in ("latitude", "longitude") and value is not None:
+            value = str(value)  # the Farmer keeps numbers, the record text
+        if getattr(domain_row, target, None) != value:
+            setattr(domain_row, target, value)
+            changed = True
+    lowest = getattr(farmer, "geo_lowest_level_value_id", None)
+    if getattr(domain_row, "geo_lowest_level_value_id", None) != lowest:
+        # Setting it makes the platform look the chain up; the Farmer's own chain
+        # is written over it just below.
+        domain_row.geo_lowest_level_value_id = lowest
+        changed = True
+    hierarchy = getattr(farmer, "geo_code_hierarchy_json", None)
+    if hierarchy is not None and getattr(domain_row, "geo_code_hierarchy_json", None) != hierarchy:
+        domain_row.geo_code_hierarchy_json = hierarchy
+        changed = True
+    return changed
 
 
 async def refresh_domain_on_ingest(session, farmer_model, domain_row):

@@ -15,6 +15,16 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 
 class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
+    # Planning feeds the Harvest performance figures (harvest_metrics.py):
+    # recalculate them when a planning row reaches the register or is changed.
+    async def post_ingest(self, register_id, register_row, session):
+        from .harvest_metrics import refresh_after_change
+        await refresh_after_change(session, getattr(register_row, "link_internal_record_id", None))
+
+    async def post_approve(self, change_request, session):
+        from .harvest_metrics import refresh_after_change
+        await refresh_after_change(session, change_request.internal_record_id)
+
     async def validate_domain_attributes(self, records: list[dict], session=None, **kwargs):
         from .field_rules import validate_record_fields
         await validate_record_fields(records, table=True)
@@ -23,6 +33,10 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
         active_records = [r for r in records if not is_record_deleted(r)]
         _logger.warning("ACTIVE RECORDS PAYLOAD: %s", active_records)
         for record in active_records:
+            # The map can hand back numbers; the columns hold text, as on the crop record.
+            for key in ("latitude", "longitude", "crop_latitude", "crop_longitude"):
+                if isinstance(record.get(key), (int, float)) and not isinstance(record.get(key), bool):
+                    record[key] = str(record[key])
 
             from .domain_validation_utils import validate_alphabetical_name, validate_mobile_number
             validate_alphabetical_name(record.get("farmer_name"), "Farmer name")

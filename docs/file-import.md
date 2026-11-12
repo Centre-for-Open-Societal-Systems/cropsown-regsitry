@@ -116,6 +116,18 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `actual_seed_class` | `cs_cultivation_details` | No | `LOCAL`, `IMPROVED` |
 | `actual_seed_source` | `cs_cultivation_details` | No | `GOVERNMENT / WOREDS AGRICULTURE`, `AGRICULTURE COOPERATIVE / UNION`, `PRIVATE SEED ENTERPRISE`, `FARMER-TO-FARMER EXCHANGE / SAVED` |
 | `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREP_METHOD list below. Several values separated by a semicolon. |
+| `is_planning_record_created` | `cs_cultivation_details` | No | yes or no (also true/false, 1/0). yes: the land is in Planning, so only `land_id` and `land_area` are kept and the Land ID must be in the farmer's Planning of the same crop year and season. no: the land columns below are kept. |
+| `plot_category` | `cs_cultivation_details` | No | Code from the PLOT_CATEGORY list. Read when `is_planning_record_created` is not yes. |
+| `ownership_type` | `cs_cultivation_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_planning_record_created` is not yes. |
+| `soil_fertility_type` | `cs_cultivation_details` | No | Code from the SOIL_FERTILITY list. Read when `is_planning_record_created` is not yes. |
+| `region` | `cs_cultivation_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_planning_record_created` is not yes. |
+| `zone` | `cs_cultivation_details` | No | The land's Zone: P-code, for example ET0404. Read when `is_planning_record_created` is not yes. |
+| `woreda` | `cs_cultivation_details` | No | The land's Woreda: P-code, for example ET040404. Read when `is_planning_record_created` is not yes. |
+| `kebele` | `cs_cultivation_details` | No | The land's Kebele: P-code, for example ET040404888003. Read when `is_planning_record_created` is not yes. |
+| `latitude` | `cs_cultivation_details` | No | The land's latitude in decimal degrees, for example 9.0301. Read when `is_planning_record_created` is not yes. |
+| `longitude` | `cs_cultivation_details` | No | The land's longitude in decimal degrees, for example 38.7469. Read when `is_planning_record_created` is not yes. |
+| `crop_latitude` | `cs_cultivation_details` | No | The crop's latitude in decimal degrees. |
+| `crop_longitude` | `cs_cultivation_details` | No | The crop's longitude in decimal degrees. |
 
 ## Sowing intake (`crop_sowing_intake_import_template.csv`)
 
@@ -146,6 +158,27 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `cluster_has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |
 | `agro_ecological_zone` | `cs_sowing_details` | No | `KOLLA`, `WOINA_DEGA`, `DEGA`, `WURCH`, `BEREHA` |
 | `cluster_status` | `cs_sowing_details` | No | CLUSTER, INDEPENDENT, or both separated by a semicolon |
+| `cluster_land_id` | `cs_sowing_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
+| `is_land_recorded` | `cs_sowing_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
+| `is_plot_not_registered` | `cs_sowing_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
+| `plot_category` | `cs_sowing_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_sowing_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `land_area` | `cs_sowing_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
+| `soil_fertility_type` | `cs_sowing_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
+| `region` | `cs_sowing_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
+| `zone` | `cs_sowing_details` | No | The land's Zone: P-code, for example ET0404. Read when `is_land_recorded` is not yes. |
+| `woreda` | `cs_sowing_details` | No | The land's Woreda: P-code, for example ET040404. Read when `is_land_recorded` is not yes. |
+| `kebele` | `cs_sowing_details` | No | The land's Kebele: P-code, for example ET040404888003. Read when `is_land_recorded` is not yes. |
+| `latitude` | `cs_sowing_details` | No | The land's latitude in decimal degrees. Read when `is_land_recorded` is not yes. |
+| `longitude` | `cs_sowing_details` | No | The land's longitude in decimal degrees. Read when `is_land_recorded` is not yes. |
+| `is_cluster_land_recorded` | `cs_sowing_details` | No | "Is planning record created?" for the Land ID (cluster): yes or no (also true/false, 1/0). yes keeps only the Land ID (cluster), which must be in the farmer's Cluster or Cultivation cluster records of the same crop year and season; no keeps the cluster location columns below. |
+| `cluster_region` | `cs_sowing_details` | No | The cluster land's Region: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_zone` | `cs_sowing_details` | No | The cluster land's Zone: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_woreda` | `cs_sowing_details` | No | The cluster land's Woreda: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_kebele` | `cs_sowing_details` | No | The cluster land's Kebele: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_sub_kebele` | `cs_sowing_details` | No | Text. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_latitude` | `cs_sowing_details` | No | The cluster land's latitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_longitude` | `cs_sowing_details` | No | The cluster land's longitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
 
 ## Harvesting intake (`crop_harvesting_intake_import_template.csv`)
 
@@ -179,6 +212,27 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 | `crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
 | `cluster_crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
 | `cluster_status` | `cs_harvest_details` | No | CLUSTER, INDEPENDENT, or both separated by a semicolon |
+| `cluster_land_id` | `cs_harvest_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
+| `is_land_recorded` | `cs_harvest_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
+| `is_plot_not_registered` | `cs_harvest_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
+| `plot_category` | `cs_harvest_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_harvest_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `land_area` | `cs_harvest_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
+| `soil_fertility_type` | `cs_harvest_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
+| `region` | `cs_harvest_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
+| `zone` | `cs_harvest_details` | No | The land's Zone: P-code, for example ET0404. Read when `is_land_recorded` is not yes. |
+| `woreda` | `cs_harvest_details` | No | The land's Woreda: P-code, for example ET040404. Read when `is_land_recorded` is not yes. |
+| `kebele` | `cs_harvest_details` | No | The land's Kebele: P-code, for example ET040404888003. Read when `is_land_recorded` is not yes. |
+| `latitude` | `cs_harvest_details` | No | The land's latitude in decimal degrees. Read when `is_land_recorded` is not yes. |
+| `longitude` | `cs_harvest_details` | No | The land's longitude in decimal degrees. Read when `is_land_recorded` is not yes. |
+| `is_cluster_land_recorded` | `cs_harvest_details` | No | "Is planning record created?" for the Land ID (cluster): yes or no (also true/false, 1/0). yes keeps only the Land ID (cluster), which must be in the farmer's Cluster or Cultivation cluster records of the same crop year and season; no keeps the cluster location columns below. |
+| `cluster_region` | `cs_harvest_details` | No | The cluster land's Region: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_zone` | `cs_harvest_details` | No | The cluster land's Zone: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_woreda` | `cs_harvest_details` | No | The cluster land's Woreda: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_kebele` | `cs_harvest_details` | No | The cluster land's Kebele: P-code. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_sub_kebele` | `cs_harvest_details` | No | Text. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_latitude` | `cs_harvest_details` | No | The cluster land's latitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
+| `cluster_longitude` | `cs_harvest_details` | No | The cluster land's longitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
 
 ## Code lists
 

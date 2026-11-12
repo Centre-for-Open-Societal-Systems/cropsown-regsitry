@@ -54,8 +54,12 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
             validate_alphabetical_name(record.get("farmer_name"), "Farmer name")
             self._validate_observation_date(record)
             self._validate_estimated_damage(record)
-            from .domain_validation_utils import run_record_cross_validation
-            await run_record_cross_validation(self._validate_infestation_after_sowing, record, session)
+            # Not used in the current workflow: an infestation does not need a saved Sowing
+            # record (an ODK submission carries its Sowing in the same message, which is not
+            # saved yet when the infestation is checked), and its date is not compared with
+            # the Sowing date. Kept commented out for reference.
+            # from .domain_validation_utils import run_record_cross_validation
+            # await run_record_cross_validation(self._validate_infestation_after_sowing, record, session)
 
     async def _validate_infestation_after_sowing(self, record: dict, session) -> None:
         land_id = str(record.get("land_id") or "").strip()
@@ -94,7 +98,8 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
 
         # 1. Check in Intake Form (current form submission)
         if submission_id:
-            query = "SELECT commodity, sowing_date, cluster_name FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND land_id = :land_id"
+            # The infestation's Land ID is a Sowing row's Land ID or its Land ID (cluster).
+            query = "SELECT commodity, sowing_date, cluster_name FROM g2p_intake_form_sowings WHERE submission_id = :sub_id AND (land_id = :land_id OR cluster_land_id = :land_id)"
             params = {"sub_id": str(submission_id), "land_id": land_id}
             res = await session.execute(text(query), params)
             s_rows = res.fetchall()
@@ -169,7 +174,7 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
                 stmt = select(G2PRegisterSowing.commodity, G2PRegisterSowing.sowing_date, G2PRegisterSowing.cluster_name).where(
                     G2PRegisterSowing.link_internal_record_id.in_(list(master_ids)),
                     G2PRegisterSowing.record_status == 'ACTIVE',
-                    G2PRegisterSowing.land_id == land_id
+                    (G2PRegisterSowing.land_id == land_id) | (G2PRegisterSowing.cluster_land_id == land_id)
                 )
                 res = await session.execute(stmt)
                 reg_sowings = res.all()
@@ -191,20 +196,23 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
                                 sowing_date = s_date
                                 break
 
-        if not sowing_found:
-            crop_str = f" for Crop '{commodity}'" if commodity else ""
-            validation_error(
-                f"No sowing record found{crop_str} on Land ID '{land_id}'. "
-                f"Pest or disease infestation incident can only be created for a crop that has a sowing record."
-            )
+        # Not used in the current workflow (see validate_domain_attributes).
+        # if not sowing_found:
+        #     crop_str = f" for Crop '{commodity}'" if commodity else ""
+        #     validation_error(
+        #         f"No sowing record found{crop_str} on Land ID '{land_id}'. "
+        #         f"Pest or disease infestation incident can only be created for a crop that has a sowing record."
+        #     )
 
-        obs_date = parse_date(record.get("observation_date"))
-        sow_dt = parse_date(sowing_date)
-        if obs_date and sow_dt and obs_date <= sow_dt:
-            validation_error(
-                f"Infestation observation date ({obs_date.strftime('%Y-%m-%d')}) must be after "
-                f"Sowing date ({sow_dt.strftime('%Y-%m-%d')}) for Land ID '{land_id}'."
-            )
+        # Not used in the current workflow: Date of observation is not compared with the
+        # Sowing date (it only has to be today or earlier, field_rules.PAST_ONLY).
+        # obs_date = parse_date(record.get("observation_date"))
+        # sow_dt = parse_date(sowing_date)
+        # if obs_date and sow_dt and obs_date <= sow_dt:
+        #     validation_error(
+        #         f"Infestation observation date ({obs_date.strftime('%Y-%m-%d')}) must be after "
+        #         f"Sowing date ({sow_dt.strftime('%Y-%m-%d')}) for Land ID '{land_id}'."
+        #     )
 
     def _validate_observation_date(self, record: dict) -> None:
         return

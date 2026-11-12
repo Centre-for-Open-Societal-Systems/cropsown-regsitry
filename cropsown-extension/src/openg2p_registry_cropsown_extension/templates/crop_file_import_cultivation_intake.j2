@@ -19,11 +19,11 @@
 {% set production_season = cell.get('production_season', '') %}
 {% if not production_season %}{{ fail('column production_season is required') }}{% endif %}
 
-{% set text_columns = ['land_id', 'season', 'commodity', 'crop_category', 'local_name', 'scientific_name', 'cultivation_type', 'seed_variety', 'actual_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'cropping_system', 'actual_seed_class', 'actual_seed_source'] %}
-{% set number_columns = ['land_area', 'actual_crop_area', 'actual_yield', 'actual_seed_qty', 'actual_fertilizer_qty'] %}
+{% set text_columns = ['land_id', 'plot_category', 'ownership_type', 'soil_fertility_type', 'season', 'commodity', 'crop_category', 'local_name', 'scientific_name', 'cultivation_type', 'seed_variety', 'actual_fertilizer_type', 'water_source', 'water_source_method', 'water_source_frequency', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'cropping_system', 'actual_seed_class', 'actual_seed_source'] %}
+{% set number_columns = ['land_area', 'actual_crop_area', 'actual_yield', 'actual_seed_qty', 'actual_fertilizer_qty', 'latitude', 'longitude', 'crop_latitude', 'crop_longitude'] %}
 {% set integer_columns = ['start_month', 'start_day', 'end_month', 'end_day', 'actual_growth_duration_days'] %}
 {% set date_columns = ['start_gc', 'end_gc', 'actual_cultivation_date'] %}
-{% set flag_columns = ['is_plot_not_registered'] %}
+{% set flag_columns = ['is_plot_not_registered', 'is_planning_record_created'] %}
 {#- Master Data list columns (cropping system, seed type, seed source, agro-ecological zone) are read as text columns: the registry checks their codes against Master Data. -#}
 {% set choice_columns = {} %}
 {% set comma_list_columns = ['land_prep_method'] %}
@@ -60,6 +60,13 @@
   {% set _ = record.update({key: values}) %}
 {% endif %}{% endfor %}
 {% if 'season' not in record %}{% set _ = record.update({'season': production_season}) %}{% endif %}
+{#- The land's Region, Zone, Woreda and Kebele are Master Data geo unit ids (P-codes); coordinates are stored as text. -#}
+{% for level in ['region', 'zone', 'woreda', 'kebele'] %}{% set code = cell.get(level, '') | upper %}{% if code %}{% set _ = record.update({level: code}) %}{% endif %}{% endfor %}
+{% for key in ['latitude', 'longitude', 'crop_latitude', 'crop_longitude'] %}{% if key in record %}{% set _ = record.update({key: record[key] | string}) %}{% endif %}{% endfor %}
+{#- "Is planning record created?" yes: the land is in Planning, so only Land ID and land area are kept, as on the web form. -#}
+{% if record.get('is_planning_record_created') is sameas true %}
+  {% for key in ['is_plot_not_registered', 'plot_category', 'ownership_type', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'] %}{% set _ = record.pop(key, none) %}{% endfor %}
+{% endif %}
 
 {% set lookup = {'farmer_id': farmer_id, 'fayda_fin': fayda_id if fayda_id | length == 12 else none, 'fayda_fan_id': fayda_id if fayda_id | length == 16 else none, 'status': 'DRAFT', 'lifecycle_stage': 'CULTIVATION'} %}
 {% set sections = {'crop_farmer_lookup': [lookup], 'cs_common_intake_season': [{'crop_year': crop_year, 'production_season': production_season}], 'cs_cultivation_details': [record]} %}

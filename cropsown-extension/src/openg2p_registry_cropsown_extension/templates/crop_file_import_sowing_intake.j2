@@ -61,6 +61,32 @@
 {% endif %}{% endfor %}
 {% if 'season' not in record %}{% set _ = record.update({'season': production_season}) %}{% endif %}
 
+{#- Land rows (zz-oan/97g_sowing_harvest_land_rows.sql): Land ID for Independent, Land ID (cluster)
+    for Clustered, and "Is planning record created?" for each (is_land_recorded / is_cluster_land_recorded).
+    yes keeps only the Land ID; no keeps the land (Independent) or the cluster location (Clustered).
+    A file without cluster_land_id gives a Clustered row its land_id, as before. -#}
+{% for key in ['cluster_land_id', 'plot_category', 'ownership_type', 'soil_fertility_type', 'cluster_sub_kebele'] %}{% if cell.get(key) %}{% set _ = record.update({key: cell[key]}) %}{% endif %}{% endfor %}
+{% for key in ['is_land_recorded', 'is_cluster_land_recorded', 'is_plot_not_registered'] %}{% set value = cell.get(key, '') | lower %}{% if value %}
+  {% if value not in ['true', 'yes', '1', 'false', 'no', '0'] %}{{ fail('column ' ~ key ~ ' must be yes or no, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: value in ['true', 'yes', '1']}) %}
+{% endif %}{% endfor %}
+{% for key in ['land_area', 'latitude', 'longitude', 'cluster_latitude', 'cluster_longitude'] %}{% set value = cell.get(key, '') %}{% if value %}
+  {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ key ~ ' must be a number, got ' ~ value) }}{% endif %}
+  {% set _ = record.update({key: (value | float) if key == 'land_area' else value}) %}
+{% endif %}{% endfor %}
+{% for key in ['region', 'zone', 'woreda', 'kebele', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele'] %}{% set code = cell.get(key, '') | upper %}{% if code %}{% set _ = record.update({key: code}) %}{% endif %}{% endfor %}
+{% set statuses = record.get('cluster_status') or [] %}
+{% if 'CLUSTER' in statuses and not record.get('cluster_land_id') and record.get('land_id') %}
+  {% set _ = record.update({'cluster_land_id': record['land_id']}) %}
+  {% if 'INDEPENDENT' not in statuses %}{% set _ = record.pop('land_id', none) %}{% endif %}
+{% endif %}
+{% if record.get('is_land_recorded') is sameas true %}
+  {% for key in ['is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'] %}{% set _ = record.pop(key, none) %}{% endfor %}
+{% endif %}
+{% if record.get('is_cluster_land_recorded') is sameas true %}
+  {% for key in ['cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude'] %}{% set _ = record.pop(key, none) %}{% endfor %}
+{% endif %}
+
 {% set lookup = {'farmer_id': farmer_id, 'fayda_fin': fayda_id if fayda_id | length == 12 else none, 'fayda_fan_id': fayda_id if fayda_id | length == 16 else none, 'status': 'DRAFT', 'lifecycle_stage': 'SOWING'} %}
 {% set sections = {'crop_farmer_lookup': [lookup], 'cs_common_intake_season': [{'crop_year': crop_year, 'production_season': production_season}], 'cs_sowing_details': [record]} %}
 
