@@ -26,7 +26,9 @@
 {% set flag_columns = [] %}
 {% set choice_columns = {'crop_maturity_status': ['READY_FOR_HARVEST', 'NOT_YET_READY_FOR_HARVEST'], 'cluster_crop_maturity_status': ['READY_FOR_HARVEST', 'NOT_YET_READY_FOR_HARVEST']} %}
 {% set comma_list_columns = [] %}
-{% set choice_list_columns = {'cluster_status': ['CLUSTER', 'INDEPENDENT']} %}
+{% set choice_list_columns = {'cluster_status': ['CLUSTERED', 'INDEPENDENT']} %}
+{#- Cluster status takes the CLUSTER_STATUS codes (zz-oan/97k_cluster_status_list.sql); CLUSTER from older files is read as CLUSTERED. -#}
+{% if cell.get('cluster_status') %}{% set _ = cell.update({'cluster_status': cell['cluster_status'] | upper | replace('CLUSTERED', 'CLUSTER') | replace('CLUSTER', 'CLUSTERED')}) %}{% endif %}
 
 {% set record = {} %}
 {% for key in text_columns %}{% if cell.get(key) %}{% set _ = record.update({key: cell[key]}) %}{% endif %}{% endfor %}
@@ -74,7 +76,7 @@
 {% endif %}{% endfor %}
 {% for key in ['region', 'zone', 'woreda', 'kebele', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele'] %}{% set code = cell.get(key, '') | upper %}{% if code %}{% set _ = record.update({key: code}) %}{% endif %}{% endfor %}
 {% set statuses = record.get('cluster_status') or [] %}
-{% if 'CLUSTER' in statuses and not record.get('cluster_land_id') and record.get('land_id') %}
+{% if 'CLUSTERED' in statuses and not record.get('cluster_land_id') and record.get('land_id') %}
   {% set _ = record.update({'cluster_land_id': record['land_id']}) %}
   {% if 'INDEPENDENT' not in statuses %}{% set _ = record.pop('land_id', none) %}{% endif %}
 {% endif %}
