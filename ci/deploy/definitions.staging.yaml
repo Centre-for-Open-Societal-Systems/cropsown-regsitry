@@ -19,9 +19,9 @@ connectorDefinitions:
   # topic's lag is 0.
   retired: []
   definitions:
-    # Not declared: the Farmer receivers. The staging crop registry only has CSR_DATA_MODEL
-    # (no FARMER_REFERENCE_CHANGED_V1 or FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1); declare them from
-    # definitions.newdev.yaml in the same change that promotes the registry that has those models.
+    # Every data_model_mnemonic here must be a data model the registry's seed defines
+    # (cropsown-extension meta_data; ci/deploy/tests/test_apply_definitions.py checks it). The ODK forms
+    # use ODK_TO_CROP_INTAKE, which replaced CSR_DATA_MODEL (meta_data/zz-oan/20_odk_to_crop_intake.sql).
     - name: Approved Farmer reference refresh v1
       platform: internal_registry
       transport_type: websub
@@ -59,7 +59,7 @@ connectorDefinitions:
     - name: Crop Sown 1 - Planning
       platform: odk_central
       transport_type: odk_central
-      data_model_mnemonic: CSR_DATA_MODEL
+      data_model_mnemonic: ODK_TO_CROP_INTAKE
       g2p_sender_id: CropSown
       g2p_register_mnemonic: CropSown
       auth_type: odk_session
@@ -78,7 +78,7 @@ connectorDefinitions:
     - name: Crop Sown 2 - Cultivation & Land Prep
       platform: odk_central
       transport_type: odk_central
-      data_model_mnemonic: CSR_DATA_MODEL
+      data_model_mnemonic: ODK_TO_CROP_INTAKE
       g2p_sender_id: CropSown
       g2p_register_mnemonic: CropSown
       auth_type: odk_session
@@ -97,7 +97,7 @@ connectorDefinitions:
     - name: Crop Sown 3 - Sowing
       platform: odk_central
       transport_type: odk_central
-      data_model_mnemonic: CSR_DATA_MODEL
+      data_model_mnemonic: ODK_TO_CROP_INTAKE
       g2p_sender_id: CropSown
       g2p_register_mnemonic: CropSown
       auth_type: odk_session
@@ -116,7 +116,7 @@ connectorDefinitions:
     - name: Crop Sown 4 - Harvesting
       platform: odk_central
       transport_type: odk_central
-      data_model_mnemonic: CSR_DATA_MODEL
+      data_model_mnemonic: ODK_TO_CROP_INTAKE
       g2p_sender_id: CropSown
       g2p_register_mnemonic: CropSown
       auth_type: odk_session

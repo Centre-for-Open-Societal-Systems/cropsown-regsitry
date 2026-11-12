@@ -144,3 +144,31 @@ class ValuesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeclaredDataModelTests(unittest.TestCase):
+    """Each declared definition names a data model the registry seed defines; the partner API answers
+    DATA_MODEL_NOT_FOUND (HTTP 500) for any other, so every submission of that definition fails."""
+
+    META = ROOT.parents[1] / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data"
+
+    def test_every_data_model_is_seeded(self):
+        import yaml
+        seeded = " ".join(p.read_text(encoding="utf-8") for p in self.META.rglob("*.sql"))
+        for env in ("newdev", "staging"):
+            values = yaml.safe_load((ROOT / f"definitions.{env}.yaml").read_text(encoding="utf-8"))
+            definitions = values.get("connectorDefinitions", values).get("definitions", [])
+            self.assertTrue(definitions, env)
+            for d in definitions:
+                with self.subTest(env=env, definition=d["name"]):
+                    self.assertIn(f"'{d['data_model_mnemonic']}'", seeded)
+                    self.assertNotEqual(d["data_model_mnemonic"], "CSR_DATA_MODEL")
+
+    def test_odk_forms_use_the_odk_intake_model_on_both_environments(self):
+        import yaml
+        for env in ("newdev", "staging"):
+            values = yaml.safe_load((ROOT / f"definitions.{env}.yaml").read_text(encoding="utf-8"))
+            definitions = values.get("connectorDefinitions", values).get("definitions", [])
+            odk = [d for d in definitions if d["platform"] == "odk_central"]
+            self.assertEqual(len(odk), 4, env)
+            self.assertEqual({d["data_model_mnemonic"] for d in odk}, {"ODK_TO_CROP_INTAKE"}, env)
