@@ -306,6 +306,10 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # The dates overlay only adds the Sowing date and Date of observation pickers' "today" limit and message.
         if path.name.endswith("_dates_not_future.sql"):
             continue
+        # The cluster status overlay only moves Sowing / Harvest Cluster status to the CLUSTER_STATUS
+        # list and its show / require rules from CLUSTER to CLUSTERED; widget-required is untouched.
+        if path.name.endswith("_cluster_status_list.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):

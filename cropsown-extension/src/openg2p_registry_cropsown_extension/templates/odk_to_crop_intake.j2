@@ -677,9 +677,9 @@
     {% set has_cl = ('cluster' in raw_cs) %}
     {% set has_ind = ('independent' in raw_cs) %}
     {% if has_cl and has_ind %}
-      {% set cs_json = '["CLUSTER", "INDEPENDENT"]' %}
+      {% set cs_json = '["CLUSTERED", "INDEPENDENT"]' %}
     {% elif has_cl %}
-      {% set cs_json = '["CLUSTER"]' %}
+      {% set cs_json = '["CLUSTERED"]' %}
     {% elif has_ind %}
       {% set cs_json = '["INDEPENDENT"]' %}
     {% else %}
@@ -824,9 +824,9 @@
     {% set has_cl = ('cluster' in raw_cs) %}
     {% set has_ind = ('independent' in raw_cs) %}
     {% if has_cl and has_ind %}
-      {% set cs_json = '["CLUSTER", "INDEPENDENT"]' %}
+      {% set cs_json = '["CLUSTERED", "INDEPENDENT"]' %}
     {% elif has_cl %}
-      {% set cs_json = '["CLUSTER"]' %}
+      {% set cs_json = '["CLUSTERED"]' %}
     {% elif has_ind %}
       {% set cs_json = '["INDEPENDENT"]' %}
     {% else %}
