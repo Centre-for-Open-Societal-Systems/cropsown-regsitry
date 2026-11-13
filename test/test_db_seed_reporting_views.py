@@ -32,6 +32,17 @@ class DbSeedReportingViewsTests(unittest.TestCase):
         for table in sorted(set(re.findall(r"\b(?:FROM|JOIN)\s+(g2p_\w+)", sql))):
             self.assertIn("'" + table + "'", hook, table)
 
+    def test_the_views_do_not_need_the_legacy_attribute_table(self):
+        # Crop staging 53: a register installed on the current platform has no g2p_attribute_values, so the
+        # hook waited for it until it gave up. Labels go through cs_rpt_attribute_labels, empty without it.
+        sql = (SEED / "reporting_views.sql").read_text()
+        hook = (ROOT / "helm/openg2p-cropsown-registry/templates/reporting-views.yaml").read_text()
+        self.assertNotIn("JOIN g2p_attribute_values", sql)
+        self.assertIn("to_regclass('public.g2p_attribute_values') IS NOT NULL", sql)
+        self.assertIn("WHERE false", sql)
+        self.assertNotIn("'g2p_attribute_values'", hook)
+        self.assertLess(sql.index("CREATE VIEW cs_rpt_attribute_labels"), sql.index("CREATE MATERIALIZED VIEW cs_rpt_crop_sown"))
+
 
 if __name__ == "__main__":
     unittest.main()
