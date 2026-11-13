@@ -42,7 +42,8 @@ builder rewrites them:
    "Severity level"; Disease Type reads CROP_DISEASE, as on the web form;
    Pest name is typed text and Method of control (pest) reads PEST_CONTROL_ACTION; dates use the
    Ethiopian calendar (the stored value stays Gregorian); the cluster Land ID questions
-   carry no rule tying them to the planning or cultivation Land ID, as on the web form.
+   carry no rule tying them to the planning or cultivation Land ID, and the Infestation
+   Land ID none tying it to the Sowing rows' Land IDs, as on the web form.
 4. Land and crop locations, as on the web form (match_web_form). Planning drops the
    Address group (the farmer's address comes from the Farmer Registry) and asks "Land
    location" after Kebele and "Crop location" after Expected Yield, as GPS points.
@@ -51,6 +52,7 @@ builder rewrites them:
    Soil Fertility, Region to Kebele, Land location); every row asks "Crop location"
    after Actual Crop Area. Sowing's Type of Infestation offers Pest, Weed and Disease, as
    Master Data does: Nutrient Deficiency and Climate Shock, and their groups, are dropped.
+   It takes one answer, as the web form's single select does (one type per incident).
    Sowing and Harvest ask the Land ID inside each Cluster status group, after "Is planning
    record created?"; No asks the land (Independent) or the cluster location (Clustered).
 5. Everything else is left as published (see NOT_MASTER_DATA for why), except the two
@@ -72,7 +74,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.12.1"
+VERSION = "2026.11.13.1"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -117,10 +119,13 @@ LABELS = {"security_level": "Severity level", "cluster_status_ids": "Cluster / n
           "cluster_status_id": "Cluster / non cluster status"}
 # Questions that read a Master Data list on the web form but not in the published form:
 # Method of control (pest) (the shared weed/disease method list). Pest name stays typed
-# text, as on the web form (zz-oan/97j_pest_name_text.sql).
-QUESTION_TYPES = {"pest_pesticide_method": "select_one pest_control_action"}
-# The web form does not check these Land IDs against planning / cultivation; neither does ODK.
-NO_RULE = {"cluster_land_info_id"}
+# text, as on the web form (zz-oan/97j_pest_name_text.sql). Type of Infestation is one
+# answer per incident, as the web form's single select (the published form let several be ticked,
+# which the transform joined into one value the web form cannot show).
+QUESTION_TYPES = {"pest_pesticide_method": "select_one pest_control_action",
+                  "infestation_type_ids": "select_one infestation_type"}
+# The web form does not check these Land IDs against planning / cultivation / sowing; neither does ODK.
+NO_RULE = {"cluster_land_info_id", "infestation_land_info_id"}
 # Dates are entered on the Ethiopian calendar, as on the web form; the value stays the
 # Gregorian date the registry stores.
 DATE_APPEARANCE = "ethiopian"
@@ -199,8 +204,6 @@ INDEPENDENT_LAND = ("is_plot_registered", "land_category", "ownership_type", "la
                     "region_name_id", "zone_name_id", "woreda_name_id", "kebele_id")
 CLUSTER_LOCATION = ("cluster_region_id", "cluster_zone_id", "cluster_woreda_id", "cluster_kebele_id")
 CLUSTER_SUB_KEBELE = {"type": "text", "name": "cluster_sub_kebele", "label": "Sub-Kebele"}
-# The infestation Land ID must be one of the Sowing rows' Land IDs, either side.
-INFESTATION_LAND_RULE = "selected(join(' ', ${land_info_id}), .) or selected(join(' ', ${cluster_land_info_id}), .)"
 CLUSTER_GPS = {"type": "geopoint", "name": "cluster_gps", "label": "Cluster location", "appearance": "placement-map",
                "hint": "Capture the location of the cluster land, or pick it on the map."}
 
@@ -400,9 +403,6 @@ def land_rows(survey: list[dict], form_id: str, source: Path) -> None:
             found.add("clustered_details")
     if found != {"independant_details", "clustered_details"}:
         raise SystemExit(f"{form_id}: Cluster status groups not found")
-    for row in out:
-        if row.get("name") == "infestation_land_info_id" and row.get("constraint"):
-            row["constraint"] = INFESTATION_LAND_RULE
     survey[:] = out
 
 
