@@ -55,6 +55,24 @@ DROP MATERIALIZED VIEW IF EXISTS cs_rpt_sowing CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS cs_rpt_crop_sown CASCADE;
 
 -- ---------------------------------------------------------------------------
+-- Labels
+-- ---------------------------------------------------------------------------
+-- The older platform kept list values in g2p_attribute_values; the current one
+-- serves them from Master Data and does not create that table (a register
+-- installed fresh on it has none). Labels come from that table where it
+-- exists; elsewhere the label views are empty and every *_name column falls
+-- back to the stored code or name.
+DROP VIEW IF EXISTS cs_rpt_attribute_labels CASCADE;
+DO $$
+BEGIN
+  IF to_regclass('public.g2p_attribute_values') IS NOT NULL THEN
+    EXECUTE 'CREATE VIEW cs_rpt_attribute_labels AS SELECT value_id::text AS value_id, value_display::text AS value_display FROM public.g2p_attribute_values';
+  ELSE
+    EXECUTE 'CREATE VIEW cs_rpt_attribute_labels AS SELECT NULL::text AS value_id, NULL::text AS value_display WHERE false';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- Registrations
 -- ---------------------------------------------------------------------------
 CREATE MATERIALIZED VIEW cs_rpt_crop_sown AS
@@ -79,11 +97,11 @@ SELECT
     NULLIF(regexp_replace(TRIM(cs.woreda), '^[A-Za-z]+[-_]', ''), '') AS woreda_code,
     NULLIF(regexp_replace(TRIM(cs.kebele), '^[A-Za-z]+[-_]', ''), '') AS kebele_code
 FROM g2p_register_crop_sowns cs
-LEFT JOIN g2p_attribute_values ps ON ps.value_id = cs.production_season
-LEFT JOIN g2p_attribute_values gr ON gr.value_id = cs.region
-LEFT JOIN g2p_attribute_values gz ON gz.value_id = cs.zone
-LEFT JOIN g2p_attribute_values gw ON gw.value_id = cs.woreda
-LEFT JOIN g2p_attribute_values gk ON gk.value_id = cs.kebele;
+LEFT JOIN cs_rpt_attribute_labels ps ON ps.value_id = cs.production_season
+LEFT JOIN cs_rpt_attribute_labels gr ON gr.value_id = cs.region
+LEFT JOIN cs_rpt_attribute_labels gz ON gz.value_id = cs.zone
+LEFT JOIN cs_rpt_attribute_labels gw ON gw.value_id = cs.woreda
+LEFT JOIN cs_rpt_attribute_labels gk ON gk.value_id = cs.kebele;
 
 CREATE UNIQUE INDEX IF NOT EXISTS cs_rpt_crop_sown_pk ON cs_rpt_crop_sown (crop_sown_id);
 CREATE INDEX IF NOT EXISTS cs_rpt_crop_sown_geo_idx ON cs_rpt_crop_sown (region_code, zone_code, woreda_code, kebele_code);
@@ -128,9 +146,9 @@ LEFT JOIN LATERAL (
     ORDER BY (cu.commodity IS NOT DISTINCT FROM sw.commodity) DESC, cu.created_at DESC
     LIMIT 1
 ) o ON true
-LEFT JOIN g2p_attribute_values cm ON cm.value_id = sw.commodity
-LEFT JOIN g2p_attribute_values se ON se.value_id = sw.season
-LEFT JOIN g2p_attribute_values ow ON ow.value_id = o.ownership_type;
+LEFT JOIN cs_rpt_attribute_labels cm ON cm.value_id = sw.commodity
+LEFT JOIN cs_rpt_attribute_labels se ON se.value_id = sw.season
+LEFT JOIN cs_rpt_attribute_labels ow ON ow.value_id = o.ownership_type;
 
 CREATE UNIQUE INDEX IF NOT EXISTS cs_rpt_sowing_pk ON cs_rpt_sowing (sowing_id);
 CREATE INDEX IF NOT EXISTS cs_rpt_sowing_crop_sown_idx ON cs_rpt_sowing (crop_sown_id);

@@ -40,9 +40,9 @@ spec:
             - |
               set -e
               i=0
-              # Every table the views read: an older register (staging) already has the register tables but not
-              # g2p_attribute_values, which the new platform's migrations add when staff-api starts.
-              until [ "$(psql -qtAX -c "SELECT bool_and(to_regclass('public.' || t) IS NOT NULL) FROM unnest(ARRAY['g2p_register_cultivations', 'g2p_register_crop_sowns', 'g2p_register_sowings', 'g2p_attribute_values']) AS t")" = "t" ]; do
+              # Every register table the views read (staff-api creates them when it migrates). List labels come
+              # from g2p_attribute_values only where an older platform left it; the views do not wait for it.
+              until [ "$(psql -qtAX -c "SELECT bool_and(to_regclass('public.' || t) IS NOT NULL) FROM unnest(ARRAY['g2p_register_cultivations', 'g2p_register_crop_sowns', 'g2p_register_sowings']) AS t")" = "t" ]; do
                 i=$((i + 1))
                 if [ "$i" -gt {{ div .Values.reporting.views.waitForSchemaSeconds 10 }} ]; then
                   echo "[reporting-views] register tables still missing; is staff-api running its migrations?" >&2
