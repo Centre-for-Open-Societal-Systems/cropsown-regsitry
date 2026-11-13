@@ -218,10 +218,12 @@ def test_pest_dates_and_land_ids_read_as_on_the_web_form(pack, tmp_path):
     types = {r["name"]: r["type"] for r in sown}
     assert types["pest_name"] == "text"  # typed, as on the web form
     assert types["pest_pesticide_method"] == "select_one pest_control_action"
+    assert types["infestation_type_ids"] == "select_one infestation_type"  # one type per incident, as on the web form
     assert types["weed_control_method"] == "select_one method_control"  # matches the web form's own list
-    # the infestation Land ID is still checked against sowing, as on the web form
-    assert [r["constraint"] for r in sown if r["name"] == "infestation_land_info_id"] == [
-        "selected(join(' ', ${land_info_id}), .) or selected(join(' ', ${cluster_land_info_id}), .)"]
+    # the infestation Land ID is not checked against the Sowing rows, as on the web form
+    infestation_land = [r for r in sown if r["name"] == "infestation_land_info_id"]
+    assert len(infestation_land) == 1
+    assert not infestation_land[0].get("constraint") and not infestation_land[0].get("constraint_message")
 
 
 def test_planning_and_cultivation_ask_the_land_and_crop_locations_as_on_the_web_form(pack, tmp_path):

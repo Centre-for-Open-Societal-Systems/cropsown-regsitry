@@ -69,3 +69,10 @@ def test_disease_type_is_kept_as_the_crop_disease_code():
     }])['cs_infestation_details'][0]
     assert (inc['disease_type'], inc['disease_name']) == ('RUST', 'Wheat stem rust')
     assert render([{'land_info_id': 'L1'}], [{'infestation_land_info_id': 'L1'}])['cs_infestation_details'][0]['disease_type'] == ''
+
+
+def test_one_infestation_type_is_stored_as_its_single_code():
+    # The Sowing form asks Type of Infestation as one answer (select_one), as the web form's single select.
+    inc = render([{'land_info_id': 'L1'}], [{'infestation_land_info_id': 'L1', 'infestation_type_ids': 'weed',
+                                             'weed_occurrence': {'weed_type': 'BROADLEAF'}}])['cs_infestation_details'][0]
+    assert inc['infestation_type'] == 'INFT_WEED'
