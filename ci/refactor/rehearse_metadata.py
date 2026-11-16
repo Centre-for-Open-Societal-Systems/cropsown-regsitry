@@ -9,6 +9,10 @@ import time
 import os
 import xml.etree.ElementTree as ET
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+
+# Test modules that take minutes run first, so the pool finishes with the short ones.
+SLOW_FIRST = ("test_farmer_reference_notification_native.py", "test_farmer_reference_native.py")
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,11 +49,14 @@ def main(domain, pipeline=False):
     try:
         network_id = run("docker","network","create","--label","oan-refactor.disposable=metadata",network).stdout.strip()
         created_network = True
-        # 1g: the onboarding tests open up to 24 concurrent sessions against databases holding the full native DDL.
-        # At 256m a backend was OOM-killed in the cgroup and the postmaster restarted into crash recovery mid-suite
-        # ("Consistent recovery state has not been yet reached"), failing every later test.
-        database_id = run("docker","run","--detach","--memory=1g","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
-            "-e",f"POSTGRES_PASSWORD={password}","-e",f"PGPASSWORD={password}","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
+        # 1g per test worker: the onboarding tests open up to 24 concurrent sessions against databases holding the full
+        # native DDL. At 256m a backend was OOM-killed in the cgroup and the postmaster restarted into crash recovery
+        # mid-suite ("Consistent recovery state has not been yet reached"), failing every later test. Connections: 50
+        # per worker, above the 24 sessions one module opens.
+        workers = max(1, int(os.environ.get("REFACTOR_TEST_WORKERS", "3")))
+        database_id = run("docker","run","--detach",f"--memory={workers}g","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
+            "-e",f"POSTGRES_PASSWORD={password}","-e",f"PGPASSWORD={password}","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine",
+            "-c",f"max_connections={max(100, 50 * workers)}").stdout.strip()
         created_database = True
         def wait_ready(when):
             # Ready means a real query over TCP succeeds three times in a row. pg_isready alone also answers while the
@@ -90,15 +97,14 @@ def main(domain, pipeline=False):
                     "sha256":hashlib.sha256(raw).hexdigest(),"sqlstate_errors":[code.decode() for code in errors],
                     "psql_exit_code":result.returncode})
             probe(str(attempt))
-        # Run the complete extension suite serially in a fresh process against
-        # this owned disposable DB. Some ledger fixtures reset their own public
-        # test tables: never run this against an environment DB or in parallel.
-        # Package initialization aliases ORM modules. Isolate each test module
-        # in a fresh process so standalone ledger tests and native app tests do
-        # not import the same SQLAlchemy declarations under two package names.
-        # Every module is still executed, serially, with the same owned PostgreSQL container.
-        combined = ET.Element("testsuites")
-        for module_index, test_module in enumerate(sorted((repo/f"{domain}-extension/tests").glob("test_*.py"))):
+        # Run the complete extension suite against this owned disposable DB server, never an environment DB.
+        # Package initialization aliases ORM modules, so each test module runs in a fresh process (its own container),
+        # and some ledger fixtures reset their own public test tables, so each module has its own database. Nothing is
+        # shared between two modules but the server, so REFACTOR_TEST_WORKERS (default 3) modules run at a time; 1 runs
+        # them one after another as before. Reports are combined in name order whatever the finishing order.
+        modules = sorted((repo/f"{domain}-extension/tests").glob("test_*.py"))
+        def run_module(item):
+            module_index, test_module = item
             report = test_module.stem + ".xml"
             # Ledger fixtures drop only their own tables/types. Keep them away
             # from native seeded metadata and from other modules' public DDL.
@@ -119,9 +125,15 @@ def main(domain, pipeline=False):
                     f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
             except RuntimeError as error:
                 # Show whether the database itself failed (an OOM kill reads "terminated by signal 9: Killed").
-                raise RuntimeError(f"{error}\n{database_log()}") from None
+                raise RuntimeError(f"{test_module.name}: {error}\n{database_log()}") from None
             print(test_module.name + ": " + result.stdout.splitlines()[-1],flush=True)
-            module_result = ET.parse(output/report).getroot()
+            return report
+        order = sorted(enumerate(modules), key=lambda item: (item[1].name not in SLOW_FIRST, item[0]))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            reports = dict(zip((test_module for _, test_module in order), pool.map(run_module, order)))
+        combined = ET.Element("testsuites")
+        for test_module in modules:
+            module_result = ET.parse(output/reports[test_module]).getroot()
             for suite in module_result if module_result.tag == "testsuites" else [module_result]:
                 combined.append(suite)
         ET.ElementTree(combined).write(output/"full-extension.xml",encoding="utf-8",xml_declaration=True)
