@@ -71,13 +71,49 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
             compute_season_parts(record)
             await self._validate_date_in_season_enhanced(record, "actual_cultivation_date", session)
             self._validate_actual_cultivation_date(record)
+            self._validate_actual_crop_area(record)
             if session:
                 await self._validate_date_after_planning(record, session)
+        self._validate_cumulative_actual_crop_area(active_records)
         self._validate_no_duplicate_commodity_season(active_records)
         # Cross-section (on Next): Cultivation date >= matching Planning date.
         from .domain_validation_utils import run_previous_section_validation
         from .cropsown_intake_validation_service import validate_cultivation_against_planning
         await run_previous_section_validation(validate_cultivation_against_planning, active_records, session)
+
+    # Actual crop area within Total land area, as Planning checks its planned area
+    # (g2p_register_domain_service_planning.py). These run on save and submit for every
+    # channel (web, ODK, import, change request); the Crop Sown pre_approve check
+    # (_check_crop_area_within_plot) never sees a Cultivation change. A row without a
+    # land area (for example "Is planning record created?" = yes) is not compared.
+    def _validate_actual_crop_area(self, record: dict) -> None:
+        crop_area = as_float(record.get("actual_crop_area"))
+        land_area = as_float(record.get("land_area"))
+        if crop_area is not None and land_area is not None and land_area > 0 and crop_area > land_area + 1e-6:
+            validation_error(
+                f"Actual crop area ({crop_area:g} hectares) cannot be greater than Total land area ({land_area:g} hectares)."
+            )
+
+    def _validate_cumulative_actual_crop_area(self, records: list[dict]) -> None:
+        by_land: dict[str, list[dict]] = {}
+        for record in records:
+            land_id = str(record.get("land_id") or "").strip()
+            if land_id:
+                by_land.setdefault(land_id, []).append(record)
+
+        for land_id, land_records in by_land.items():
+            total = sum(as_float(r.get("actual_crop_area")) or 0.0 for r in land_records)
+            land_area = next(
+                (as_float(r.get("land_area")) for r in land_records
+                 if as_float(r.get("land_area")) is not None and as_float(r.get("land_area")) > 0),
+                None,
+            )
+            if land_area is not None and total > land_area + 1e-6:
+                validation_error(
+                    f"Total actual crop area ({total:g} hectares) across all records for Land ID '{land_id}' "
+                    f"exceeds Total land area ({land_area:g} hectares)."
+                )
+
 
     async def _validate_planning_record_exists(self, record: dict, session) -> None:
         """Yes to "Is planning record created?": a Planning row with this Land ID exists

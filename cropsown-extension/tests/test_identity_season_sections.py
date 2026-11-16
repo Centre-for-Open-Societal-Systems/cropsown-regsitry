@@ -84,6 +84,23 @@ def test_submit_validation_keeps_season_required_even_when_not_visited():
     assert "Crop year" in error.value.message
 
 
+@pytest.mark.parametrize("season", ["SEASON_MEHER", "SEASON_BELG", "SEASON_IRRIGATION", "MEHER", "CROP_SEASON_BELG"])
+def test_a_known_season_is_taken(season):
+    validate({"crop_year": YEAR, "production_season": season})
+    validate_production_season_fields({"crop_year": YEAR, "production_season": season})
+
+
+@pytest.mark.parametrize("season", ["SEASON_MEHAR", "Summer"])
+def test_an_unknown_season_is_refused_on_save_and_submit(season):
+    # A typed code (file import) that is no season: refused before approval, so the
+    # Crop Sown id never falls back to the seasonless form.
+    for check in (validate, validate_production_season_fields):
+        with pytest.raises(G2PRegistryException) as error:
+            check({"crop_year": YEAR, "production_season": season})
+        assert f"Production season: {season} is not a known season" in error.value.message
+        assert "Production season section" in error.value.message
+
+
 def test_unrelated_section_does_not_request_identity_or_season():
     validate({"da_name": "Aster"})
 

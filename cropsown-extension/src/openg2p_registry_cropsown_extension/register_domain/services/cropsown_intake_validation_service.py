@@ -297,6 +297,61 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
     return matched_master_ids, fayda, crop_year, prod_season
 
 
+async def earlier_stage_area(session, record: dict, sources, params: dict) -> tuple[float | None, str | None]:
+    """The area a Sowing or Harvest row may not exceed: the first earlier-stage row that matches it.
+
+    `sources` are (intake table, register table, area column, label, match SQL), tried in order.
+    For each, this intake's rows come first, then the farmer's registered crop records (the
+    records of this intake's farmer, crop year and season, and the record being edited); a Land
+    ID is never looked up among another farmer's records. The match SQL names the row's Land ID
+    and crop (Independent) or Land ID (cluster) and FPC name (Clustered); `params` fills it.
+    Returns (area, label), or (None, None) when no earlier row matches (then nothing is checked).
+    """
+    submission_id = record.get("submission_id")
+    record_ids: list[str] = []
+    if submission_id:
+        record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
+    link_id = record.get("link_internal_record_id")
+    if link_id:
+        record_ids = [*record_ids, str(link_id)]
+    for intake_table, register_table, column, label, match in sources:
+        if submission_id:
+            row = (await session.execute(
+                text(f"SELECT {column} FROM {intake_table} WHERE submission_id = :sub_id AND {column} IS NOT NULL{match}"),
+                {**params, "sub_id": submission_id})).fetchone()
+            if row and row[0] is not None:
+                return float(row[0]), label
+        if record_ids:
+            row = (await session.execute(
+                text(f"SELECT {column} FROM {register_table} WHERE link_internal_record_id = ANY(:ids) "
+                     f"AND record_status = 'ACTIVE' AND {column} IS NOT NULL{match} ORDER BY created_at DESC"),
+                {**params, "ids": record_ids})).fetchone()
+            if row and row[0] is not None:
+                return float(row[0]), label
+    return None, None
+
+
+def crop_match(record: dict, land_id: str, commodity: str) -> tuple[str, dict]:
+    """Match SQL for an Independent row's earlier stage: same Land ID, crop and season (the row's
+    season, else the production season), as the date checks match. Crop and season codes match in
+    any of their spellings (CROP_TEFF / TEFF)."""
+    from .domain_validation_utils import get_attribute_variants
+
+    match = " AND TRIM(land_id) = :land_id AND commodity = ANY(:crops)"
+    params = {"land_id": land_id, "crops": get_attribute_variants(commodity, "CROP_COMMODITY") or [commodity]}
+    seasons = get_attribute_variants(record.get("season") or record.get("production_season"), "CROP_SEASON")
+    if seasons:
+        match += " AND season = ANY(:seasons)"
+        params["seasons"] = seasons
+    return match, params
+
+
+# Match SQL for a Clustered row's earlier stage: same Land ID (cluster) and FPC name. The Sowing table
+# keeps the cluster's land in cluster_land_id; the Cluster and Cultivation cluster tables in land_id.
+CLUSTER_MATCH = " AND TRIM(land_id) = :cluster_land_id AND UPPER(TRIM(cluster_name)) = :cluster_name"
+SOWING_CLUSTER_MATCH = " AND TRIM(cluster_land_id) = :cluster_land_id AND UPPER(TRIM(cluster_name)) = :cluster_name"
+
+
 _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 
 

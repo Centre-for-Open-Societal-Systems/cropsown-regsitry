@@ -2,13 +2,18 @@
   Crop Sown file import, sowing intake. One flat row of a CSV or Excel file (every value a string) becomes
   the sections of one sowing intake. The import worker hands the row over as the business payload, so
   the columns are the register's own field names (docs/file-import.md lists them with their codes).
-  Child rows are not imported: add them in the staff portal or by change request.
+  A row can also carry up to 3 infestations (Infestation details): the infestation_<n>_* columns at the end.
+  Others: add them in the staff portal or by change request.
   A value the register cannot take fails this row only, with the column named in the error.
 -#}
 {% macro fail(message) %}{{ {}[message].invalid }}{% endmacro %}
 {% set row = expanded if expanded is defined else {} %}
 {% set cell = {} %}
 {% for key, raw in row.items() %}{% set _ = cell.update({(key | string | trim | lower): ((raw if raw is not none else '') | string | trim)}) %}{% endfor %}
+{#- The columns of import-templates/crop_sowing_intake_import_template.csv. Any other column fails the row, so a file
+    made for another form's import (Planning, Cultivation, Sowing, Harvest) is not taken as this one. -#}
+{% set file_columns = ['farmer_id', 'fayda_id', 'crop_year', 'production_season', 'land_id', 'season', 'commodity', 'fertilizer_type', 'cluster_name', 'cluster_season', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'area_sown', 'fertilizer_qty', 'cluster_area_hectare', 'cluster_area_sown', 'sowing_date', 'has_pest_disease', 'cluster_has_pest_disease', 'agro_ecological_zone', 'cluster_status', 'cluster_land_id', 'is_land_recorded', 'is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude', 'is_cluster_land_recorded', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude', 'infestation_1_land_id', 'infestation_1_cluster_status', 'infestation_1_cluster_name', 'infestation_1_commodity', 'infestation_1_type', 'infestation_1_pest_type', 'infestation_1_pest_name', 'infestation_1_pesticide_method', 'infestation_1_pesticide_type', 'infestation_1_pesticide_name', 'infestation_1_pesticide_frequency', 'infestation_1_weed_type', 'infestation_1_weed_name', 'infestation_1_weed_control_method', 'infestation_1_weedicide_type', 'infestation_1_weedicide_name', 'infestation_1_weedicide_frequency', 'infestation_1_disease_type', 'infestation_1_disease_name', 'infestation_1_disease_control_method', 'infestation_1_fungicide_type', 'infestation_1_fungicide_name', 'infestation_1_disease_frequency_of_application', 'infestation_1_growth_stage', 'infestation_1_observation_date', 'infestation_1_severity_level', 'infestation_1_estimated_damage_pct', 'infestation_2_land_id', 'infestation_2_cluster_status', 'infestation_2_cluster_name', 'infestation_2_commodity', 'infestation_2_type', 'infestation_2_pest_type', 'infestation_2_pest_name', 'infestation_2_pesticide_method', 'infestation_2_pesticide_type', 'infestation_2_pesticide_name', 'infestation_2_pesticide_frequency', 'infestation_2_weed_type', 'infestation_2_weed_name', 'infestation_2_weed_control_method', 'infestation_2_weedicide_type', 'infestation_2_weedicide_name', 'infestation_2_weedicide_frequency', 'infestation_2_disease_type', 'infestation_2_disease_name', 'infestation_2_disease_control_method', 'infestation_2_fungicide_type', 'infestation_2_fungicide_name', 'infestation_2_disease_frequency_of_application', 'infestation_2_growth_stage', 'infestation_2_observation_date', 'infestation_2_severity_level', 'infestation_2_estimated_damage_pct', 'infestation_3_land_id', 'infestation_3_cluster_status', 'infestation_3_cluster_name', 'infestation_3_commodity', 'infestation_3_type', 'infestation_3_pest_type', 'infestation_3_pest_name', 'infestation_3_pesticide_method', 'infestation_3_pesticide_type', 'infestation_3_pesticide_name', 'infestation_3_pesticide_frequency', 'infestation_3_weed_type', 'infestation_3_weed_name', 'infestation_3_weed_control_method', 'infestation_3_weedicide_type', 'infestation_3_weedicide_name', 'infestation_3_weedicide_frequency', 'infestation_3_disease_type', 'infestation_3_disease_name', 'infestation_3_disease_control_method', 'infestation_3_fungicide_type', 'infestation_3_fungicide_name', 'infestation_3_disease_frequency_of_application', 'infestation_3_growth_stage', 'infestation_3_observation_date', 'infestation_3_severity_level', 'infestation_3_estimated_damage_pct'] %}
+{% for key in cell %}{% if key and key not in file_columns %}{{ fail('column ' ~ key ~ ' is not a Sowing column: check that this file is for the Sowing import') }}{% endif %}{% endfor %}
 
 {% set farmer_id = cell.get('farmer_id', '') | upper %}
 {% if not (farmer_id.startswith('FR-') and farmer_id[3:].isdigit() and farmer_id | length == 15) %}{{ fail('column farmer_id must be FR- followed by 12 digits, got ' ~ farmer_id) }}{% endif %}
@@ -91,5 +96,53 @@
 
 {% set lookup = {'farmer_id': farmer_id, 'fayda_fin': fayda_id if fayda_id | length == 12 else none, 'fayda_fan_id': fayda_id if fayda_id | length == 16 else none, 'status': 'DRAFT', 'lifecycle_stage': 'SOWING'} %}
 {% set sections = {'crop_farmer_lookup': [lookup], 'cs_common_intake_season': [{'crop_year': crop_year, 'production_season': production_season}], 'cs_sowing_details': [record]} %}
+
+{#- Child rows: up to 3 infestation (Infestation details) in the same intake, from the infestation_<n>_* columns (n = 1 to 3).
+    The file column is the field with the infestation_<n>_ prefix (infestation_1_land_id -> land_id); a field already named
+    infestation_* drops that part (infestation_type -> infestation_1_type). A group with any value becomes one row and needs its Land ID; blank
+    groups are skipped. Read-only fields are left to the registry. -#}
+{% set child = {"section": "cs_infestation_details", "label": "Infestation", "prefix": "infestation_", "strip": "infestation_", "count": 3, "kinds": {"text": ["land_id", "cluster_name", "commodity", "infestation_type", "pest_type", "pest_name", "pesticide_method", "pesticide_name", "pesticide_frequency", "weed_type", "weed_name", "weedicide_name", "weedicide_frequency", "disease_type", "disease_name", "fungicide_name", "disease_frequency_of_application", "growth_stage", "severity_level", "estimated_damage_pct"], "date": ["observation_date"]}, "choices": {"cluster_status": ["CLUSTERED", "INDEPENDENT"], "pesticide_type": ["insecticide", "fungicide", "herbicide", "rodenticide", "bactericide", "nematicide", "acaricide", "molluscicide", "termiticide", "avicide", "piscicide", "algicide", "virucide"], "weed_control_method": ["chemical_spray", "hand_picking", "early_harvesting"], "weedicide_type": ["pre_emergent", "post_emergent", "systemic", "contact", "graminicide", "broadleaf", "sedge", "aquatic", "foliar", "soil"], "disease_control_method": ["chemical_spray", "hand_picking", "early_harvesting"], "fungicide_type": ["fungicide", "bactericide"]}, "aliases": {"CLUSTER": "CLUSTERED"}, "season": false} %}
+{% set child_rows = [] %}
+{% for n in range(1, child.count + 1) %}
+  {% set item = {} %}{% set ns = namespace(given=false) %}
+  {% for kind in ['text', 'geo', 'number_text', 'number', 'integer', 'date'] %}{% for field in child.kinds.get(kind, []) %}
+    {% set column = child.prefix ~ n ~ '_' ~ (field[child.strip | length:] if field.startswith(child.strip) else field) %}
+    {% set value = cell.get(column, '') %}
+    {% if value %}
+      {% set ns.given = true %}
+      {% if kind == 'text' %}{% set _ = item.update({field: value}) %}
+      {% elif kind == 'geo' %}{% set _ = item.update({field: value | upper}) %}
+      {% elif kind in ['number', 'number_text'] %}
+        {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ column ~ ' must be a number, got ' ~ value) }}{% endif %}
+        {% set _ = item.update({field: (value if kind == 'number_text' else value | float)}) %}
+      {% elif kind == 'integer' %}
+        {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ column ~ ' must be a whole number, got ' ~ value) }}{% endif %}
+        {% set _ = item.update({field: value | float | int}) %}
+      {% elif kind == 'date' %}
+        {% set day = value[:10] %}{% set parts = day.split('-') %}
+        {% if not (parts | length == 3 and parts[0] | length == 4 and parts[1] | length == 2 and parts[2] | length == 2 and (parts | join('')).isdigit()) %}{{ fail('column ' ~ column ~ ' must be a date as YYYY-MM-DD, got ' ~ value) }}{% endif %}
+        {% set _ = item.update({field: day}) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}{% endfor %}
+  {% for field, allowed in child.choices.items() %}
+    {% set column = child.prefix ~ n ~ '_' ~ (field[child.strip | length:] if field.startswith(child.strip) else field) %}
+    {% set value = cell.get(column, '') %}
+    {% if value %}
+      {% set ns.given = true %}{% set ns.found = none %}
+      {% set value = child.aliases.get(value | upper, value) %}
+      {% for code in allowed %}{% if code | lower == value | lower %}{% set ns.found = code %}{% endif %}{% endfor %}
+      {% if ns.found is none %}{{ fail('column ' ~ column ~ ' must be one of ' ~ allowed | join(', ') ~ ', got ' ~ value) }}{% endif %}
+      {% set _ = item.update({field: ns.found}) %}
+    {% endif %}
+  {% endfor %}
+  {% if ns.given %}
+    {% if not item.get('land_id') %}{{ fail('column ' ~ child.prefix ~ n ~ '_land_id is required when the row has ' ~ child.label | lower ~ ' ' ~ n) }}{% endif %}
+    {#- A cluster's season must be the production season (the registry refuses another one). -#}
+    {% if child.season and 'season' not in item %}{% set _ = item.update({'season': production_season}) %}{% endif %}
+    {% set _ = child_rows.append(item) %}
+  {% endif %}
+{% endfor %}
+{% if child_rows %}{% set _ = sections.update({child.section: child_rows}) %}{% endif %}
 
 {{ sections | tojson }}

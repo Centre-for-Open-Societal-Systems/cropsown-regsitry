@@ -49,7 +49,8 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
             self._validate_area_sown(record)
             from .domain_compute_utils import is_date_in_season
             if session:
-                await self._validate_existing_crop_sown_record_required(record, session=session)
+                # Retired check (Sowing / Harvest may create a Crop Sown record): see _validate_existing_crop_sown_record_required.
+                # await self._validate_existing_crop_sown_record_required(record, session=session)
                 # await self._validate_land_id_matches_planning(record, session=session)  # Land ID match not used in the current workflow
                 await self._validate_sowing_after_cultivation(record, session=session)
                 await self._validate_sowing_area_after_cultivation(record, session=session)
@@ -102,172 +103,111 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                     )
             seen.add(key)
 
-    async def _validate_existing_crop_sown_record_required(self, record: dict, session) -> None:
-        fayda_fan_id = record.get("fayda_fan_id") or record.get("fayda_id")
-        crop_year = record.get("crop_year")
-        prod_season = record.get("production_season")
-        submission_id = record.get("submission_id")
+    # Retired: Sowing / Harvest may create a Crop Sown record (parent reuse attaches it to an
+    # existing one when the four keys match). This check never ran in practice (saved rows
+    # carry no Fayda ID or submission_id), so it is commented out rather than kept as a rule.
+    # async def _validate_existing_crop_sown_record_required(self, record: dict, session) -> None:
+    #     fayda_fan_id = record.get("fayda_fan_id") or record.get("fayda_id")
+    #     crop_year = record.get("crop_year")
+    #     prod_season = record.get("production_season")
+    #     submission_id = record.get("submission_id")
 
-        if session and submission_id:
-            if not fayda_fan_id or not crop_year or not prod_season:
-                from sqlalchemy import text
-                res_hdr = await session.execute(
-                    text("SELECT fayda_fan_id, crop_year, production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
-                    {"sub_id": submission_id}
-                )
-                row_hdr = res_hdr.fetchone()
-                if row_hdr:
-                    fayda_fan_id = fayda_fan_id or row_hdr[0]
-                    crop_year = crop_year or row_hdr[1]
-                    prod_season = prod_season or row_hdr[2]
+    #     if session and submission_id:
+    #         if not fayda_fan_id or not crop_year or not prod_season:
+    #             from sqlalchemy import text
+    #             res_hdr = await session.execute(
+    #                 text("SELECT fayda_fan_id, crop_year, production_season FROM g2p_intake_form_crop_sowns WHERE submission_id = :sub_id"),
+    #                 {"sub_id": submission_id}
+    #             )
+    #             row_hdr = res_hdr.fetchone()
+    #             if row_hdr:
+    #                 fayda_fan_id = fayda_fan_id or row_hdr[0]
+    #                 crop_year = crop_year or row_hdr[1]
+    #                 prod_season = prod_season or row_hdr[2]
 
-        if not fayda_fan_id:
-            return
+    #     if not fayda_fan_id:
+    #         return
 
-        from sqlalchemy import text
-        query = (
-            "SELECT internal_record_id::text, crop_year, production_season "
-            "FROM g2p_register_crop_sowns "
-            "WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"
-        )
-        params = {"fayda": str(fayda_fan_id).strip()}
-        if crop_year:
-            query += " AND crop_year = :c_year"
-            params["c_year"] = str(crop_year).strip()
+    #     from sqlalchemy import text
+    #     query = (
+    #         "SELECT internal_record_id::text, crop_year, production_season "
+    #         "FROM g2p_register_crop_sowns "
+    #         "WHERE fayda_fan_id = :fayda AND record_status = 'ACTIVE'"
+    #     )
+    #     params = {"fayda": str(fayda_fan_id).strip()}
+    #     if crop_year:
+    #         query += " AND crop_year = :c_year"
+    #         params["c_year"] = str(crop_year).strip()
 
-        res = await session.execute(text(query), params)
-        rows = res.fetchall()
+    #     res = await session.execute(text(query), params)
+    #     rows = res.fetchall()
 
-        matched = False
-        if prod_season:
-            p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
-            for r in rows:
-                r_season = r[2]
-                r_clean = str(r_season or "").replace("CROP_SEASON_", "").strip().upper()
-                if p_clean == r_clean:
-                    matched = True
-                    break
-        elif len(rows) > 0:
-            matched = True
+    #     matched = False
+    #     if prod_season:
+    #         p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
+    #         for r in rows:
+    #             r_season = r[2]
+    #             r_clean = str(r_season or "").replace("CROP_SEASON_", "").strip().upper()
+    #             if p_clean == r_clean:
+    #                 matched = True
+    #                 break
+    #     elif len(rows) > 0:
+    #         matched = True
 
-        if not matched:
-            year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
-            season_str = f" and Season '{prod_season}'" if prod_season else ""
-            validation_error(
-                f"No existing crop sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
-                f"Sowing cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
-            )
+    #     if not matched:
+    #         year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
+    #         season_str = f" and Season '{prod_season}'" if prod_season else ""
+    #         validation_error(
+    #             f"No existing crop sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
+    #             f"Sowing cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
+    #         )
 
     async def _validate_sowing_area_after_cultivation(self, record: dict, session) -> None:
-        area_sown = as_float(record.get("area_sown") if record.get("area_sown") is not None else record.get("cluster_area_sown"))
-        if area_sown is None or area_sown <= 0:
-            return
+        """Area sown may not exceed the matching earlier stage's area.
 
-        land_id = str(record.get("land_id") or "").strip()
-        if not land_id:
-            return  # a Clustered-only row: its land is Land ID (cluster), not compared here
-        submission_id = record.get("submission_id")
-        link_internal_record_id = record.get("link_internal_record_id")
-        season = record.get("season") or record.get("cluster_season")
+        Independent: Area sown against the Cultivation row of the same Land ID, crop and season
+        (Actual crop area), else the matching Planning row (Planned crop area).
+        Clustered: Area sown (cluster) against the Cultivation cluster of the same Land ID (cluster)
+        and FPC name (Total cultivated area), else the matching Planning cluster (Planned area).
+        A row with both ticked is checked on both sides. With no matching earlier row nothing is
+        checked: Sowing may come without a prior record.
+        """
+        from .cropsown_intake_validation_service import (
+            CLUSTER_MATCH, crop_match, earlier_stage_area, row_lands,
+        )
 
-        from sqlalchemy import text
-        from .domain_validation_utils import get_attribute_variants
+        cluster_land_id, land_id = row_lands(record)
+        area_sown = as_float(record.get("area_sown"))
+        commodity = str(record.get("commodity") or "").strip()
+        if land_id and commodity and area_sown is not None and area_sown > 0:
+            match, params = crop_match(record, land_id, commodity)
+            limit, label = await earlier_stage_area(session, record, [
+                ("g2p_intake_form_cultivations", "g2p_register_cultivations", "actual_crop_area",
+                 "Actual Crop Area in Cultivation", match),
+                ("g2p_intake_form_plannings", "g2p_register_plannings", "planned_area",
+                 "Planned Crop Area in Planning", match),
+            ], params)
+            if limit is not None and area_sown > limit + 1e-6:
+                validation_error(
+                    f"Area sown ({area_sown} hectares) cannot exceed {label} ({limit} hectares) "
+                    f"for Land ID '{land_id}' and Crop '{commodity}'."
+                )
 
-        season_vars = get_attribute_variants(season, "CROP_SEASON")
-
-        max_allowed_area = None
-        stage_name = "Actual Crop Area in Cultivation"
-
-        # 1. Check current submission (Intake Form)
-        if submission_id:
-            query = "SELECT actual_crop_area FROM g2p_intake_form_cultivations WHERE submission_id = :sub_id AND actual_crop_area IS NOT NULL"
-            params = {"sub_id": submission_id}
-            if land_id:
-                query += " AND TRIM(land_id) = :land_id"
-                params["land_id"] = land_id
-            if season_vars:
-                query += " AND season = ANY(:season_vars)"
-                params["season_vars"] = season_vars
-            res = await session.execute(text(query), params)
-            row = res.fetchone()
-            if row and row[0] is not None:
-                max_allowed_area = float(row[0])
-
-        # 2. Check registered cultivation by link_internal_record_id
-        if max_allowed_area is None and link_internal_record_id:
-            query = "SELECT actual_crop_area FROM g2p_register_cultivations WHERE link_internal_record_id = :link_id AND record_status = 'ACTIVE' AND actual_crop_area IS NOT NULL"
-            params = {"link_id": str(link_internal_record_id)}
-            if land_id:
-                query += " AND TRIM(land_id) = :land_id"
-                params["land_id"] = land_id
-            if season_vars:
-                query += " AND season = ANY(:season_vars)"
-                params["season_vars"] = season_vars
-            query += " ORDER BY created_at DESC"
-            res = await session.execute(text(query), params)
-            row = res.fetchone()
-            if row and row[0] is not None:
-                max_allowed_area = float(row[0])
-
-            # Fallback for link_internal_record_id without season filter
-            if max_allowed_area is None:
-                query_link_ns = "SELECT actual_crop_area FROM g2p_register_cultivations WHERE link_internal_record_id = :link_id AND record_status = 'ACTIVE' AND actual_crop_area IS NOT NULL ORDER BY created_at DESC"
-                res_lns = await session.execute(text(query_link_ns), {"link_id": str(link_internal_record_id)})
-                row_lns = res_lns.fetchone()
-                if row_lns and row_lns[0] is not None:
-                    max_allowed_area = float(row_lns[0])
-
-        # 3. The farmer's registered Cultivation on this land (Land IDs such as "Plot 1" are only unique per farmer,
-        #    so the lookup is limited to the farmer's crop sown records, never every farmer's land of that name)
-        farmer_record_ids: list[str] = []
-        if max_allowed_area is None and land_id:
-            from .cropsown_intake_validation_service import get_master_records_for_submission
-            if submission_id:
-                farmer_record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
-            if link_internal_record_id:
-                farmer_record_ids = [*farmer_record_ids, str(link_internal_record_id)]
-            if farmer_record_ids:
-                query = ("SELECT actual_crop_area FROM g2p_register_cultivations WHERE link_internal_record_id = ANY(:ids) "
-                         "AND record_status = 'ACTIVE' AND actual_crop_area IS NOT NULL AND TRIM(land_id) = :land_id")
-                params = {"ids": farmer_record_ids, "land_id": land_id}
-                if season_vars:
-                    query += " AND season = ANY(:season_vars)"
-                    params["season_vars"] = season_vars
-                row = (await session.execute(text(query + " ORDER BY created_at DESC"), params)).fetchone()
-                if row and row[0] is not None:
-                    max_allowed_area = float(row[0])
-
-        # 4. No matching Cultivation: the matching Planning row's Planned crop area (this
-        #    intake's Planning rows, then the farmer's records of the same crop year and season)
-        if max_allowed_area is None and land_id:
-            stage_name = "Planned Crop Area in Planning"
-            if submission_id:
-                query = "SELECT planned_area FROM g2p_intake_form_plannings WHERE submission_id = :sub_id AND planned_area IS NOT NULL AND TRIM(land_id) = :land_id"
-                params = {"sub_id": submission_id, "land_id": land_id}
-                if season_vars:
-                    query += " AND season = ANY(:season_vars)"
-                    params["season_vars"] = season_vars
-                row = (await session.execute(text(query), params)).fetchone()
-                if row and row[0] is not None:
-                    max_allowed_area = float(row[0])
-            if max_allowed_area is None:
-                record_ids = farmer_record_ids
-                if record_ids:
-                    query = ("SELECT planned_area FROM g2p_register_plannings WHERE link_internal_record_id = ANY(:ids) "
-                             "AND record_status = 'ACTIVE' AND planned_area IS NOT NULL AND TRIM(land_id) = :land_id")
-                    params = {"ids": record_ids, "land_id": land_id}
-                    if season_vars:
-                        query += " AND season = ANY(:season_vars)"
-                        params["season_vars"] = season_vars
-                    row = (await session.execute(text(query + " ORDER BY created_at DESC"), params)).fetchone()
-                    if row and row[0] is not None:
-                        max_allowed_area = float(row[0])
-
-        # 5. Compare area_sown against max_allowed_area
-        if max_allowed_area is not None and area_sown > max_allowed_area:
-            validation_error(
-                f"Area sown ({area_sown} hectares) cannot exceed {stage_name} ({max_allowed_area} hectares)."
-            )
+        cluster_area = as_float(record.get("cluster_area_sown"))
+        cluster_name = str(record.get("cluster_name") or "").strip()
+        if cluster_land_id and cluster_name and cluster_area is not None and cluster_area > 0:
+            params = {"cluster_land_id": cluster_land_id, "cluster_name": cluster_name.upper()}
+            limit, label = await earlier_stage_area(session, record, [
+                ("g2p_intake_form_cultivation_clusters", "g2p_register_cultivation_clusters", "cluster_area_hectare",
+                 "Total cultivated area in Cultivation cluster", CLUSTER_MATCH),
+                ("g2p_intake_form_clusters", "g2p_register_clusters", "cluster_plan",
+                 "Planned area in Planning cluster", CLUSTER_MATCH),
+            ], params)
+            if limit is not None and cluster_area > limit + 1e-6:
+                validation_error(
+                    f"Area sown, cluster ({cluster_area} hectares) cannot exceed {label} ({limit} hectares) "
+                    f"for Farmer production cluster '{cluster_name}' and Land ID (cluster) '{cluster_land_id}'."
+                )
 
     async def _validate_sowing_after_cultivation(self, record: dict, session) -> None:
         sowing_date = parse_date(record.get("sowing_date"))
