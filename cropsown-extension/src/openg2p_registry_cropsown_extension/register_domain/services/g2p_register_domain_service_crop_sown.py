@@ -214,8 +214,9 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 self._validate_farmer_id(record)
             self._validate_fayda_fan_id(record)
 
-            if session and (record.get("farmer_id") or record.get("fayda_fin") or record.get("fayda_fan_id") or record.get("fayda_id")):
-                await self._validate_fayda_season_and_year(record, session)
+            # Retired check (Sowing / Harvest may create a Crop Sown record): see _validate_fayda_season_and_year.
+            # if session and (record.get("farmer_id") or record.get("fayda_fin") or record.get("fayda_fan_id") or record.get("fayda_id")):
+            #     await self._validate_fayda_season_and_year(record, session)
 
     async def _validate_immutability_on_own_session(self, record: dict, **kwargs) -> None:
         """The established-values check, for callers that pass no session.
@@ -375,77 +376,80 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
                 )
 
 
-    async def _validate_fayda_season_and_year(self, record: dict, session) -> None:
-        """
-        Validates fayda_fan_id, crop_year, and production_season.
-        For Sowing and Harvest intake forms, an existing active Crop Sown record MUST exist
-        for the given Fayda ID + Crop Year + Production Season before proceeding to subsequent sections.
-        """
-        fayda_fan_id = record.get("fayda_fan_id") or record.get("fayda_id")
-        identity_column, identity_value = (
-            ("fayda_fan_id", fayda_fan_id) if fayda_fan_id else
-            ("fayda_fin", record.get("fayda_fin")) if record.get("fayda_fin") else
-            ("farmer_id", record.get("farmer_id"))
-        )
-        crop_year = record.get("crop_year")
-        prod_season = record.get("production_season")
-        submission_id = record.get("submission_id")
+    # Retired: Sowing / Harvest may create a Crop Sown record (parent reuse attaches it to an
+    # existing one when the four keys match). This check never ran in practice (saved rows
+    # carry no Fayda ID or submission_id), so it is commented out rather than kept as a rule.
+    # async def _validate_fayda_season_and_year(self, record: dict, session) -> None:
+    #     """
+    #     Validates fayda_fan_id, crop_year, and production_season.
+    #     For Sowing and Harvest intake forms, an existing active Crop Sown record MUST exist
+    #     for the given Fayda ID + Crop Year + Production Season before proceeding to subsequent sections.
+    #     """
+    #     fayda_fan_id = record.get("fayda_fan_id") or record.get("fayda_id")
+    #     identity_column, identity_value = (
+    #         ("fayda_fan_id", fayda_fan_id) if fayda_fan_id else
+    #         ("fayda_fin", record.get("fayda_fin")) if record.get("fayda_fin") else
+    #         ("farmer_id", record.get("farmer_id"))
+    #     )
+    #     crop_year = record.get("crop_year")
+    #     prod_season = record.get("production_season")
+    #     submission_id = record.get("submission_id")
 
-        if not identity_value or not session:
-            return
+    #     if not identity_value or not session:
+    #         return
 
-        requires_existing_record = False
-        if submission_id:
-            from sqlalchemy import text
-            res_form = await session.execute(
-                text(
-                    "SELECT d.form_mnemonic "
-                    "FROM g2p_intake_form_submissions s "
-                    "JOIN g2p_intake_form_definitions d ON s.form_id = d.form_id "
-                    "WHERE s.submission_id = :sub_id"
-                ),
-                {"sub_id": submission_id},
-            )
-            row_form = res_form.fetchone()
-            if row_form and row_form[0]:
-                form_mnemonic = str(row_form[0]).lower()
-                if "sowing" in form_mnemonic or "harvest" in form_mnemonic:
-                    requires_existing_record = True
+    #     requires_existing_record = False
+    #     if submission_id:
+    #         from sqlalchemy import text
+    #         res_form = await session.execute(
+    #             text(
+    #                 "SELECT d.form_mnemonic "
+    #                 "FROM g2p_intake_form_submissions s "
+    #                 "JOIN g2p_intake_form_definitions d ON s.form_id = d.form_id "
+    #                 "WHERE s.submission_id = :sub_id"
+    #             ),
+    #             {"sub_id": submission_id},
+    #         )
+    #         row_form = res_form.fetchone()
+    #         if row_form and row_form[0]:
+    #             form_mnemonic = str(row_form[0]).lower()
+    #             if "sowing" in form_mnemonic or "harvest" in form_mnemonic:
+    #                 requires_existing_record = True
 
-        if requires_existing_record:
-            from sqlalchemy import text
-            query = (
-                "SELECT internal_record_id::text, crop_year, production_season "
-                "FROM g2p_register_crop_sowns "
-                f"WHERE {identity_column} = :fayda AND record_status = 'ACTIVE'"
-            )
-            params = {"fayda": str(identity_value).strip()}
-            if crop_year:
-                query += " AND crop_year = :c_year"
-                params["c_year"] = str(crop_year).strip()
+    #     if requires_existing_record:
+    #         from sqlalchemy import text
+    #         query = (
+    #             "SELECT internal_record_id::text, crop_year, production_season "
+    #             "FROM g2p_register_crop_sowns "
+    #             f"WHERE {identity_column} = :fayda AND record_status = 'ACTIVE'"
+    #         )
+    #         params = {"fayda": str(identity_value).strip()}
+    #         if crop_year:
+    #             query += " AND crop_year = :c_year"
+    #             params["c_year"] = str(crop_year).strip()
 
-            res = await session.execute(text(query), params)
-            rows = res.fetchall()
+    #         res = await session.execute(text(query), params)
+    #         rows = res.fetchall()
 
-            matched = False
-            if prod_season:
-                p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
-                for r in rows:
-                    r_season = r[2]
-                    r_clean = str(r_season or "").replace("CROP_SEASON_", "").strip().upper()
-                    if p_clean == r_clean:
-                        matched = True
-                        break
-            elif len(rows) > 0:
-                matched = True
+    #         matched = False
+    #         if prod_season:
+    #             p_clean = str(prod_season).replace("CROP_SEASON_", "").strip().upper()
+    #             for r in rows:
+    #                 r_season = r[2]
+    #                 r_clean = str(r_season or "").replace("CROP_SEASON_", "").strip().upper()
+    #                 if p_clean == r_clean:
+    #                     matched = True
+    #                     break
+    #         elif len(rows) > 0:
+    #             matched = True
 
-            if not matched:
-                year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
-                season_str = f" and Season '{prod_season}'" if prod_season else ""
-                validation_error(
-                    f"No existing crop sown record found for Farmer identity '{identity_value}'{year_str}{season_str}. "
-                    f"Sowing / Harvesting cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
-                )
+    #         if not matched:
+    #             year_str = f" in Crop Year '{crop_year}'" if crop_year else ""
+    #             season_str = f" and Season '{prod_season}'" if prod_season else ""
+    #             validation_error(
+    #                 f"No existing crop sown record found for Farmer identity '{identity_value}'{year_str}{season_str}. "
+    #                 f"Sowing / Harvesting cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
+    #             )
 
     @staticmethod
     def _validate_crop_year(record: dict) -> None:
@@ -467,6 +471,14 @@ class G2PRegisterDomainServiceCropSown(G2PRegisterDomainService):
         season = get_row_field(record, "production_season") or get_row_field(record, "season")
         if season is None or str(season).strip() in ("", "None", "null", "Select"):
             validation_error("Production season: choose a season in the Production season section.")
+        # The Crop Sown id carries the season (REG/S1/...), so only a season the id
+        # generator numbers is taken; refused here, on save and submit, before approval.
+        from ..id_generator.g2p_id_generator_service import G2PIdGeneratorService
+        if not G2PIdGeneratorService.season_number(season):
+            validation_error(
+                f"Production season: {str(season).strip()} is not a known season. "
+                "Choose Meher, Belg or Irrigation in the Production season section."
+            )
 
     def _validate_farmer_id(self, record: dict) -> None:
         """Farmer ids come from the farmer registry as FR- plus twelve digits."""

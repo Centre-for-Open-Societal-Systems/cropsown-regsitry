@@ -50,14 +50,15 @@ def test_a_clustered_only_row_is_not_compared_with_an_independent_area_sown():
 
 
 def test_an_independent_row_is_still_compared_with_its_own_sowing():
-    record = {"cluster_status": ["CLUSTERED", "INDEPENDENT"], "land_id": "Plot 1", "area_harvested": 0.7}
+    record = {"cluster_status": ["CLUSTERED", "INDEPENDENT"], "land_id": "Plot 1", "commodity": "CROP_TEFF",
+              "area_harvested": 0.7}
     with pytest.raises(G2PRegistryException) as error:
         run(record, {"g2p_register_sowings": [(0.5,)]})
     assert "Area harvested (0.7 hectares) cannot exceed Area Sown in Sowing (0.5 hectares)" in error.value.message
 
 
 def test_another_farmers_land_with_the_same_land_id_is_never_used():
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "area_harvested": 0.7}
+    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "commodity": "CROP_TEFF", "area_harvested": 0.7}
     # the farmer has no crop records: no register row is read by Land ID alone
     session = run(record, {"g2p_register_sowings": [(0.5,)], "g2p_register_cultivations": [(0.4,)]},
                   master=([], "", "", ""))

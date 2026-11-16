@@ -13,8 +13,11 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
         REG/S1/2026/00012
 
     The season segment is S1-S4, one per cropping season, taken from the
-    record's own `season`. A record with no season yet falls back to the
-    seasonless form (REG/2026/00012) rather than guessing a number.
+    record's own production season. A Crop Sown id is never issued without
+    it: a season code missing from SEASON_NUMBERS raises instead of giving the
+    seasonless form (REG/2026/00012). Intake save and submit refuse such a code
+    first (_validate_production_season reads SEASON_NUMBERS), so it cannot
+    reach approval.
 
     The year is resolved when the id is minted, so a record created in 2027
     carries /2027/. The padding is the id-generator pool's idLength (5), set in
@@ -46,10 +49,21 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
     }
 
     @classmethod
+    def season_number(cls, season: str | None) -> int | None:
+        """`SEASON_MEHER` / `MEHER` -> 1; a code not in SEASON_NUMBERS -> None."""
+        return cls.SEASON_NUMBERS.get(str(season or "").strip().upper())
+
+    @classmethod
     def season_segment(cls, season: str | None) -> str:
-        """`SEASON_MEHER` / `MEHER` -> `S1/`, unknown or missing -> `` (no segment)."""
-        number = cls.SEASON_NUMBERS.get(str(season or "").strip().upper())
-        return f"S{number}/" if number else ""
+        """`SEASON_MEHER` / `MEHER` -> `S1/`. An unknown or missing season raises:
+        a Crop Sown id always carries its season."""
+        number = cls.season_number(season)
+        if not number:
+            raise ValueError(
+                f"Crop Sown ID not issued: production season {season!r} is not a known season "
+                f"({', '.join(sorted(k for k in cls.SEASON_NUMBERS if k.startswith('SEASON_')))})"
+            )
+        return f"S{number}/"
 
     def generate_prefix_suffix(
         self, g2p_register: G2PRegister, register_mnemonic: str
@@ -62,7 +76,13 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
                 getattr(g2p_register, "production_season", None)
                 or getattr(g2p_register, "season", None)
             )
-        season = self.season_segment(season_val)
+        if mnemonic == "cropsown":
+            season = self.season_segment(season_val)
+        else:
+            # Only Crop Sown records are issued ids; the other prefixes keep the
+            # optional segment they always had.
+            number = self.season_number(season_val)
+            season = f"S{number}/" if number else ""
         year = date.today().year
 
         prefix = self.PREFIXES.get(mnemonic)

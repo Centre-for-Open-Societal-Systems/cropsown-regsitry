@@ -11,8 +11,8 @@ The Crop Sown registry takes intakes from a CSV or Excel file through the staff 
 
 ## File rules
 
-- One file per form. The first row holds the column names exactly as below (letter case is ignored). Columns not listed are ignored; columns may be in any order.
-- One row is one intake. The cluster rows of a planning intake and the infestation rows of a sowing intake are **not** imported. Add them in the staff portal or by change request after the intake exists.
+- One file per form. The first row holds the column names exactly as below (letter case is ignored). A column not listed for that form fails the row, naming the column, so a file made for another form is not imported by mistake. Columns may be in any order.
+- One row is one intake. A planning, cultivation or sowing row can also carry up to **three child rows** of its form (clusters, cultivation clusters or infestations) in numbered column groups, see each form below. More child rows: add them in the staff portal or by change request after the intake exists.
 - A blank cell means "not given". Required columns are checked when the intake is saved and submitted.
 - Numbers use a decimal point and no thousands separator. Dates are `YYYY-MM-DD` (a time after the date is dropped, as Excel writes it). Yes/no columns take `yes`, `no`, `true`, `false`, `1` or `0`.
 - Dropdown columns take the Master Data **code**, never the label. Where a column takes several values, separate them with a semicolon.
@@ -56,6 +56,8 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `land_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `planned_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `expected_yield` | `cs_planning_details` | No | Number, digits and an optional decimal point |
+| `crop_latitude` | `cs_planning_details` | No | The crop's latitude in decimal degrees. |
+| `crop_longitude` | `cs_planning_details` | No | The crop's longitude in decimal degrees. |
 | `planned_seed_qty` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `planned_fertilizer_qty` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `start_month` | `cs_planning_details` | No | Whole number |
@@ -68,9 +70,47 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `end_gc` | `cs_planning_details` | No | YYYY-MM-DD |
 | `planned_date` | `cs_planning_details` | No | YYYY-MM-DD |
 | `is_plot_not_registered` | `cs_planning_details` | No | yes or no (also true/false, 1/0) |
-| `cropping_system` | `cs_planning_details` | No | `MONO_CROPPING`, `INTER_CROPPING` |
-| `seed_class` | `cs_planning_details` | No | `LOCAL`, `IMPROVED` |
-| `seed_source` | `cs_planning_details` | No | `GOVERNMENT / WOREDS AGRICULTURE`, `AGRICULTURE COOPERATIVE / UNION`, `PRIVATE SEED ENTERPRISE`, `FARMER-TO-FARMER EXCHANGE / SAVED` |
+| `cropping_system` | `cs_planning_details` | No | Code from the CROPPING_SYSTEM list below. |
+| `seed_class` | `cs_planning_details` | No | Code from the SEED_TYPE list below. |
+| `seed_source` | `cs_planning_details` | No | Code from the SEED_SOURCE list below. |
+| `cluster_<n>_land_id` | `cs_cluster_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `cluster_<n>_name` | `cs_cluster_details` | No | Text (Farmer production cluster name) |
+| `cluster_<n>_reference` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_fpc_type` | `cs_cluster_details` | No | `GREEN` |
+| `cluster_<n>_season` | `cs_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
+| `cluster_<n>_start_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_end_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_region` | `cs_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
+| `cluster_<n>_zone` | `cs_cluster_details` | No | P-code, for example ET0404 |
+| `cluster_<n>_woreda` | `cs_cluster_details` | No | P-code, for example ET040404 |
+| `cluster_<n>_kebele` | `cs_cluster_details` | No | P-code, for example ET040404888003 |
+| `cluster_<n>_sub_kebele` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_agro_ecological_zone` | `cs_cluster_details` | No | Code from the AGRO_ECOLOGICAL_ZONE list |
+| `cluster_<n>_latitude` | `cs_cluster_details` | No | Latitude in decimal degrees |
+| `cluster_<n>_longitude` | `cs_cluster_details` | No | Longitude in decimal degrees |
+| `cluster_<n>_primary_commodity` | `cs_cluster_details` | No | Code from the CROP_COMMODITY list below. |
+| `cluster_<n>_secondary_commodity` | `cs_cluster_details` | No | Code from the CROP_COMMODITY list below. |
+| `cluster_<n>_area_timad` | `cs_cluster_details` | No | Number (timad, 0.25 hectares). The registry works out Total cultivated area (hectares) from it. |
+| `cluster_<n>_plan` | `cs_cluster_details` | No | Number (planned area, hectares) |
+| `cluster_<n>_collected_land` | `cs_cluster_details` | No | Number (hectares) |
+| `cluster_<n>_collected_quintal` | `cs_cluster_details` | No | Number (quintal) |
+| `cluster_<n>_collected_by_combiner` | `cs_cluster_details` | No | Number (hectares) |
+| `cluster_<n>_number_of_smallholders` | `cs_cluster_details` | No | Whole number |
+| `cluster_<n>_water_source` | `cs_cluster_details` | No | Code from the WATER_SOURCE list |
+| `cluster_<n>_water_source_method` | `cs_cluster_details` | No | Code from the WATER_SOURCE_METHOD list |
+| `cluster_<n>_water_source_frequency` | `cs_cluster_details` | No | Code from the WATER_SOURCE_FREQUENCY list |
+| `cluster_<n>_leader` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_co_leader` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_coordinator` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_secretary` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_da_name` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_da_mobile_number` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_supervisor_name` | `cs_cluster_details` | No | Text |
+| `cluster_<n>_supervisor_mobile_number` | `cs_cluster_details` | No | Text |
+
+Each `cluster_<n>_*` column exists for n = 1, 2 and 3 (for example `cluster_1_land_id`, `cluster_2_land_id`, `cluster_3_land_id`): up to three Clusters (Cluster information details) in the same intake as the planning row. A group with any value becomes one row and needs its Land ID; leave a group blank to skip it. `cluster_<n>_land_id` is the cluster's Land ID; `cluster_name`, `cluster_area_timad` and `cluster_plan` become `cluster_<n>_name`, `cluster_<n>_area_timad` and `cluster_<n>_plan`. Cluster ID and Total cultivated area (hectares) are filled by the registry. More than three: add them in the staff portal or by change request.
+
 
 ## Cultivation intake (`crop_cultivation_intake_import_template.csv`)
 
@@ -112,9 +152,9 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `end_gc` | `cs_cultivation_details` | No | YYYY-MM-DD |
 | `actual_cultivation_date` | `cs_cultivation_details` | No | YYYY-MM-DD |
 | `is_plot_not_registered` | `cs_cultivation_details` | No | yes or no (also true/false, 1/0) |
-| `cropping_system` | `cs_cultivation_details` | No | `MONO_CROPPING`, `INTER_CROPPING` |
-| `actual_seed_class` | `cs_cultivation_details` | No | `LOCAL`, `IMPROVED` |
-| `actual_seed_source` | `cs_cultivation_details` | No | `GOVERNMENT / WOREDS AGRICULTURE`, `AGRICULTURE COOPERATIVE / UNION`, `PRIVATE SEED ENTERPRISE`, `FARMER-TO-FARMER EXCHANGE / SAVED` |
+| `cropping_system` | `cs_cultivation_details` | No | Code from the CROPPING_SYSTEM list below. |
+| `actual_seed_class` | `cs_cultivation_details` | No | Code from the SEED_TYPE list below. |
+| `actual_seed_source` | `cs_cultivation_details` | No | Code from the SEED_SOURCE list below. |
 | `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREP_METHOD list below. Several values separated by a semicolon. |
 | `is_planning_record_created` | `cs_cultivation_details` | No | yes or no (also true/false, 1/0). yes: the land is in Planning, so only `land_id` and `land_area` are kept and the Land ID must be in the farmer's Planning of the same crop year and season. no: the land columns below are kept. |
 | `plot_category` | `cs_cultivation_details` | No | Code from the PLOT_CATEGORY list. Read when `is_planning_record_created` is not yes. |
@@ -128,6 +168,43 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `longitude` | `cs_cultivation_details` | No | The land's longitude in decimal degrees, for example 38.7469. Read when `is_planning_record_created` is not yes. |
 | `crop_latitude` | `cs_cultivation_details` | No | The crop's latitude in decimal degrees. |
 | `crop_longitude` | `cs_cultivation_details` | No | The crop's longitude in decimal degrees. |
+| `cluster_<n>_land_id` | `cs_cultivation_cluster_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `cluster_<n>_name` | `cs_cultivation_cluster_details` | No | Text (Farmer production cluster name) |
+| `cluster_<n>_reference` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_fpc_type` | `cs_cultivation_cluster_details` | No | `GREEN` |
+| `cluster_<n>_season` | `cs_cultivation_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
+| `cluster_<n>_start_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_end_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_region` | `cs_cultivation_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
+| `cluster_<n>_zone` | `cs_cultivation_cluster_details` | No | P-code, for example ET0404 |
+| `cluster_<n>_woreda` | `cs_cultivation_cluster_details` | No | P-code, for example ET040404 |
+| `cluster_<n>_kebele` | `cs_cultivation_cluster_details` | No | P-code, for example ET040404888003 |
+| `cluster_<n>_sub_kebele` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_agro_ecological_zone` | `cs_cultivation_cluster_details` | No | Code from the AGRO_ECOLOGICAL_ZONE list |
+| `cluster_<n>_latitude` | `cs_cultivation_cluster_details` | No | Latitude in decimal degrees |
+| `cluster_<n>_longitude` | `cs_cultivation_cluster_details` | No | Longitude in decimal degrees |
+| `cluster_<n>_primary_commodity` | `cs_cultivation_cluster_details` | No | Code from the CROP_COMMODITY list below. |
+| `cluster_<n>_secondary_commodity` | `cs_cultivation_cluster_details` | No | Code from the CROP_COMMODITY list below. |
+| `cluster_<n>_area_timad` | `cs_cultivation_cluster_details` | No | Number (timad, 0.25 hectares). The registry works out Total cultivated area (hectares) from it. |
+| `cluster_<n>_plan` | `cs_cultivation_cluster_details` | No | Number (planned area, hectares) |
+| `cluster_<n>_collected_land` | `cs_cultivation_cluster_details` | No | Number (hectares) |
+| `cluster_<n>_collected_quintal` | `cs_cultivation_cluster_details` | No | Number (quintal) |
+| `cluster_<n>_collected_by_combiner` | `cs_cultivation_cluster_details` | No | Number (hectares) |
+| `cluster_<n>_number_of_smallholders` | `cs_cultivation_cluster_details` | No | Whole number |
+| `cluster_<n>_water_source` | `cs_cultivation_cluster_details` | No | Code from the WATER_SOURCE list |
+| `cluster_<n>_water_source_method` | `cs_cultivation_cluster_details` | No | Code from the WATER_SOURCE_METHOD list |
+| `cluster_<n>_water_source_frequency` | `cs_cultivation_cluster_details` | No | Code from the WATER_SOURCE_FREQUENCY list |
+| `cluster_<n>_leader` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_co_leader` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_coordinator` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_secretary` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_da_name` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_da_mobile_number` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_supervisor_name` | `cs_cultivation_cluster_details` | No | Text |
+| `cluster_<n>_supervisor_mobile_number` | `cs_cultivation_cluster_details` | No | Text |
+
+Each `cluster_<n>_*` column exists for n = 1, 2 and 3 (for example `cluster_1_land_id`, `cluster_2_land_id`, `cluster_3_land_id`): up to three Cultivation clusters (Cultivation cluster details) in the same intake as the cultivation row. A group with any value becomes one row and needs its Land ID; leave a group blank to skip it. Same columns as the Planning clusters. Cluster ID and Total cultivated area (hectares) are filled by the registry. More than three: add them in the staff portal or by change request.
 
 ## Sowing intake (`crop_sowing_intake_import_template.csv`)
 
@@ -156,8 +233,8 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `sowing_date` | `cs_sowing_details` | Yes | YYYY-MM-DD |
 | `has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |
 | `cluster_has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |
-| `agro_ecological_zone` | `cs_sowing_details` | No | `KOLLA`, `WOINA_DEGA`, `DEGA`, `WURCH`, `BEREHA` |
-| `cluster_status` | `cs_sowing_details` | No | CLUSTER, INDEPENDENT, or both separated by a semicolon |
+| `agro_ecological_zone` | `cs_sowing_details` | No | Code from the AGRO_ECOLOGICAL_ZONE list below. |
+| `cluster_status` | `cs_sowing_details` | No | `CLUSTERED`, `INDEPENDENT`, or both separated by a semicolon (`CLUSTER` is read as `CLUSTERED`) |
 | `cluster_land_id` | `cs_sowing_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
 | `is_land_recorded` | `cs_sowing_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_sowing_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
@@ -179,6 +256,35 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `cluster_sub_kebele` | `cs_sowing_details` | No | Text. Read when `is_cluster_land_recorded` is not yes. |
 | `cluster_latitude` | `cs_sowing_details` | No | The cluster land's latitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
 | `cluster_longitude` | `cs_sowing_details` | No | The cluster land's longitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
+| `infestation_<n>_land_id` | `cs_infestation_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `infestation_<n>_cluster_status` | `cs_infestation_details` | No | `CLUSTERED` or `INDEPENDENT` (`CLUSTER` is read as `CLUSTERED`) |
+| `infestation_<n>_cluster_name` | `cs_infestation_details` | No | Text. Read for a Clustered row. |
+| `infestation_<n>_commodity` | `cs_infestation_details` | No | Code from the CROP_COMMODITY list below. Read for an Independent row. |
+| `infestation_<n>_type` | `cs_infestation_details` | No | Infestation type: `INFT_PEST`, `INFT_WEED` or `INFT_DISEASE` (INFESTATION_TYPE list) |
+| `infestation_<n>_pest_type` | `cs_infestation_details` | No | Code from the PEST list. Pest rows. |
+| `infestation_<n>_pest_name` | `cs_infestation_details` | No | Text. Pest rows. |
+| `infestation_<n>_pesticide_method` | `cs_infestation_details` | No | Code from the PEST_CONTROL_ACTION list. Pest rows. |
+| `infestation_<n>_pesticide_type` | `cs_infestation_details` | No | `insecticide`, `fungicide`, `herbicide`, `rodenticide`, `bactericide`, `nematicide`, `acaricide`, `molluscicide`, `termiticide`, `avicide`, `piscicide`, `algicide`, `virucide`. Pest rows. |
+| `infestation_<n>_pesticide_name` | `cs_infestation_details` | No | Text. Pest rows. |
+| `infestation_<n>_pesticide_frequency` | `cs_infestation_details` | No | Text. Pest rows. |
+| `infestation_<n>_weed_type` | `cs_infestation_details` | No | Code from the WEED list. Weed rows. |
+| `infestation_<n>_weed_name` | `cs_infestation_details` | No | Text. Weed rows. |
+| `infestation_<n>_weed_control_method` | `cs_infestation_details` | No | `chemical_spray`, `hand_picking`, `early_harvesting`. Weed rows. |
+| `infestation_<n>_weedicide_type` | `cs_infestation_details` | No | `pre_emergent`, `post_emergent`, `systemic`, `contact`, `graminicide`, `broadleaf`, `sedge`, `aquatic`, `foliar`, `soil`. Weed rows. |
+| `infestation_<n>_weedicide_name` | `cs_infestation_details` | No | Text. Weed rows. |
+| `infestation_<n>_weedicide_frequency` | `cs_infestation_details` | No | Text. Weed rows. |
+| `infestation_<n>_disease_type` | `cs_infestation_details` | No | Code from the CROP_DISEASE list. Disease rows. |
+| `infestation_<n>_disease_name` | `cs_infestation_details` | No | Text. Disease rows. |
+| `infestation_<n>_disease_control_method` | `cs_infestation_details` | No | `chemical_spray`, `hand_picking`, `early_harvesting`. Disease rows. |
+| `infestation_<n>_fungicide_type` | `cs_infestation_details` | No | `fungicide`, `bactericide`. Disease rows. |
+| `infestation_<n>_fungicide_name` | `cs_infestation_details` | No | Text. Disease rows. |
+| `infestation_<n>_disease_frequency_of_application` | `cs_infestation_details` | No | Text. Disease rows. |
+| `infestation_<n>_growth_stage` | `cs_infestation_details` | No | Code from the CROP_GROWTH_STAGE list |
+| `infestation_<n>_observation_date` | `cs_infestation_details` | No | YYYY-MM-DD, today or earlier |
+| `infestation_<n>_severity_level` | `cs_infestation_details` | No | Code from the INFESTATION_SEVERITY list |
+| `infestation_<n>_estimated_damage_pct` | `cs_infestation_details` | No | Estimated crop damage (%): a number from 0 to 100, without the `%` sign, for example `15` |
+
+Each `infestation_<n>_*` column exists for n = 1, 2 and 3 (for example `infestation_1_land_id`, `infestation_2_land_id`, `infestation_3_land_id`): up to three Infestations (Infestation details) in the same intake as the sowing row. A group with any value becomes one row and needs its Land ID; leave a group blank to skip it. `infestation_type` becomes `infestation_<n>_type`. Fill the columns of the row's type (pest, weed or disease); the nutrient and climate fields are not on the form and not imported. More than three: add them in the staff portal or by change request.
 
 ## Harvesting intake (`crop_harvesting_intake_import_template.csv`)
 
@@ -211,7 +317,7 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 | `cluster_harvest_date` | `cs_harvest_details` | No | YYYY-MM-DD |
 | `crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
 | `cluster_crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
-| `cluster_status` | `cs_harvest_details` | No | CLUSTER, INDEPENDENT, or both separated by a semicolon |
+| `cluster_status` | `cs_harvest_details` | No | `CLUSTERED`, `INDEPENDENT`, or both separated by a semicolon (`CLUSTER` is read as `CLUSTERED`) |
 | `cluster_land_id` | `cs_harvest_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
 | `is_land_recorded` | `cs_harvest_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_harvest_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
@@ -236,7 +342,7 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 
 ## Code lists
 
-The codes below are what Master Data serves; the template does not translate or look them up, so a code that Master Data does not hold is stored as given. Static choices (cropping system, seed class, seed source, maturity, agro-ecological zone) are listed in the tables above.
+The codes below are what Master Data serves (the `value_code` of each value, never the label). The template does not translate them; the registry checks every dropdown code against Master Data when the intake is saved (setting `validate_attribute_values`, on in the developer stack), so a code that Master Data does not hold fails the row with the column named. Only the yes/no columns, crop maturity status and the fixed infestation choices are listed in the tables above instead.
 
 ### CROP_SEASON
 
@@ -282,39 +388,111 @@ Master Data list `WATER_SOURCE` as the ETH-OAN pack seeds it.
 
 ### PLOT_CATEGORY
 
-Register list `PLOT_CATEGORY`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `PLOT_CATEGORY` as the ETH-OAN pack seeds it.
 
-`PLOT_CATEGORY_ANNUAL_CROP`, `PLOT_CATEGORY_BIENNIAL_CROP`, `PLOT_CATEGORY_PERENNIAL_CROP`
+`ANNUAL_CROP`, `PERENNIAL_CROP`, `BIENNIAL_CROP`
 
 ### OWNERSHIP_TYPE
 
-Register list `OWNERSHIP_TYPE`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `OWNERSHIP_TYPE` as the ETH-OAN pack seeds it.
 
-`OWNERSHIP_TYPE_CROP_SHARING`, `OWNERSHIP_TYPE_FAMILY_GIFT`, `OWNERSHIP_TYPE_OWNER`, `OWNERSHIP_TYPE_TENANT`
+`OWNER`, `TENANT`, `CROP_SHARING`, `FAMILY_GIFT`
 
 ### WATER_SOURCE_METHOD
 
-Register list `WATER_SOURCE_METHOD`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `WATER_SOURCE_METHOD` as the ETH-OAN pack seeds it.
 
-`WATER_SOURCE_METHOD_DRIP`, `WATER_SOURCE_METHOD_MANUAL`, `WATER_SOURCE_METHOD_OTHER`, `WATER_SOURCE_METHOD_SPRINKLER`, `WATER_SOURCE_METHOD_SURFACE`
+`SURFACE`, `SPRINKLER`, `DRIP`, `MANUAL`, `OTHER`
 
 ### WATER_SOURCE_FREQUENCY
 
-Register list `WATER_SOURCE_FREQUENCY`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `WATER_SOURCE_FREQUENCY` as the ETH-OAN pack seeds it.
 
-`WATER_SOURCE_FREQUENCY_AS_NEEDED`, `WATER_SOURCE_FREQUENCY_BIWEEKLY`, `WATER_SOURCE_FREQUENCY_DAILY`, `WATER_SOURCE_FREQUENCY_MONTHLY`, `WATER_SOURCE_FREQUENCY_OTHER`, `WATER_SOURCE_FREQUENCY_WEEKLY`
+`DAILY`, `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AS_NEEDED`, `OTHER`
 
 ### MACHINERY
 
-Register list `MACHINERY`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `MACHINERY` as the ETH-OAN pack seeds it.
 
-`MACHINERY_COMBINER`, `MACHINERY_COMBINE_HARVESTER`, `MACHINERY_DEBO_JIGI`, `MACHINERY_EQUINE_OTHER`, `MACHINERY_FAMILY_LABOR`, `MACHINERY_HARVESTER`, `MACHINERY_HIRED_LABOR`, `MACHINERY_MAIZE_SHELLER`, `MACHINERY_MULTI_CROP_TRASHER`, `MACHINERY_OTHER`, `MACHINERY_OXEN_MANUAL`, `MACHINERY_OXEN_TILLAGE`, `MACHINERY_PLANTER`, `MACHINERY_POWER_TILLER`, `MACHINERY_RICE_POLISHER`, `MACHINERY_THRASHING_MACHINE`, `MACHINERY_TRACTOR`, `MACHINERY_TRACTOR_OXEN`, `MACHINERY_TRACTOR_PLOUGHING`
+`OXEN_TILLAGE`, `EQUINE_OTHER`, `TRACTOR_PLOUGHING`, `POWER_TILLER`, `COMBINE_HARVESTER`, `THRASHING_MACHINE`, `FAMILY_LABOR`, `DEBO_JIGI`, `HIRED_LABOR`, `TRACTOR_OXEN`, `OXEN_MANUAL`
 
 ### LAND_PREP_METHOD
 
-Register list `LAND_PREP_METHOD`, the codes the registry shows in the staff portal (`translation/domain.json`); the ETH-OAN pack does not carry this list.
+Master Data list `LAND_PREP_METHOD` as the ETH-OAN pack seeds it.
 
-`LAND_PREP_METHOD_BIOLOGICAL_MULCHING`, `LAND_PREP_METHOD_MANUAL_DIGGING`, `LAND_PREP_METHOD_MANUAL_LEVELING`, `LAND_PREP_METHOD_MINIMUM_TILLAGE`, `LAND_PREP_METHOD_RIDGING_FURROWING`, `LAND_PREP_METHOD_SHILSHALO`, `LAND_PREP_METHOD_SOIL_WATER_CONSERVATION_STRUCTURES`, `LAND_PREP_METHOD_TRACTOR_DISC_MOLDBOARD_PLOUGHING`, `LAND_PREP_METHOD_TRADITIONAL_MARESHA_PLOUGHING`
+`TRADITIONAL_MARESHA_PLOUGHING`, `TRACTOR_DISC_MOLDBOARD_PLOUGHING`, `MANUAL_DIGGING`, `SHILSHALO`, `RIDGING_FURROWING`, `MANUAL_LEVELING`, `MINIMUM_TILLAGE`, `SOIL_WATER_CONSERVATION_STRUCTURES`, `BIOLOGICAL_MULCHING`
+
+### CROPPING_SYSTEM
+
+Master Data list `CROPPING_SYSTEM` as the ETH-OAN pack seeds it.
+
+`CSYS_PURE`, `CSYS_MIXED`, `CSYS_INTERCROPPED`
+
+### SEED_TYPE
+
+Master Data list `SEED_TYPE` as the ETH-OAN pack seeds it.
+
+`SEED_IMPROVED`, `SEED_LOCAL`, `SEED_HYBRID`
+
+### SEED_SOURCE
+
+Master Data list `SEED_SOURCE` as the ETH-OAN pack seeds it.
+
+`SEEDSRC_COOPERATIVE`, `SEEDSRC_GOVERNMENT`, `SEEDSRC_MARKET`, `SEEDSRC_OWN_SAVED`, `SEEDSRC_NGO`, `SEEDSRC_NEIGHBOUR`
+
+### AGRO_ECOLOGICAL_ZONE
+
+Master Data list `AGRO_ECOLOGICAL_ZONE` as the ETH-OAN pack seeds it.
+
+`AEZ_BEREHA`, `AEZ_KOLLA`, `AEZ_WEYNA_DEGA`, `AEZ_DEGA`, `AEZ_WURCH`
+
+### CLUSTER_STATUS
+
+Master Data list `CLUSTER_STATUS` as the ETH-OAN pack seeds it.
+
+`CLUSTERED`, `INDEPENDENT`
+
+### INFESTATION_TYPE
+
+Master Data list `INFESTATION_TYPE` as the ETH-OAN pack seeds it.
+
+`INFT_PEST`, `INFT_DISEASE`, `INFT_WEED`
+
+### PEST
+
+Master Data list `PEST` as the ETH-OAN pack seeds it.
+
+`APHIDS`, `WHITEFLIES`, `THRIPS`, `STEM_BORER`, `LEAF_MINER`, `ARMYWORM`, `CUTWORM`, `BOLLWORM`, `BEETLES`, `MEALYBUGS`, `GRASSHOPPERS`, `LEAFHOPPER_JASSIDS`, `RATS`, `FIELD_MOUSE`, `SNAILS`, `SLUGS`, `LEAF_SPOT`, `POWDERY_MILDEW`, `DOWNY_MILDEW`, `RUST`, `BLIGHT`, `WILT`, `MOSAIC_VIRUS`
+
+### PEST_CONTROL_ACTION
+
+Master Data list `PEST_CONTROL_ACTION` as the ETH-OAN pack seeds it.
+
+`CTRL_CHEMICAL`, `CTRL_BIOLOGICAL`, `CTRL_CULTURAL`, `CTRL_NONE`
+
+### WEED
+
+Master Data list `WEED` as the ETH-OAN pack seeds it.
+
+`ANNUAL`, `BIENNIAL`, `PERENNIAL`, `KHARIF_SUMMER`, `RABI_WINTER`, `YEAR_ROUND`, `GRASSY`, `SEDGE`, `BROADLEAF`, `AQUATIC`, `TERRESTRIAL`, `PARASITIC`, `EPIPHYTIC`, `NOXIOUS`, `POISONOUS`, `ALLELOPATHIC`, `INVASIVE`, `CLIMBING`, `ROSETTE`, `CREEPING`, `ERECT`
+
+### CROP_DISEASE
+
+Master Data list `CROP_DISEASE` as the ETH-OAN pack seeds it.
+
+`LEAF_SPOT`, `POWDERY_MILDEW`, `DOWNY_MILDEW`, `RUST`, `BLIGHT`, `WILT`, `MOSAIC_VIRUS`, `SMUT`, `ANTHRACNOSE`, `ROOT_ROT`
+
+### CROP_GROWTH_STAGE
+
+Master Data list `CROP_GROWTH_STAGE` as the ETH-OAN pack seeds it.
+
+`GS_EMERGENCE`, `GS_VEGETATIVE`, `GS_FLOWERING`, `GS_GRAIN_FILLING`, `GS_MATURITY`
+
+### INFESTATION_SEVERITY
+
+Master Data list `INFESTATION_SEVERITY` as the ETH-OAN pack seeds it.
+
+`SEV_LOW`, `SEV_MEDIUM`, `SEV_HIGH`
 
 ## Where the pieces live
 

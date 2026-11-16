@@ -9,6 +9,10 @@
 {% set row = expanded if expanded is defined else {} %}
 {% set cell = {} %}
 {% for key, raw in row.items() %}{% set _ = cell.update({(key | string | trim | lower): ((raw if raw is not none else '') | string | trim)}) %}{% endfor %}
+{#- The columns of import-templates/crop_harvesting_intake_import_template.csv. Any other column fails the row, so a file
+    made for another form's import (Planning, Cultivation, Sowing, Harvest) is not taken as this one. -#}
+{% set file_columns = ['farmer_id', 'fayda_id', 'crop_year', 'production_season', 'land_id', 'commodity', 'cluster_name', 'da_name', 'da_mobile_number', 'supervisor_name', 'supervisor_mobile_number', 'area_harvested', 'qty_harvested', 'post_harvest_loss_pct', 'qty_stored', 'qty_sold', 'cluster_area_harvested', 'cluster_qty_harvested', 'cluster_post_harvest_loss_pct', 'cluster_qty_stored', 'cluster_qty_sold', 'harvest_date', 'cluster_harvest_date', 'crop_maturity_status', 'cluster_crop_maturity_status', 'cluster_status', 'cluster_land_id', 'is_land_recorded', 'is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude', 'is_cluster_land_recorded', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude'] %}
+{% for key in cell %}{% if key and key not in file_columns %}{{ fail('column ' ~ key ~ ' is not a Harvest column: check that this file is for the Harvest import') }}{% endif %}{% endfor %}
 
 {% set farmer_id = cell.get('farmer_id', '') | upper %}
 {% if not (farmer_id.startswith('FR-') and farmer_id[3:].isdigit() and farmer_id | length == 15) %}{{ fail('column farmer_id must be FR- followed by 12 digits, got ' ~ farmer_id) }}{% endif %}

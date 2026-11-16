@@ -55,7 +55,8 @@ def test_cultivation_still_comes_first():
 
 
 def sow_area(rows, area):
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "season": "SEASON_MEHER", "area_sown": area,
+    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "commodity": "CROP_TEFF", "season": "SEASON_MEHER",
+              "area_sown": area,
               "submission_id": "sub-1"}
     with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=MASTER)):
         asyncio.run(G2PRegisterDomainServiceSowing()._validate_sowing_area_after_cultivation(record, Session(rows)))
@@ -111,7 +112,8 @@ def test_sowing_still_comes_first_for_the_harvest_date():
 
 
 def harvest_area(rows, area):
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "area_harvested": area, "submission_id": "sub-1"}
+    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "commodity": "CROP_TEFF", "area_harvested": area,
+              "submission_id": "sub-1"}
     with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=MASTER)):
         asyncio.run(G2PRegisterDomainServiceHarvest()._validate_harvest_area_after_sowing(record, Session(rows)))
 
@@ -138,7 +140,8 @@ def test_registered_cultivation_is_the_farmers_own():
 def test_another_farmers_land_of_the_same_name_is_not_used():
     # Without any of the farmer's crop sown records there is no registered Cultivation to compare with
     # (a "Plot 1" of another farmer must not limit this farmer's sowing)
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "season": "SEASON_IRRIGATION", "area_sown": 0.9,
+    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "commodity": "CROP_TEFF", "season": "SEASON_IRRIGATION",
+              "area_sown": 0.9,
               "submission_id": "sub-1"}
     rows = {"g2p_register_cultivations": [(0.75,)]}
     with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=([], "", "", ""))):
