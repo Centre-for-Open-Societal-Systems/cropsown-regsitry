@@ -37,7 +37,7 @@ GEO = {'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'}
 # Columns a zz-oan overlay adds to a dialog table on top of the base section file:
 # 97c_planning_map_location.sql gives Crop planning rows their own Latitude and Longitude.
 SOWING_HARVEST_LAND = {'cluster_land_id', 'is_land_recorded', 'is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude', 'is_cluster_land_recorded', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude'}
-OVERLAY_COLUMNS = {'cs_planning_details': {'latitude', 'longitude'},
+OVERLAY_COLUMNS = {'cs_planning_details': {'latitude', 'longitude', 'crop_latitude', 'crop_longitude'},
                    # zz-oan/97f_cultivation_land_details.sql
                    'cs_cultivation_details': {'is_planning_record_created', 'plot_category', 'ownership_type',
                                               'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele',
@@ -102,11 +102,54 @@ def sample(column):
     return 'Sample text'
 
 
+# The child table a file row can also fill, up to CHILD_GROUPS rows, from numbered column groups
+# (<prefix><n>_<field>, n = 1 to CHILD_GROUPS).
+CHILD = {'planning': ('cs_cluster_details', 'cluster_'), 'cultivation': ('cs_cultivation_cluster_details', 'cluster_'),
+         'sowing': ('cs_infestation_details', 'infestation_')}
+CHILD_GROUPS = 3
+# Child fields no file column fills: read-only (the registry fills them), removed from the form by an overlay
+# (zz-oan/90_season_window_from_dates.sql, 91_drop_ec_date_copies.sql), or never shown (the nutrient and
+# climate infestation fields, whose infestation types are not in Master Data).
+CLUSTER_NOT_IMPORTED = {'cluster_id', 'cluster_area_hectare', 'start_month', 'start_day', 'end_month', 'end_day',
+                        'establishing_date_ec'}
+CHILD_NOT_IMPORTED = {
+    'cs_cluster_details': CLUSTER_NOT_IMPORTED, 'cs_cultivation_cluster_details': CLUSTER_NOT_IMPORTED,
+    'cs_infestation_details': {'infestation_id', 'observation_date_ec', 'nutrient_type', 'nutrient_name', 'nutrient_control_method',
+                               'nutrient_fertilizer_type', 'nutrient_fertilizer_name', 'nutrient_frequency_of_application',
+                               'shock_type', 'shock_event_name', 'climate_control_method', 'recovery_input_type',
+                               'recovery_input_name', 'climate_frequency_of_application'}}
+CHILD_VALUES = {'land_id': 'C1', 'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404', 'kebele': 'ET040404888003',
+                'sub_kebele': 'Goro', 'latitude': '9.1', 'longitude': '38.8', 'cluster_status': 'CLUSTERED',
+                'estimated_damage_pct': '20'}
+
+
+def child_columns(form, group=None):
+    """The file's numbered child columns (all groups, or one group)."""
+    if form not in CHILD:
+        return []
+    prefix = CHILD[form][1]
+    groups = [group] if group else range(1, CHILD_GROUPS + 1)
+    return [name for name in header(form) if any(name.startswith(f'{prefix}{n}_') for n in groups)]
+
+
+def child_field(form, column):
+    """cluster_2_land_id -> land_id; cluster_2_name -> cluster_name; infestation_1_type -> infestation_type."""
+    section, prefix = CHILD[form]
+    rest = column.split('_', 2)[2]
+    return rest if rest in section_columns()[section] else prefix + rest
+
+
 def full_row(form):
-    details = section_columns()[FORMS[form]['details']]
+    sections = section_columns()
+    details = sections[FORMS[form]['details']]
+    children = set(child_columns(form))
     row = dict(BASE)
     for name in header(form):
         if name in IDENTITY:
+            continue
+        if name in children:
+            field = child_field(form, name)
+            row[name] = CHILD_VALUES.get(field) or sample(sections[CHILD[form][0]][field])
             continue
         row[name] = {'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404', 'kebele': 'ET040404888003',
                      'latitude': '9.01', 'longitude': '38.74', 'crop_latitude': '9.02', 'crop_longitude': '38.75',
@@ -188,7 +231,11 @@ def test_blank_file_is_header_only_and_every_column_is_documented(form):
     assert len(columns) == len(set(columns)) and IDENTITY <= set(columns)
     doc = (REPO / 'docs/file-import.md').read_text(encoding='utf-8')
     section = doc.split(f'## {form.capitalize()} intake')[1].split('\n## ')[0]
-    documented = dict(re.findall(r'^\| `(\w+)` \|[^|]*\| (Yes|No) \|', section, re.MULTILINE))
+    rows = dict(re.findall(r'^\| `([\w<>]+)` \|[^|]*\| (Yes|No) \|', section, re.MULTILINE))
+    # A child column is documented once as <prefix><n>_<field>, for n = 1 to CHILD_GROUPS.
+    documented = {c: r for c, r in rows.items() if '<n>' not in c}
+    for n in range(1, CHILD_GROUPS + 1):
+        documented.update({c.replace('<n>', str(n)): r for c, r in rows.items() if '<n>' in c})
     assert list(documented) == columns
     assert {c for c, required in documented.items() if required == 'Yes'} == IDENTITY | FORMS[form]['required']
 
@@ -198,7 +245,8 @@ def test_columns_are_the_register_fields_and_every_column_is_read(form):
     spec = FORMS[form]
     details = section_columns()[spec['details']]
     details = {**details, **{key: {} for key in OVERLAY_COLUMNS.get(spec['details'], ())}}
-    columns = set(header(form))
+    # The numbered child columns fill the child table: test_child_columns_*.
+    columns = set(header(form)) - set(child_columns(form))
     assert columns - IDENTITY - GEO <= set(details), 'a column that is no field of the register section'
     widget_required = {k for k, c in details.items() if c.get('widget-required')} - {'season'}
     assert widget_required <= spec['required']
@@ -251,7 +299,7 @@ def test_planning_row_maps_columns_to_the_sections_of_the_form():
     result = render('planning', {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'land_area': '1.5',
                                  'planned_labor': '4.0', 'is_plot_not_registered': 'No', 'cropping_system': 'CSYS_PURE',
                                  'start_gc': '2026-06-01 00:00:00', 'region': 'et04', 'zone': 'ET0404',
-                                 'latitude': '9.0', 'longitude': '38.7', 'unknown_column': 'ignored'})
+                                 'latitude': '9.0', 'longitude': '38.7'})
     assert result['crop_farmer_lookup'][0]['fayda_fan_id'] == '0000123456789012'
     assert result['crop_farmer_lookup'][0]['fayda_fin'] is None
     assert result['cs_planning_details'] == [{
@@ -340,3 +388,131 @@ def test_yes_keeps_only_the_land_id_and_no_keeps_the_land(form):
     record = render(form, {**row, 'is_land_recorded': 'no', 'is_cluster_land_recorded': 'no'})[FORMS[form]['details']][0]
     assert (record['plot_category'], record['region'], record['latitude'], record['cluster_region'],
             record['cluster_sub_kebele']) == ('ANNUAL_CROP', 'ET04', '9.01', 'ET04', 'Goro')
+
+
+def test_planning_rows_take_the_crop_location_as_text():
+    # zz-oan/97c_planning_map_location.sql: Crop latitude and Crop longitude on each Planning row.
+    record = render('planning', {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'season': 'SEASON_MEHER',
+                                 'crop_latitude': '9.02', 'crop_longitude': '38.75'})['cs_planning_details'][0]
+    assert (record['crop_latitude'], record['crop_longitude']) == ('9.02', '38.75')
+    record = render('planning', {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF'})['cs_planning_details'][0]
+    assert 'crop_latitude' not in record and 'crop_longitude' not in record  # blank: not given
+    with pytest.raises(UndefinedError, match='column crop_latitude must be a number'):
+        render('planning', {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'crop_latitude': 'north'})
+
+
+@pytest.mark.parametrize('form', FORMS)
+def test_the_template_knows_exactly_the_columns_of_its_blank_file(form):
+    template = (ROOT / 'templates' / f'crop_file_import_{form}_intake.j2').read_text(encoding='utf-8')
+    listed = re.search(r"\{% set file_columns = (\[.*?\]) %\}", template).group(1)
+    assert json.loads(listed.replace("'", '"')) == header(form)
+
+
+@pytest.mark.parametrize('form,other', [(f, o) for f in FORMS for o in FORMS if f != o])
+def test_a_file_made_for_another_form_fails_the_row(form, other):
+    # e.g. a Planning file uploaded under the Cultivation import must not become a Cultivation intake.
+    label = {'harvesting': 'Harvest'}.get(form, form.capitalize())
+    with pytest.raises(UndefinedError, match=rf'is not a {label} column: check that this file is for the {label} import'):
+        render(form, full_row(other))
+
+
+def test_the_upload_message_says_the_file_was_uploaded_not_imported():
+    # The platform shows import_successful when the file is queued; rows are checked afterwards.
+    names = sorted(p.name for p in (META / 'zz-oan').glob('*.sql'))
+    overlay = 'zz-oan/97l_import_file_message.sql'
+    assert names.index('30_label_casing.sql') < names.index('97l_import_file_message.sql') < names.index('98_ethiopian_dates.sql')
+    text = (META / overlay).read_text(encoding='utf-8')
+    assert '"import_successful": "File uploaded. Check Incoming Messages for the result of each row."' in text
+    assert 'WHERE' not in text  # every language
+
+
+def test_the_import_menu_shows_a_label_for_each_crop_import():
+    # The menu translates an import configuration by its import_file_template_mnemonic.
+    text = (META / 'zz-oan/97l_import_file_message.sql').read_text(encoding='utf-8')
+    labels = json.loads('{' + text.split("'{\n", 1)[1].split("}'", 1)[0] + '}')  # the merged keys, not COALESCE's '{}'
+    configurations = sql('registry-configurations', 'g2p_registry_import_file_configurations.sql')
+    for form in FORMS:
+        assert f"'file_import_to_crop_{form}_intake'" in configurations  # the mnemonic stays as it is
+    assert {k: v for k, v in labels.items() if k.startswith('file_import_')} == {
+        'file_import_to_crop_planning_intake': 'Planning (with clusters)',
+        'file_import_to_crop_cultivation_intake': 'Cultivation (with cultivation clusters)',
+        'file_import_to_crop_sowing_intake': 'Sowing (with infestations)',
+        'file_import_to_crop_harvesting_intake': 'Harvest'}
+
+
+# --- Child rows in the same row: up to three clusters, cultivation clusters or infestations -------------
+
+@pytest.mark.parametrize('form', CHILD)
+def test_child_columns_are_three_groups_of_the_child_fields_and_every_one_is_read(form):
+    section = CHILD[form][0]
+    child = section_columns()[section]
+    groups = [child_columns(form, n) for n in range(1, CHILD_GROUPS + 1)]
+    fields = [[child_field(form, c) for c in group] for group in groups]
+    assert fields[0] == fields[1] == fields[2] and len(set(fields[0])) == len(fields[0])
+    assert set(fields[0]) <= set(child)
+    assert set(child) - set(fields[0]) == CHILD_NOT_IMPORTED[section]
+    assert header(form)[-len(child_columns(form)):] == child_columns(form), 'the child groups come last, in order'
+    result = render(form, full_row(form))
+    assert len(result[FORMS[form]['details']]) == 1 and len(result[section]) == CHILD_GROUPS
+    assert all(set(row) == set(fields[0]) for row in result[section])
+
+
+@pytest.mark.parametrize('form', CHILD)
+def test_a_row_without_child_values_has_no_child_rows(form):
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', **{c: '' for c in child_columns(form)}}
+    assert CHILD[form][0] not in render(form, row)
+
+
+def test_a_planning_row_carries_its_clusters_in_the_same_intake_and_skips_blank_groups():
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'cluster_1_land_id': 'C1', 'cluster_1_name': 'Gara',
+           'cluster_1_fpc_type': 'green', 'cluster_1_region': 'et04', 'cluster_1_latitude': '9.1',
+           'cluster_1_area_timad': '8', 'cluster_1_number_of_smallholders': '12.0',
+           'cluster_1_start_gc': '2026-06-01 00:00:00', 'cluster_3_land_id': 'C3', 'cluster_3_plan': '1.5'}
+    result = render('planning', row)
+    assert result['cs_planning_details'][0]['land_id'] == 'L1'
+    assert result['cs_cluster_details'] == [
+        {'land_id': 'C1', 'cluster_name': 'Gara', 'fpc_type': 'GREEN', 'region': 'ET04', 'latitude': '9.1',
+         'cluster_area_timad': 8.0, 'number_of_smallholders': 12, 'start_gc': '2026-06-01', 'season': 'SEASON_MEHER'},
+        {'land_id': 'C3', 'cluster_plan': 1.5, 'season': 'SEASON_MEHER'}]  # blank season: the production season
+
+
+def test_a_cultivation_row_carries_its_cultivation_clusters():
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'cluster_2_land_id': 'K2', 'cluster_2_season': 'SEASON_MEHER',
+           'cluster_2_collected_land': '2'}
+    assert render('cultivation', row)['cs_cultivation_cluster_details'] == [
+        {'land_id': 'K2', 'season': 'SEASON_MEHER', 'collected_land': 2.0}]
+
+
+def test_a_sowing_row_carries_its_infestations():
+    row = {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'area_sown': '1', 'sowing_date': '2026-06-01',
+           'infestation_1_land_id': 'L1', 'infestation_1_cluster_status': 'cluster', 'infestation_1_cluster_name': 'Gara',
+           'infestation_1_type': 'INFT_PEST', 'infestation_1_pest_type': 'PEST_STALK_BORER',
+           'infestation_1_pesticide_type': 'Insecticide', 'infestation_1_observation_date': '2026-07-01',
+           'infestation_1_estimated_damage_pct': '20',
+           'infestation_2_land_id': 'L1', 'infestation_2_type': 'INFT_WEED', 'infestation_2_weed_control_method': 'HAND_PICKING'}
+    assert render('sowing', row)['cs_infestation_details'] == [
+        {'land_id': 'L1', 'cluster_status': 'CLUSTERED', 'cluster_name': 'Gara', 'infestation_type': 'INFT_PEST',
+         'pest_type': 'PEST_STALK_BORER', 'pesticide_type': 'insecticide', 'observation_date': '2026-07-01',
+         'estimated_damage_pct': '20'},
+        {'land_id': 'L1', 'infestation_type': 'INFT_WEED', 'weed_control_method': 'hand_picking'}]
+
+
+@pytest.mark.parametrize('form,change,message', [
+    ('planning', {'cluster_2_name': 'Gara'}, 'column cluster_2_land_id is required when the row has cluster 2'),
+    ('planning', {'cluster_1_land_id': 'C1', 'cluster_1_area_timad': 'eight'}, 'column cluster_1_area_timad must be a number'),
+    ('planning', {'cluster_1_land_id': 'C1', 'cluster_1_number_of_smallholders': 'x'},
+     'column cluster_1_number_of_smallholders must be a whole number'),
+    ('planning', {'cluster_3_land_id': 'C1', 'cluster_3_end_gc': '31/12/2026'}, 'column cluster_3_end_gc must be a date'),
+    ('planning', {'cluster_1_land_id': 'C1', 'cluster_1_fpc_type': 'BLUE'}, 'column cluster_1_fpc_type must be one of GREEN'),
+    ('planning', {'cluster_4_land_id': 'C4'}, 'column cluster_4_land_id is not a Planning column'),
+    ('planning', {'cluster_land_id': 'C1'}, 'column cluster_land_id is not a Planning column'),
+    ('cultivation', {'cluster_1_plan': '2'}, 'column cluster_1_land_id is required when the row has cultivation cluster 1'),
+    ('sowing', {'infestation_1_type': 'INFT_PEST'}, 'column infestation_1_land_id is required when the row has infestation 1'),
+    ('sowing', {'infestation_2_land_id': 'L1', 'infestation_2_pesticide_type': 'poison'},
+     'column infestation_2_pesticide_type must be one of insecticide'),
+    ('sowing', {'infestation_1_land_id': 'L1', 'infestation_1_observation_date': '01/07/2026'},
+     'column infestation_1_observation_date must be a date'),
+])
+def test_a_child_value_the_register_cannot_take_fails_the_row_naming_the_column(form, change, message):
+    with pytest.raises(UndefinedError, match=message):
+        render(form, {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', **change})
