@@ -5,14 +5,14 @@
 # The Job is rendered from this repo's chart (helm template, which changes
 # nothing on the cluster) with staging's OWN release values (helm get values), so
 # it reaches the same databases, secrets and services the running release uses.
-# Only the db-seed image is set, to this build's staging-<n>, so staging gets the
+# Only the db-seed image is set, to this build's tag, so staging gets the
 # seed data on this branch.
 #
 # The Jenkinsfile's "Update staging images" stage runs this after
 # ci/staging-set-images.sh. By hand, from the repo root, with the staging kubeconfig:
 #
-#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-run-db-seed.sh staging-12            # dry run
-#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-run-db-seed.sh staging-12 --apply
+#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-run-db-seed.sh 0.0.0-staging.12            # dry run
+#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-run-db-seed.sh 0.0.0-staging.12 --apply
 #
 # What db-seed loads: the registry metadata SQL (rows that exist only report
 # "duplicate key"), the AWE approval config and callback secret, and the
@@ -41,7 +41,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 python3 ci/deploy/oan_chart.py require-deployable registry staging
 
-TAG="${1:?usage: $0 <staging-N tag> [--apply]}"
+TAG="${1:?usage: $0 <image tag, e.g. 0.0.0-staging.12> [--apply]}"
 APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
 : "${KUBECONFIG:?set KUBECONFIG to the STAGING kubeconfig}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
@@ -51,7 +51,9 @@ RELEASE="${RELEASE:-cropsown-registry}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 SEED_TIMEOUT="${SEED_TIMEOUT:-900s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
-IMAGE_REPO="${ECR_HOST}/openg2p/cropsown-registry/db-seed"
+# eoan/cropsown-regsitry/db-seed-<RP version> (ci/image_names.py); a failed lookup stops here.
+SEED_REPOSITORY="$(python3 ci/image_names.py repository db-seed)"
+IMAGE_REPO="${ECR_HOST}/${SEED_REPOSITORY}"
 JOB="${RELEASE}-db-seed"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
@@ -70,7 +72,7 @@ fi
 # Only a definite "not found" stops the run: the deploy node has the aws CLI but
 # no AWS credentials, and every lookup there fails.
 if command -v aws >/dev/null 2>&1; then
-  if ! OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name openg2p/cropsown-registry/db-seed \
+  if ! OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$SEED_REPOSITORY" \
         --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
     case "$OUT" in
       *ImageNotFoundException*|*RepositoryNotFoundException*)
