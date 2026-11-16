@@ -11,8 +11,8 @@
 # The Jenkinsfile's "Update staging images" stage runs this after every staging
 # build. By hand, with the staging kubeconfig:
 #
-#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-set-images.sh staging-12            # dry run
-#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-set-images.sh staging-12 --apply
+#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-set-images.sh 0.0.0-staging.12            # dry run
+#   KUBECONFIG=<staging kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/staging-set-images.sh 0.0.0-staging.12 --apply
 #
 # What --apply does:
 #   1. Writes the ECR pull secret (cropsown-ecr) in the namespace, from the token
@@ -42,7 +42,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 python3 ci/deploy/oan_chart.py require-deployable registry staging
 
-TAG="${1:?usage: $0 <staging-N tag> [--apply]}"
+TAG="${1:?usage: $0 <image tag, e.g. 0.0.0-staging.12> [--apply]}"
 APPLY=false; [ "${2:-}" = "--apply" ] && APPLY=true
 : "${KUBECONFIG:?set KUBECONFIG to the STAGING kubeconfig}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
@@ -52,9 +52,8 @@ RELEASE="${RELEASE:-cropsown-registry}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-420s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
-ECR="${ECR_HOST}/openg2p/cropsown-registry"
 
-# Deployment -> ECR image the Jenkinsfile builds.
+# Deployment -> image the Jenkinsfile builds; its ECR repository comes from ci/image_names.py.
 MAP="${RELEASE}-staff-portal-api=staff-api
 ${RELEASE}-partner-api=partner-api
 ${RELEASE}-staff-portal-ui=staff-ui
@@ -76,17 +75,19 @@ fi
 # Check every image exists before changing anything. Only a definite "not found"
 # stops the run: the deploy node has the aws CLI but no AWS credentials, and every
 # lookup there fails, though the build pushed the images moments before.
-check_image() {  # <repo suffix>
-  local OUT
-  if OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "openg2p/cropsown-registry/$1" \
+check_image() {  # <image>
+  local OUT REPOSITORY
+  # Outside the `if`: a failed name lookup stops the run.
+  REPOSITORY="$(python3 ci/image_names.py repository "$1")"
+  if OUT="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$REPOSITORY" \
         --image-ids imageTag="$TAG" 2>&1 >/dev/null)"; then
     return 0
   fi
   case "$OUT" in
     *ImageNotFoundException*|*RepositoryNotFoundException*)
-      echo "ERROR: ${ECR}/$1:${TAG} is not in ECR" >&2; exit 1 ;;
+      echo "ERROR: ${ECR_HOST}/${REPOSITORY}:${TAG} is not in ECR" >&2; exit 1 ;;
     *)
-      echo "warning: could not check ${ECR}/$1:${TAG} in ECR ($(echo "$OUT" | grep -m1 .)); continuing" >&2 ;;
+      echo "warning: could not check ${ECR_HOST}/${REPOSITORY}:${TAG} in ECR ($(echo "$OUT" | grep -m1 .)); continuing" >&2 ;;
   esac
 }
 if command -v aws >/dev/null 2>&1; then
@@ -112,7 +113,7 @@ fi
 CHANGED=()
 for PAIR in $MAP; do
   D="${PAIR%%=*}"
-  IMG="${ECR}/${PAIR#*=}:${TAG}"
+  IMG="${ECR_HOST}/$(python3 ci/image_names.py repository "${PAIR#*=}"):${TAG}"
   if ! kubectl -n "$NS" get deploy "$D" >/dev/null 2>&1; then
     echo "--- ${D}: not in ${NS}, skipped"
     continue

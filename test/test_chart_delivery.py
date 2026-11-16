@@ -21,6 +21,27 @@ class ChartDeliveryTests(unittest.TestCase):
         self.assertIn("currentBuild.currentResult == 'SUCCESS'", publish)
         self.assertIn("unstash 'built-chart'", publish)
 
+    def test_images_are_named_by_ci_image_names(self):
+        build = PIPELINE.split("stage('Resolve version')", 1)[1].split("stage('Resolve connector image')", 1)[0]
+        self.assertIn('python3 ci/image_names.py tag "$BRANCH_NAME" "$BUILD_NUMBER"', build)
+        self.assertIn('REPOSITORY=$(python3 ci/image_names.py repository "${SVC}")', build)
+        self.assertIn('IMAGE="${ECR_REGISTRY}/${REPOSITORY}"', build)
+
+    def test_the_connector_actions_resolve_the_connector_images_of_ci_image_names(self):
+        resolve = PIPELINE.split("stage('Resolve connector image')", 1)[1].split("stage('Stash deploy')", 1)[0]
+        self.assertIn('sh(returnStdout: true, script: "python3 ci/image_names.py repository ${name}").trim()', resolve)
+        self.assertNotIn("ECR_BASE", PIPELINE)
+
+    def test_the_deploy_stash_carries_what_ci_image_names_reads(self):
+        # The deploy node runs from this stash, and ci/image_names.py reads the chart's Chart.yaml.
+        self.assertIn('stash name: \'deploy\', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry,'
+                      'helm/openg2p-cropsown-registry/Chart.yaml"', PIPELINE)
+
+    def test_every_build_tests_the_image_names(self):
+        self.assertIn("python3 -m unittest discover -s test -p test_image_names.py -v", PIPELINE)
+        self.assertIn("python3 -m unittest discover -s test -p test_image_name_scripts.py -v", PIPELINE)
+        self.assertNotIn("openg2p/cropsown-registry/*", PIPELINE)
+
     def test_every_chart_image_is_recorded(self):
         for path in ("staffApi", "staffUi", "partnerApi", "celeryWorker", "celeryBeat", "dbSeed", "sanity"):
             self.assertIn("record_image registry.%s.image" % path, PIPELINE)
