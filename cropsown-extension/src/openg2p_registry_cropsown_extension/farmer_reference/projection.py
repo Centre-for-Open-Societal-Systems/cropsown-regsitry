@@ -1,13 +1,19 @@
 """Approved identity mirrors through native domain hooks, in their transaction.
 
 The complete profile stays in the local Farmer reference. Only existing domain
-identity/display columns and the farmer's address (the record's Address section)
-are mirrored; plot/holding geography (the stage rows' own location) and business
-fields are owned by the domain. This service never discovers or creates a relationship
+identity/display columns, the farmer's address (the record's Address section) and
+the farmer's personal details (the record's first tab) are mirrored, when the record
+is written and again when a change to the Farmer is approved here
+(refresh_linked_records); plot/holding geography (the stage rows' own location) and
+business fields are owned by the domain. This service never discovers or creates a relationship
 from a mutable UID, a matching name, or a sibling submission.
 """
+import logging
+
 from sqlalchemy import select
 from .profile import FarmerReferenceError, reference_identity, model_identity, normalize_farmer_id
+
+_logger = logging.getLogger("oan-farmer-reference-projection")
 
 
 async def _approved_farmer(session, farmer_model, reference_id):
@@ -52,6 +58,7 @@ def _mirror(domain_row, farmer):
     for key, value in proposed.items():
         setattr(domain_row, key, value)
     changed = _mirror_address(domain_row, farmer) or changed
+    changed = _mirror_profile(domain_row, farmer) or changed
     if changed:
         domain_row.search_text = domain_row.get_search_text_fields()
         domain_row.record_name = domain_row.get_record_name_fields()
@@ -96,6 +103,60 @@ def _mirror_address(domain_row, farmer) -> bool:
     if hierarchy is not None and getattr(domain_row, "geo_code_hierarchy_json", None) != hierarchy:
         domain_row.geo_code_hierarchy_json = hierarchy
         changed = True
+    return changed
+
+
+# The farmer's personal details, from the approved Farmer, shown read-only on the
+# record's first tab (zz-oan/97m_record_farmer_profile.sql). Farmer column -> record column.
+MIRRORED_PROFILE_FIELDS = {
+    "gender": "farmer_gender", "date_of_birth": "farmer_date_of_birth",
+    "mobile_number": "farmer_mobile_number", "marital_status": "farmer_marital_status",
+    "education_level": "farmer_education_level", "language_spoken": "farmer_language_spoken",
+    "disabled": "farmer_disabled", "disability_type": "farmer_disability_type",
+}
+
+
+def _mirror_profile(domain_row, farmer) -> bool:
+    """Copy the approved Farmer's personal details onto a record that has the columns.
+
+    Field by field, only where the Farmer has a value: a Farmer without one never
+    clears what the record already holds.
+    """
+    changed = False
+    for source, target in MIRRORED_PROFILE_FIELDS.items():
+        if not hasattr(domain_row, target):
+            continue
+        value = getattr(farmer, source, None)
+        if value is None or value == "":
+            continue
+        if getattr(domain_row, target) != value:
+            setattr(domain_row, target, value)
+            changed = True
+    return changed
+
+
+async def refresh_linked_records(session, farmer, domain_model) -> int:
+    """After a change to a Farmer is approved here, copy it onto every active record
+    that names this Farmer (farmer_uuid), in the approval's transaction.
+
+    Only approved records (record_status ACTIVE) are rewritten: drafts are intake
+    submissions, which take the Farmer when they are approved. A record whose Farmer
+    ID no longer matches is left as it is and logged; the change to the Farmer is
+    still approved.
+    """
+    rows = (await session.execute(
+        select(domain_model).where(domain_model.farmer_uuid == farmer.internal_record_id,
+                                   domain_model.record_status == "ACTIVE")
+        .with_for_update()
+    )).scalars().all()
+    changed = 0
+    for row in rows:
+        try:
+            changed += _mirror(row, farmer)
+        except FarmerReferenceError as error:
+            _logger.warning("record %s not refreshed from Farmer %s: %s",
+                            row.internal_record_id, farmer.internal_record_id, error)
+    await session.flush()
     return changed
 
 
