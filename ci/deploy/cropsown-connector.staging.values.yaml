@@ -18,7 +18,12 @@ global:
   connectorDBSecret: cropsown-connector
   connectorDBUserPasswordKey: cropsown-connector-db-user
 
+# cropsown-ecr is refreshed every 6 h by the registry's ECR refresher (cropsown-registry-ecr-refresh). The older
+# hand-made ecr-pull-secret is not refreshed, and the definitions Job runs under its own ServiceAccount, so it gets no
+# pull secret from the default ServiceAccount: with only ecr-pull-secret, ECR answered 403 for a new connector digest
+# (staging #56, 16 Nov).
 imagePullSecrets:
+  - name: cropsown-ecr
   - name: ecr-pull-secret
 
 commonEnv:
