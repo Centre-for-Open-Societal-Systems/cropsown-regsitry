@@ -1,14 +1,12 @@
-"""Fill the Address and the farmer's personal details of existing crop records from
-their approved Farmer, once.
+"""Fill the Address of existing crop records from their approved Farmer, once.
 
     python -m openg2p_registry_cropsown_extension.address_backfill --backfill
 
 Run it in the staff-portal-api container after deploying the Address change
-(farmer_reference/projection.py, zz-oan/97e_address_section.sql) or the personal
-details (zz-oan/97m_record_farmer_profile.sql). New records get them when they are
-written, and every active record of a Farmer when a change to it is approved; this
-covers the ones written before. It is safe to run again: an unchanged value is not
-rewritten, and a Farmer without a value leaves the record's value as it is.
+(farmer_reference/projection.py, zz-oan/97e_address_section.sql). New records
+get the address when they are written; this covers the ones written before. It
+is safe to run again: an unchanged address is not rewritten, and a Farmer
+without an address leaves its records as they are.
 
 It sits at the package top level, like schema_check.py, so the staff API settings
 are loaded before the register domain services are imported.
@@ -45,7 +43,7 @@ def main():
             await engine.dispose()
 
     records, changed = asyncio.run(run())
-    print(f"Address and personal details checked on {records} crop record(s); {changed} updated from their Farmer.")
+    print(f"Address checked on {records} crop record(s); {changed} updated from their Farmer.")
 
 
 if __name__ == "__main__":

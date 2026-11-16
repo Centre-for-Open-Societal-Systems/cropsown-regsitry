@@ -135,6 +135,34 @@ def _mirror_profile(domain_row, farmer) -> bool:
     return changed
 
 
+async def fill_empty_profiles(engine, farmer_table: str, record_table: str) -> int:
+    """Fill the farmer's details still empty on active records from their approved Farmer.
+
+    Run by the staff-api migrate command on every deploy (app.migrate_database), so
+    records written before the details came from the Farmer get them without a
+    manual step. Only an empty column is written, and only from a Farmer value: a
+    second run changes nothing, and nothing is ever cleared or overwritten (a later
+    change to a Farmer reaches its records through refresh_linked_records). A record
+    whose Farmer ID is not its Farmer's is left as it is, as the fan-out leaves it.
+    One statement per column, in one transaction.
+    """
+    from sqlalchemy import text
+
+    filled = 0
+    async with engine.begin() as connection:
+        for source, target in MIRRORED_PROFILE_FIELDS.items():
+            result = await connection.execute(text(
+                f'UPDATE "{record_table}" AS r SET "{target}" = f."{source}" FROM "{farmer_table}" AS f '
+                f"WHERE CAST(r.farmer_uuid AS TEXT) = CAST(f.internal_record_id AS TEXT) "
+                f"AND r.record_status = 'ACTIVE' AND f.record_status = 'ACTIVE' AND r.farmer_id = f.farmer_id "
+                f'AND (r."{target}" IS NULL OR CAST(r."{target}" AS TEXT) = \'\') '
+                f'AND f."{source}" IS NOT NULL AND CAST(f."{source}" AS TEXT) <> \'\''))
+            filled += max(result.rowcount or 0, 0)
+    if filled:
+        _logger.info("Filled %d empty farmer detail value(s) on %s from their Farmer", filled, record_table)
+    return filled
+
+
 async def refresh_linked_records(session, farmer, domain_model) -> int:
     """After a change to a Farmer is approved here, copy it onto every active record
     that names this Farmer (farmer_uuid), in the approval's transaction.
