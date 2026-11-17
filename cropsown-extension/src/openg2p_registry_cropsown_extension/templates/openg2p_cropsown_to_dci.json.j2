@@ -60,9 +60,16 @@
 {#- The register hierarchy the ERD draws: farmer -> crop sown record -> the seven
     crop lines. The land is not a register: its attributes sit flat on the crop
     sown record, which covers exactly one plot. -#}
-{%- set d = data if data is defined else {} -%}
+{#- The platform renders outgoing templates with the record as `expanded`
+    (TemplateHelper.render_with_template: jinja_template.render(expanded=...));
+    `data` is kept for callers that pass it under that name. Reading only
+    `data` left every field of every search response empty (as in livestock). -#}
+{%- set d = expanded if expanded is defined else (data if data is defined else {}) -%}
 {%- set crop_sown_list = d.get('crop_sown') or [] -%}
-{%- set crop_sown = d if d.get('production_year') is not none or d.get('planning') is not none or d.get('sowing') is not none else (crop_sown_list[0] if crop_sown_list else {}) -%}
+{#- The record itself is the crop sown record whenever it carries crop sown columns
+    (crop_year / production_season: only this register has them; a scope filter
+    nulls values but keeps keys). An expression search returns it without children. -#}
+{%- set crop_sown = d if ('crop_year' in d or 'production_season' in d or d.get('production_year') is not none or d.get('planning') is not none or d.get('sowing') is not none) else (crop_sown_list[0] if crop_sown_list else {}) -%}
 {#- Land is flat on the crop sown record, so `land` is just the record itself;
     the alias keeps the farm_details block below reading unchanged. -#}
 {%- set land = crop_sown -%}
