@@ -12,10 +12,3 @@ widgetRegistry.register({ widget: 'oan-identity-verification', component: Identi
 // "oan-parent-column"; every other select renders exactly as before.
 import { CascadingSelectWidget } from './CascadingSelectWidget';
 widgetRegistry.register({ widget: 'select', component: CascadingSelectWidget as never });
-
-// Replaces the native dialog table with a pass-through that adds row limits checked on
-// the dialog's Save, only for columns marked "oan-max-column" / "oan-min-column" /
-// "oan-max-date-column" (zz-oan/97o_dialog_row_limits.sql); every other table renders
-// exactly as before.
-import { RowLimitDialogTable } from './RowLimitDialogTable';
-widgetRegistry.register({ widget: 'dialog-table', component: RowLimitDialogTable as never });

@@ -18,8 +18,7 @@ SERVICE = G2PRegisterDomainServiceCultivation()
 @pytest.mark.parametrize("record", [
     {"actual_crop_area": 0.5, "land_area": 2},
     {"actual_crop_area": "2", "land_area": "2"},          # equal is allowed
-    {"actual_crop_area": 3, "land_area": None},           # no land area: not compared
-    {"actual_crop_area": 3, "land_area": 0},
+    {"actual_crop_area": 3, "land_area": 0},              # a blank land area is refused (test_dialog_row_limits.py)
     {"actual_crop_area": None, "land_area": 1},
 ])
 def test_a_crop_area_within_the_land_area_or_without_one_passes(record):

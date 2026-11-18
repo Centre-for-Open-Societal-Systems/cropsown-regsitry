@@ -93,6 +93,11 @@ class G2PRegisterDomainServiceCultivation(G2PRegisterDomainService):
     # land area (for example "Is planning record created?" = yes) is not compared.
     def _validate_actual_crop_area(self, record: dict) -> None:
         crop_area = as_float(record.get("actual_crop_area"))
+        # Same row: an Actual crop area needs the Total land area it is part of (ODK
+        # checks it on the phone).
+        from .domain_validation_utils import is_blank
+        if crop_area is not None and is_blank(record.get("land_area")):
+            validation_error("Enter Total land area first: Actual crop area needs Total land area.")
         land_area = as_float(record.get("land_area"))
         if crop_area is not None and land_area is not None and land_area > 0 and crop_area > land_area + 1e-6:
             validation_error(

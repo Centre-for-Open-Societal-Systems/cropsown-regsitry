@@ -78,6 +78,11 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
         planned_area = as_float(record.get("planned_area"))
         if planned_area is not None and planned_area <= 0:
             validation_error("Planned crop area must be greater than zero")
+        # Same row: a Planned crop area needs the Total land area it is part of (ODK
+        # checks it on the phone).
+        from .domain_validation_utils import is_blank
+        if planned_area is not None and is_blank(record.get("land_area")):
+            validation_error("Enter Total land area first: Planned crop area needs Total land area.")
 
         land_area = as_float(record.get("land_area"))
         if planned_area is not None and land_area is not None and land_area > 0:
@@ -85,9 +90,8 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
                 validation_error(f"Planned crop area ({planned_area} hectares) cannot be greater than Total land area ({land_area} hectares).")
 
     def _validate_season_window(self, record: dict) -> None:
-        """End date on or after Start date (both given). The row dialog checks it on Save
-        (zz-oan/97o_dialog_row_limits.sql); this is the same rule on Next, submit,
-        ODK, file import and change requests."""
+        """End date on or after Start date (both given), on Next, submit, ODK, file
+        import and change requests."""
         start, end = parse_date(record.get("start_gc")), parse_date(record.get("end_gc"))
         if start and end and end < start:
             validation_error("End date cannot be earlier than Start date.")

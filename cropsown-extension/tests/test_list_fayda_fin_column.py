@@ -9,7 +9,10 @@ OVERLAY = (Path(__file__).resolve().parents[1]
 def test_the_fin_column_goes_after_the_fan_column_of_the_crop_sown_list_only():
     sql = OVERLAY.read_text(encoding="utf-8")
     update = sql.split('UPDATE "public"."g2p_register_schemas" s')[1].split(";")[0]
-    assert "WHERE s.\"register_id\" = '6b06a95a-9a6c-5a33-a33d-c1625716c59c'" in update  # Crop Sown only
+    crop_sown = ('(SELECT "register_id" FROM "public"."g2p_register_definitions" '
+                 'WHERE "register_mnemonic" = \'CropSown\')')
+    assert f'WHERE s."register_id" = {crop_sown}' in update  # Crop Sown only, found by its mnemonic
+    assert "6b06a95a" not in sql
     assert "jsonb_build_object('order', f.fan_order + 1, 'field_name', 'fayda_fin',\n" in update
     assert "'display_label', 'Fayda FIN ID')" in update
     assert 'THEN item || \'{"display_label": "Fayda FIN ID"}\'::jsonb' in sql  # also on an existing column

@@ -55,6 +55,10 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                                        "Area sown ({value} hectares) cannot be more than Total land area ({limit} hectares).")
             validate_not_more_than(record, "cluster_area_sown", "cluster_area_hectare",
                                    "Area sown, cluster ({value} hectares) cannot be more than Total cultivated area ({limit} hectares).")
+            # Same row: Area sown, cluster needs Total cultivated area.
+            from .domain_validation_utils import is_blank
+            if clustered and not is_blank(record.get("cluster_area_sown")) and is_blank(record.get("cluster_area_hectare")):
+                validation_error("Enter Total cultivated area first: Area sown, cluster needs Total cultivated area.")
             from .domain_compute_utils import is_date_in_season
             if session:
                 # Retired check (Sowing / Harvest may create a Crop Sown record): see _validate_existing_crop_sown_record_required.

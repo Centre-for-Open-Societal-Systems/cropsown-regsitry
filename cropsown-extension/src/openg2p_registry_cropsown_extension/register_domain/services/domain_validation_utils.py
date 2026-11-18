@@ -75,9 +75,8 @@ def is_blank(value) -> bool:
     return False
 
 
-# Row limits: the rules the staff UI's row dialog checks on Save
-# (zz-oan/97o_dialog_row_limits.sql), here on Next, submit, ODK, file import and change
-# requests. Blank values are not compared.
+# Row limits: two fields of the same table row compared on Next, submit, ODK, file import
+# and change requests. Blank values are not compared.
 def validate_season_window(record: dict) -> None:
     """End date on or after Start date."""
     start, end = parse_date(record.get("start_gc")), parse_date(record.get("end_gc"))
