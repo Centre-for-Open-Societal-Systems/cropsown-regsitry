@@ -60,6 +60,12 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
 
             self._validate_post_harvest_loss(record)
             self._validate_disposal_quantities(record)
+            self._validate_cluster_disposal_quantities(record)
+            # Same row: Total land area shows only when "Is planning record created?" is No.
+            from .domain_validation_utils import as_bool, validate_not_more_than
+            if as_bool(record.get("is_land_recorded")) is not True:
+                validate_not_more_than(record, "area_harvested", "land_area",
+                                       "Area harvested ({value} hectares) cannot be more than Total land area ({limit} hectares).")
             compute_ec_date(record, "harvest_date", "harvest_date_ec")
             if session:
                 # Retired check (Sowing / Harvest may create a Crop Sown record): see _validate_existing_crop_sown_record_required.
@@ -631,6 +637,21 @@ class G2PRegisterDomainServiceHarvest(G2PRegisterDomainService):
         if disposed > qty_harvested:
             validation_error(
                 "Quantity stored plus quantity sold must not be more than the quantity harvested"
+            )
+
+    def _validate_cluster_disposal_quantities(self, record: dict) -> None:
+        """The clustered side of the same rule (the ODK Harvest form already asks it)."""
+        harvested = as_float(record.get("cluster_qty_harvested"))
+        if harvested is None:
+            return
+        disposed = sum(
+            value
+            for value in (as_float(record.get("cluster_qty_stored")), as_float(record.get("cluster_qty_sold")))
+            if value is not None
+        )
+        if disposed > harvested + 1e-6:
+            validation_error(
+                "Quantity stored plus quantity sold (cluster) must not be more than the quantity harvested (cluster)"
             )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

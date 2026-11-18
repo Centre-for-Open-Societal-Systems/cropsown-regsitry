@@ -724,124 +724,130 @@ _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 #                 )
 
 
-async def validate_cultivation_against_planning(session, section_payload: list[dict], submission_id: str | None):
-    """
-    Rule 3: In Cultivation Intake Form, if a record is ALREADY available in Planning
-    for the Land ID, Crop Name, and Season: check that Cultivation Date >= Planning Date
-    (equal or future date is allowed; past date shows error on Next button).
-    If it's a new record (no planning record exists for this land/crop/season), any date can be given.
-    """
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+# Retired: Cultivation and Cultivation cluster dates may be earlier than the Planning dates.
+# Only the retired checks in the Cultivation and Cultivation cluster services called this;
+# kept commented for reference.
+# async def validate_cultivation_against_planning(session, section_payload: list[dict], submission_id: str | None):
+#     """
+#     Rule 3: In Cultivation Intake Form, if a record is ALREADY available in Planning
+#     for the Land ID, Crop Name, and Season: check that Cultivation Date >= Planning Date
+#     (equal or future date is allowed; past date shows error on Next button).
+#     If it's a new record (no planning record exists for this land/crop/season), any date can be given.
+#     """
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    # Fetch active planning records under master records and current submission
-    plans = []
-    if master_ids:
-        res_p = await session.execute(
-            text("""
-                SELECT land_id, commodity, season, planned_date, start_gc
-                FROM g2p_register_plannings
-                WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
-            """),
-            {"m_ids": master_ids}
-        )
-        plans.extend(res_p.fetchall())
+#     # Fetch active planning records under master records and current submission
+#     plans = []
+#     if master_ids:
+#         res_p = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, season, planned_date, start_gc
+#                 FROM g2p_register_plannings
+#                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+#             """),
+#             {"m_ids": master_ids}
+#         )
+#         plans.extend(res_p.fetchall())
 
-    if submission_id:
-        res_ip = await session.execute(
-            text("""
-                SELECT land_id, commodity, season, planned_date, start_gc
-                FROM g2p_intake_form_plannings
-                WHERE submission_id = :sid
-            """),
-            {"sid": submission_id}
-        )
-        plans.extend(res_ip.fetchall())
+#     if submission_id:
+#         res_ip = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, season, planned_date, start_gc
+#                 FROM g2p_intake_form_plannings
+#                 WHERE submission_id = :sid
+#             """),
+#             {"sid": submission_id}
+#         )
+#         plans.extend(res_ip.fetchall())
 
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        commodity = str(row.get("commodity") or "").strip()
-        season = str(row.get("season") or prod_season or "").strip()
-        cult_date = parse_date_flexible(row.get("actual_cultivation_date") or row.get("start_gc"))
+#         land_id = str(row.get("land_id") or "").strip()
+#         commodity = str(row.get("commodity") or "").strip()
+#         season = str(row.get("season") or prod_season or "").strip()
+#         cult_date = parse_date_flexible(row.get("actual_cultivation_date") or row.get("start_gc"))
 
-        if not land_id or not cult_date:
-            continue
+#         if not land_id or not cult_date:
+#             continue
 
-        matching_plan_date = None
-        for p_land, p_comm, p_season, p_pdate, p_start in plans:
-            if str(p_land or "").strip() == land_id:
-                if commodity_matches(commodity, p_comm) and season_matches(season, p_season):
-                    p_date_val = parse_date_flexible(p_pdate or p_start)
-                    if p_date_val:
-                        matching_plan_date = p_date_val
-                        break
+#         matching_plan_date = None
+#         for p_land, p_comm, p_season, p_pdate, p_start in plans:
+#             if str(p_land or "").strip() == land_id:
+#                 if commodity_matches(commodity, p_comm) and season_matches(season, p_season):
+#                     p_date_val = parse_date_flexible(p_pdate or p_start)
+#                     if p_date_val:
+#                         matching_plan_date = p_date_val
+#                         break
 
-        # Only validate date if a planning record exists for this land_id, crop name, and season
-        if matching_plan_date is not None and cult_date < matching_plan_date:
-            validation_error(
-                f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planned Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'. "
-                f"You can only choose a date equal to or after the planned date."
-            )
+#         # Only validate date if a planning record exists for this land_id, crop name, and season
+#         if matching_plan_date is not None and cult_date < matching_plan_date:
+#             validation_error(
+#                 f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+#                 f"Planned Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'. "
+#                 f"You can only choose a date equal to or after the planned date."
+#             )
 
 
-async def validate_cultivation_cluster_against_planning(session, section_payload: list[dict], submission_id: str | None):
-    """
-    Cluster Cultivation vs Planning date check:
-    If a Planning Cluster record exists for this cluster_name and land_id,
-    Cultivation Date must be >= Planning Date. If none exists, allow any date.
-    """
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+# Retired: Cultivation and Cultivation cluster dates may be earlier than the Planning dates.
+# Only the retired checks in the Cultivation and Cultivation cluster services called this;
+# kept commented for reference.
+# async def validate_cultivation_cluster_against_planning(session, section_payload: list[dict], submission_id: str | None):
+#     """
+#     Cluster Cultivation vs Planning date check:
+#     If a Planning Cluster record exists for this cluster_name and land_id,
+#     Cultivation Date must be >= Planning Date. If none exists, allow any date.
+#     """
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    plan_clusters = []
-    if master_ids:
-        res_c = await session.execute(
-            text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date
-                FROM g2p_register_clusters
-                WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
-            """),
-            {"m_ids": master_ids}
-        )
-        plan_clusters.extend(res_c.fetchall())
+#     plan_clusters = []
+#     if master_ids:
+#         res_c = await session.execute(
+#             text("""
+#                 SELECT land_id, cluster_name, start_gc, establishing_date
+#                 FROM g2p_register_clusters
+#                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+#             """),
+#             {"m_ids": master_ids}
+#         )
+#         plan_clusters.extend(res_c.fetchall())
 
-    if submission_id:
-        res_ic = await session.execute(
-            text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date
-                FROM g2p_intake_form_clusters
-                WHERE submission_id = :sid
-            """),
-            {"sid": submission_id}
-        )
-        plan_clusters.extend(res_ic.fetchall())
+#     if submission_id:
+#         res_ic = await session.execute(
+#             text("""
+#                 SELECT land_id, cluster_name, start_gc, establishing_date
+#                 FROM g2p_intake_form_clusters
+#                 WHERE submission_id = :sid
+#             """),
+#             {"sid": submission_id}
+#         )
+#         plan_clusters.extend(res_ic.fetchall())
 
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        cluster_name = str(row.get("cluster_name") or "").strip()
-        cult_date = parse_date_flexible(row.get("start_gc") or row.get("establishing_date"))
+#         land_id = str(row.get("land_id") or "").strip()
+#         cluster_name = str(row.get("cluster_name") or "").strip()
+#         cult_date = parse_date_flexible(row.get("start_gc") or row.get("establishing_date"))
 
-        if not land_id or not cluster_name or not cult_date:
-            continue
+#         if not land_id or not cluster_name or not cult_date:
+#             continue
 
-        matching_plan_date = None
-        for p_land, p_cname, p_start, p_est in plan_clusters:
-            if str(p_land or "").strip() == land_id and str(p_cname or "").strip().upper() == cluster_name.upper():
-                p_date_val = parse_date_flexible(p_start or p_est)
-                if p_date_val:
-                    matching_plan_date = p_date_val
-                    break
+#         matching_plan_date = None
+#         for p_land, p_cname, p_start, p_est in plan_clusters:
+#             if str(p_land or "").strip() == land_id and str(p_cname or "").strip().upper() == cluster_name.upper():
+#                 p_date_val = parse_date_flexible(p_start or p_est)
+#                 if p_date_val:
+#                     matching_plan_date = p_date_val
+#                     break
 
-        if matching_plan_date is not None and cult_date < matching_plan_date:
-            validation_error(
-                f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
-            )
+#         if matching_plan_date is not None and cult_date < matching_plan_date:
+#             validation_error(
+#                 f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+#                 f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+#             )
 
 
 async def validate_sowing_against_cultivation(session, section_payload: list[dict], submission_id: str | None):

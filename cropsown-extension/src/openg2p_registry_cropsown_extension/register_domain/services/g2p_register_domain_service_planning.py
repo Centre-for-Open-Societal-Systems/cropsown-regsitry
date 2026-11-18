@@ -69,6 +69,7 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
             compute_season_parts(record)
             self._validate_date_in_season(record, "planned_date")
             self._validate_planned_area(record)
+            self._validate_season_window(record)
             self._validate_planned_date(record)
         self._validate_cumulative_planned_area(active_records)
         self._validate_no_duplicate_commodity_season(active_records)
@@ -82,6 +83,14 @@ class G2PRegisterDomainServicePlanning(G2PRegisterDomainService):
         if planned_area is not None and land_area is not None and land_area > 0:
             if planned_area > land_area:
                 validation_error(f"Planned crop area ({planned_area} hectares) cannot be greater than Total land area ({land_area} hectares).")
+
+    def _validate_season_window(self, record: dict) -> None:
+        """End date on or after Start date (both given). The row dialog checks it on Save
+        (zz-oan/97o_dialog_row_limits.sql); this is the same rule on Next, submit,
+        ODK, file import and change requests."""
+        start, end = parse_date(record.get("start_gc")), parse_date(record.get("end_gc"))
+        if start and end and end < start:
+            validation_error("End date cannot be earlier than Start date.")
 
     def _validate_cumulative_planned_area(self, records: list[dict]) -> None:
         by_land: dict[str, list[dict]] = {}

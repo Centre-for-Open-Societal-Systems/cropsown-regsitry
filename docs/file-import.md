@@ -80,7 +80,7 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `cluster_<n>_season` | `cs_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cluster_details` | No | P-code, for example ET040404 |
@@ -175,7 +175,7 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `cluster_<n>_season` | `cs_cultivation_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cultivation_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cultivation_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cultivation_cluster_details` | No | P-code, for example ET040404 |
@@ -221,7 +221,7 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `commodity` | `cs_sowing_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `fertilizer_type` | `cs_sowing_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `cluster_name` | `cs_sowing_details` | No | Text |
-| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. |
+| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. Required when `cluster_status` has CLUSTERED. |
 | `da_name` | `cs_sowing_details` | No | Text |
 | `da_mobile_number` | `cs_sowing_details` | No | Text |
 | `supervisor_name` | `cs_sowing_details` | No | Text |

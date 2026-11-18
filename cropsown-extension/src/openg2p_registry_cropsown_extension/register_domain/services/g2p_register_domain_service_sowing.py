@@ -47,6 +47,14 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
 
             self._validate_sowing_date(record)
             self._validate_area_sown(record)
+            # Same row: Total land area shows only when "Is planning record created?" is No;
+            # a Clustered row always shows Total cultivated area.
+            from .domain_validation_utils import as_bool, validate_not_more_than
+            if as_bool(record.get("is_land_recorded")) is not True:
+                validate_not_more_than(record, "area_sown", "land_area",
+                                       "Area sown ({value} hectares) cannot be more than Total land area ({limit} hectares).")
+            validate_not_more_than(record, "cluster_area_sown", "cluster_area_hectare",
+                                   "Area sown, cluster ({value} hectares) cannot be more than Total cultivated area ({limit} hectares).")
             from .domain_compute_utils import is_date_in_season
             if session:
                 # Retired check (Sowing / Harvest may create a Crop Sown record): see _validate_existing_crop_sown_record_required.

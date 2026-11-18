@@ -52,11 +52,16 @@ export function CascadingSelectWidget({ config }: { config: Config }) {
         previous.current = { parent: parentValue, own: ownValue };
     }, [dispatch, ownValue, parentId, parentValue, widgetId]);
 
+    // Until the level above is chosen this level offers nothing ("Select" only), like the
+    // Farmer registry's location. The platform skips loading when the parent is empty but
+    // keeps a list it already had, so an empty list is given explicitly here.
+    const parentChosen = parentValue !== undefined && parentValue !== null && String(parentValue).trim() !== '';
     const effective = useMemo(() => {
         if (!parentId) return config;
+        if (!parentChosen) return { ...config, 'widget-data-source': { type: 'static', options: [] } };
         const source = config['widget-data-source'] ?? {};
         return { ...config, 'widget-data-source': { ...source, dependsOn: parentId } };
-    }, [config, parentId]);
+    }, [config, parentId, parentChosen]);
 
     return <SelectWidget config={effective as never} />;
 }

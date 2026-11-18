@@ -40,5 +40,7 @@ def test_the_ui_select_reads_the_mark_and_is_registered():
     assert "const PARENT_COLUMN = 'oan-parent-column';" in widget
     assert "dependsOn: parentId" in widget and "-dlg-" in widget
     assert "<SelectWidget config={effective as never} />" in widget
+    # until the level above is chosen, the level offers nothing ("Select" only)
+    assert "if (!parentChosen) return { ...config, 'widget-data-source': { type: 'static', options: [] } };" in widget
     register = (WIDGETS / "register.ts").read_text(encoding="utf-8")
     assert "widgetRegistry.register({ widget: 'select', component: CascadingSelectWidget as never });" in register
