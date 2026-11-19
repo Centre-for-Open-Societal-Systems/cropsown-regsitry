@@ -101,24 +101,34 @@ def _classes(path):
     return {n.name: [ast.unparse(b) for b in n.bases] for n in tree.body if isinstance(n, ast.ClassDef)}
 
 
-def test_every_installed_intake_and_change_request_service_carries_the_guard_first():
+def _mixins_without_a_direct_call():
+    """Classes of the extension that define neither direct call nor a workflow method, by name."""
+    safe = set()
+    for module in PACKAGE.rglob("*.py"):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                defined = {n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                if not defined & ({"approve_submission", "approve_change_request"} | WORKFLOW_METHODS):
+                    safe.add(node.name)
+    return safe
+
+
+def test_every_installed_intake_and_change_request_service_carries_the_guard():
+    # The guard must answer a direct approval before the platform class does. Only a mixin
+    # that defines no direct call and no workflow method may come before it (the Fayda ID view
+    # and the required-fields mixin wrap reads, save and finalize); the extension's own tests
+    # pin their order (test_fayda_id_view.py, test_required_intake.py).
+    safe = _mixins_without_a_direct_call()
     for path, names in GUARDED.items():
         classes = _classes(path)
         for name in names:
-            bases = [base for base in classes[name] if base != "RequiredFieldsMixin"]
-            assert bases[0] == "DirectApprovalClosed", f"{path}:{name} must put the guard first"
-            # The required-fields mixin only wraps save and finalize, so it may precede the guard,
-            # and the guard still comes before the platform class.
-            assert classes[name].index("DirectApprovalClosed") < len(classes[name]) - 1
-    assert _classes("farmer_reference/native.py")["ReferenceIntakeService"][:2] == [
-        "RequiredFieldsMixin", "DirectApprovalClosed"]
-
-
-def test_the_required_fields_mixin_defines_no_direct_call():
-    tree = ast.parse((PACKAGE / "required_intake.py").read_text())
-    mixin = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "RequiredFieldsMixin")
-    defined = {n.name for n in mixin.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-    assert not defined & ({"approve_submission", "approve_change_request"} | WORKFLOW_METHODS)
+            bases = classes[name]
+            assert "DirectApprovalClosed" in bases, f"{path}:{name} lacks the guard"
+            guard = bases.index("DirectApprovalClosed")
+            assert guard < len(bases) - 1, f"{path}:{name} must put the guard before the platform class"
+            before = [base for base in bases[:guard] if base not in safe]
+            assert not before, f"{path}:{name}: {before} come before the guard and may answer a direct call"
 
 
 def _methods(path):
