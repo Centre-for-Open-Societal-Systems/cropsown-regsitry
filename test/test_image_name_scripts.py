@@ -33,8 +33,11 @@ class ImageNameScriptTests(unittest.TestCase):
     def test_the_staging_connector_follows_the_platform_suffix_and_the_build_tag_of_staff_api(self):
         upgrade = script("ci/deploy/upgrade-crop-connector-staging.sh")
         self.assertIn("BUILD_TAG_PATTERN='^([0-9]+\\.[0-9]+\\.[0-9]+-develop\\.[0-9]+|develop-[0-9]+)$'", upgrade)
-        self.assertIn('CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector$PLATFORM_SUFFIX"', upgrade)
-        self.assertIn('ecr_digest "$ECR_BASE/registry-connector-ui$PLATFORM_SUFFIX" "$tag"', upgrade)
+        # registry-connector-api/-ui (no suffix) first, then the suffixed names of the builds before init.yaml.
+        self.assertIn('CONNECTOR_NAMES="registry-connector-api:registry-connector-ui '
+                      'registry-connector$PLATFORM_SUFFIX:registry-connector-ui$PLATFORM_SUFFIX"', upgrade)
+        self.assertIn('CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/${names%%:*}"', upgrade)
+        self.assertIn('ecr_digest "$ECR_BASE/${names#*:}" "$tag"', upgrade)
 
 
 if __name__ == "__main__":

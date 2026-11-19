@@ -33,9 +33,26 @@ class ChartDeliveryTests(unittest.TestCase):
         self.assertNotIn("ECR_BASE", PIPELINE)
 
     def test_the_deploy_stash_carries_what_ci_image_names_reads(self):
-        # The deploy node runs from this stash, and ci/image_names.py reads the chart's Chart.yaml.
-        self.assertIn('stash name: \'deploy\', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry,'
+        # The deploy node runs from this stash, and ci/image_names.py reads init.yaml and the chart's Chart.yaml.
+        self.assertIn('stash name: \'deploy\', includes: "init.yaml,ci/**,.central-charts/**,.ecr-token,.ecr-registry,'
                       'helm/openg2p-cropsown-registry/Chart.yaml"', PIPELINE)
+
+    def test_every_pushed_repository_gets_the_standard_ecr_settings_first(self):
+        self.assertIn('python3 ci/ecr_repository.py ensure "$2" "$(python3 ci/image_names.py legacy "$1")"', PIPELINE)
+        self.assertNotIn("create-repository", PIPELINE)        # only ci/ecr_repository.py creates repositories
+        for call in ('ensure_repository "${SVC}" "${REPOSITORY}"', 'ensure_repository dashboard-ui "${DASHBOARD_UI_ECR}"',
+                     'ensure_repository dashboard-api "${DASHBOARD_API_ECR}"'):
+            self.assertIn(call, PIPELINE)
+        self.assertLess(PIPELINE.index('ensure_repository "${SVC}"'), PIPELINE.index('docker push "${IMAGE}:${IMAGE_TAG}"'))
+        self.assertIn("credentialsId: 'aws-ecr-creds'", PIPELINE)
+        self.assertIn("python3 -m unittest discover -s test -p test_ecr_repository.py -v", PIPELINE)
+
+    def test_tags_are_immutable_so_nothing_pushes_a_moving_tag(self):
+        self.assertNotIn("${IMAGE}:${BRANCH_NAME}", PIPELINE)
+        self.assertNotIn("--cache-from", PIPELINE)
+        self.assertIn('UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${IMAGE_TAG}"', PIPELINE)
+        self.assertIn("DASHBOARD_API_ECR = 'eoan/cropsown-registry/dashboard-api'", PIPELINE)
+        self.assertIn("DASHBOARD_UI_ECR = 'eoan/cropsown-registry/dashboard-ui'", PIPELINE)
 
     def test_every_build_tests_the_image_names(self):
         self.assertIn("python3 -m unittest discover -s test -p test_image_names.py -v", PIPELINE)

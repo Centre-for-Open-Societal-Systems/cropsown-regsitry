@@ -78,13 +78,14 @@ PY
 }
 read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(promoted_service_image "$PROMOTED_CHART")
 test -n "${SERVICE_DIGEST:-}" || { echo "no staff-api digest in $PROMOTED_CHART" >&2; exit 1; }
-# staff-api, or staff-api-<RP version> under the eoan names: the connector images carry the same suffix.
+# The connector images of the same build, in the same ECR path as staff-api. Under the eoan names they are
+# registry-connector-api and registry-connector-ui (ci/image_names.py: not platform images, so no RP suffix); builds
+# before that pushed registry-connector[-<RP version>] and registry-connector-ui[-<RP version>], with staff-api's suffix.
 SERVICE_NAME=${SERVICE_REPOSITORY##*/}
 PLATFORM_SUFFIX=${SERVICE_NAME#staff-api}
 IMAGE_PREFIX=${SERVICE_REPOSITORY%/*}
 ECR_BASE=${IMAGE_PREFIX#*/}
-CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector$PLATFORM_SUFFIX"
-CONNECTOR_UI_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector-ui$PLATFORM_SUFFIX"
+CONNECTOR_NAMES="registry-connector-api:registry-connector-ui registry-connector$PLATFORM_SUFFIX:registry-connector-ui$PLATFORM_SUFFIX"
 ecr_digest() {
   aws ecr describe-images --region "$AWS_REGION" --repository-name "$1" --image-ids "imageTag=$2" \
     --query 'imageDetails[0].imageDigest' --output text 2> /dev/null || true
@@ -96,13 +97,17 @@ build_tags=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$
 test -n "$build_tags" || { echo "staff-api $SERVICE_DIGEST has no build tag matching $BUILD_TAG_PATTERN in ECR." >&2; exit 1; }
 CONNECTOR_IMAGE_DIGEST=""
 for tag in $build_tags; do
-  CONNECTOR_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/registry-connector$PLATFORM_SUFFIX" "$tag")
-  CONNECTOR_UI_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/registry-connector-ui$PLATFORM_SUFFIX" "$tag")
-  if [[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$CONNECTOR_UI_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    BUILD_TAG=$tag
-    break
-  fi
-  CONNECTOR_IMAGE_DIGEST=""
+  for names in $CONNECTOR_NAMES; do
+    CONNECTOR_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/${names%%:*}" "$tag")
+    CONNECTOR_UI_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/${names#*:}" "$tag")
+    if [[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$CONNECTOR_UI_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      BUILD_TAG=$tag
+      CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/${names%%:*}"
+      CONNECTOR_UI_IMAGE_REPOSITORY="$IMAGE_PREFIX/${names#*:}"
+      break 2
+    fi
+    CONNECTOR_IMAGE_DIGEST=""
+  done
 done
 test -n "$CONNECTOR_IMAGE_DIGEST" || { echo "No registry-connector and registry-connector-ui image carries a build tag of the promoted staff-api ($build_tags)." >&2; exit 1; }
 echo "Promoted staff-api $SERVICE_DIGEST is build $BUILD_TAG"

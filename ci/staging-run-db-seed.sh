@@ -51,7 +51,7 @@ RELEASE="${RELEASE:-cropsown-registry}"
 PULL_SECRET="${PULL_SECRET:-cropsown-ecr}"
 SEED_TIMEOUT="${SEED_TIMEOUT:-900s}"
 ECR_HOST="$(cat .ecr-registry 2>/dev/null || echo "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com")"
-# eoan/cropsown-regsitry/db-seed-<RP version> (ci/image_names.py); a failed lookup stops here.
+# eoan/cropsown-registry/db-seed-<RP version> (ci/image_names.py); a failed lookup stops here.
 SEED_REPOSITORY="$(python3 ci/image_names.py repository db-seed)"
 IMAGE_REPO="${ECR_HOST}/${SEED_REPOSITORY}"
 JOB="${RELEASE}-db-seed"

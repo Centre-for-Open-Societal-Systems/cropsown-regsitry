@@ -27,8 +27,8 @@
 #   AWS_ACCOUNT_ID   owner of the ECR registry                      required
 #   KUBECONFIG       kubeconfig for the dev cluster                 required
 #   AWS_REGION       default ap-south-1
-#   (the registry images: eoan/cropsown-regsitry/<image>-<RP version>, from ci/image_names.py)
-#   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
+#   (the registry images: eoan/cropsown-registry/<image>-<RP version>, from ci/image_names.py)
+#   DASHBOARD_API_ECR default eoan/cropsown-registry/dashboard-api (ci/image_names.py)
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
 #   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
@@ -71,7 +71,7 @@ TAG="${1:-${TAG:-}}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
 : "${KUBECONFIG:?set KUBECONFIG}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
+DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-$(python3 ci/image_names.py repository dashboard-api)}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
