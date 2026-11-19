@@ -53,7 +53,7 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `da_mobile_number` | `cs_planning_details` | No | Text |
 | `supervisor_name` | `cs_planning_details` | No | Text |
 | `supervisor_mobile_number` | `cs_planning_details` | No | Text |
-| `land_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
+| `land_area` | `cs_planning_details` | No | Number, digits and an optional decimal point. Required when `planned_area` is given. |
 | `planned_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `expected_yield` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `crop_latitude` | `cs_planning_details` | No | The crop's latitude in decimal degrees. |
@@ -80,7 +80,7 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `cluster_<n>_season` | `cs_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cluster_details` | No | P-code, for example ET040404 |
@@ -138,7 +138,7 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `da_mobile_number` | `cs_cultivation_details` | No | Text |
 | `supervisor_name` | `cs_cultivation_details` | No | Text |
 | `supervisor_mobile_number` | `cs_cultivation_details` | No | Text |
-| `land_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
+| `land_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point. Required when `actual_crop_area` is given. |
 | `actual_crop_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
 | `actual_yield` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
 | `actual_seed_qty` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
@@ -175,7 +175,7 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `cluster_<n>_season` | `cs_cultivation_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cultivation_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cultivation_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cultivation_cluster_details` | No | P-code, for example ET040404 |
@@ -221,14 +221,14 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `commodity` | `cs_sowing_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `fertilizer_type` | `cs_sowing_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `cluster_name` | `cs_sowing_details` | No | Text |
-| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. |
+| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. Required when `cluster_status` has CLUSTERED. |
 | `da_name` | `cs_sowing_details` | No | Text |
 | `da_mobile_number` | `cs_sowing_details` | No | Text |
 | `supervisor_name` | `cs_sowing_details` | No | Text |
 | `supervisor_mobile_number` | `cs_sowing_details` | No | Text |
 | `area_sown` | `cs_sowing_details` | Yes | Number, digits and an optional decimal point |
 | `fertilizer_qty` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
-| `cluster_area_hectare` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
+| `cluster_area_hectare` | `cs_sowing_details` | No | Number, digits and an optional decimal point. Required when `cluster_area_sown` is given on a Clustered row. |
 | `cluster_area_sown` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
 | `sowing_date` | `cs_sowing_details` | Yes | YYYY-MM-DD |
 | `has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |

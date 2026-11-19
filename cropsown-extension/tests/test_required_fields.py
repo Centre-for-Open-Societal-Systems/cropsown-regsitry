@@ -310,6 +310,10 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # list and its show / require rules from CLUSTER to CLUSTERED; widget-required is untouched.
         if path.name.endswith("_cluster_status_list.sql"):
             continue
+        # The Sowing season overlay only adds a `require` rule, with the column's own show
+        # condition, to Season and Season (cluster); widget-required is untouched.
+        if path.name.endswith("_sowing_season_required.sql"):
+            continue
         body = path.read_text(encoding="utf8")
         for section_id in ("cropsown_planning_details_section_01", "cropsown_cultivation_details_section_01",
                            "cropsown_sowing_details_section_01", "cropsown_harvest_details_section_01"):

@@ -46,6 +46,9 @@ class G2PRegisterDomainServiceCluster(G2PRegisterDomainService):
             self._validate_collected_land(record)
             self._validate_cluster_plan(record)
             self._validate_collected_by_combiner(record)
+            from .domain_validation_utils import validate_date_in_window, validate_season_window
+            validate_season_window(record)
+            validate_date_in_window(record, "establishing_date", "Establishing date")
             # Not running: core passes no session on save, so this never ran. Kept for reference.
             # if session:
             #     await self._validate_land_id_matches_planning(record, session=session)
