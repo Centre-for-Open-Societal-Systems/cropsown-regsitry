@@ -210,7 +210,7 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
-class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
+class ReferenceIntakeService(RequiredFieldsMixin, DirectApprovalClosed, FaydaIdMixin, G2PIntakeFormDataService):
     # No approve_submission here: the DirectApprovalClosed guard answers a
     # direct approval first, for every register, before any lookup, so a
     # made-up id and a real one get the same AWE_APPROVAL_REQUIRED.
