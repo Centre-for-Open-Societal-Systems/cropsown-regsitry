@@ -12,7 +12,7 @@ def call() {
 // below and by ci/deploy-crop-dev.sh's own defaults, so there is nothing to tick
 // before a build, and a deploy by hand is the same command:
 //
-//   KUBECONFIG=<kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/deploy-crop-dev.sh develop-42
+//   KUBECONFIG=<kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/deploy-crop-dev.sh 0.0.0-develop.42
 //
 // Two deliberate differences from farmer-registry's file, both because crop is
 // built differently:
@@ -31,10 +31,11 @@ pipeline {
 
     environment {
         AWS_REGION     = 'ap-south-1'
-        ECR_BASE       = 'openg2p/cropsown-registry'
-        // The dashboard service follows the openg2p/<registry>/<image> convention.
-        DASHBOARD_API_ECR = 'openg2p/cropsown-registry/dashboard-api'
-        DASHBOARD_UI_ECR = 'openg2p/cropsown-registry/dashboard-ui'
+        // Every image this job builds: eoan/cropsown-registry/<image>[-<RP version>]:<version>-<branch>.<build>, named
+        // by ci/image_names.py (version from init.yaml, RP version from helm/openg2p-cropsown-registry/Chart.yaml).
+        // The dashboard images are built from their own source repositories but published here, under this job's names.
+        DASHBOARD_API_ECR = 'eoan/cropsown-registry/dashboard-api'
+        DASHBOARD_UI_ECR = 'eoan/cropsown-registry/dashboard-ui'
         // A maintainer's token for now; the GitHub App replaces this credential when it is configured.
         OAN_HELM_CRED_ID = 'oan-helm-fork-token'
 
@@ -93,6 +94,11 @@ pipeline {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/cropsown-reference-tests:rc557 -m unittest discover -s test -p test_onboarding_runner_failure.py -v'
                 // Sample-approver password hook against a fake Keycloak (stdlib only, no network).
                 sh 'python3 -m unittest discover -s test -p test_sample_approver_password.py -v'
+                // The ECR names of the images (ci/image_names.py).
+                sh 'python3 -m unittest discover -s test -p test_image_names.py -v'
+                // The ECR settings of every eoan repository (ci/ecr_repository.py).
+                sh 'python3 -m unittest discover -s test -p test_ecr_repository.py -v'
+                sh 'python3 -m unittest discover -s test -p test_image_name_scripts.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src oan/cropsown-reference-tests:rc557 -m unittest discover -s cropsown-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -199,7 +205,9 @@ pipeline {
                     if (!env.RP_VERSION) {
                         error 'could not read ARG RP_VERSION from docker/staff-api/Dockerfile'
                     }
-                    env.IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+                    // <version>-<branch>.<build>, version from init.yaml (ci/image_names.py).
+                    env.IMAGE_TAG = sh(returnStdout: true,
+                        script: 'python3 ci/image_names.py tag "$BRANCH_NAME" "$BUILD_NUMBER"').trim()
                     echo "openg2p-registry ${env.RP_VERSION}, image tag ${env.IMAGE_TAG}"
                 }
             }
@@ -213,10 +221,20 @@ pipeline {
             steps {
                 // AWS_ACCOUNT_ID stays inside this block: a bound credential is
                 // masked in the log only where it is in scope.
-                withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
+                // The pipeline's ECR credential, as in Farmer and Livestock: ci/ecr_repository.py creates and corrects
+                // repositories with it.
+                withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
+                                 [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-ecr-creds']]) {
                     sh '''
                         set -eu
                         ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        # ECR does not create repositories on push, a new platform version is a new repository name, and
+                        # every eoan repository has immutable tags, scan on push, AES256 and the owner and naming tags:
+                        # ci/ecr_repository.py creates a missing one and corrects an existing one, printing each change.
+                        # Tags are immutable, so a version is pushed once and there is no moving tag (no <branch> tag).
+                        ensure_repository() {
+                            python3 ci/ecr_repository.py ensure "$2" "$(python3 ci/image_names.py legacy "$1")"
+                        }
 
                         # Keep the buildx/compose CLI plugins visible from the per-build config dir.
                         mkdir -p "$DOCKER_CONFIG"; chmod 700 "$DOCKER_CONFIG"; if [ -d "$HOME/.docker/cli-plugins" ]; then ln -sfn "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"; fi
@@ -234,36 +252,27 @@ pipeline {
                         }
 
                         for SVC in ${SERVICES}; do
-                            IMAGE="${ECR_REGISTRY}/${ECR_BASE}/${SVC}"
+                            REPOSITORY=$(python3 ci/image_names.py repository "${SVC}")
+                            IMAGE="${ECR_REGISTRY}/${REPOSITORY}"
                             echo "--- ${SVC} -> ${IMAGE}:${IMAGE_TAG} ---"
 
-                            # --pull, not --no-cache: unchanged layers are reused,
-                            # but a moved base tag is still refreshed. Build agents are
-                            # on-demand and start with an empty Docker cache, so layers
-                            # come from the branch image in ECR (inline cache metadata).
+                            ensure_repository "${SVC}" "${REPOSITORY}"
+                            # --pull: a moved base tag is refreshed.
                             docker build --pull \
-                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --build-arg RP_VERSION="${RP_VERSION}" \
                                 -f "docker/${SVC}/Dockerfile" \
-                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .
-
-                            # ECR does not create repositories on push.
-                            aws ecr describe-repositories --region "${AWS_REGION}" \
-                                --repository-names "${ECR_BASE}/${SVC}" >/dev/null 2>&1 \
-                              || aws ecr create-repository --region "${AWS_REGION}" \
-                                    --repository-name "${ECR_BASE}/${SVC}" >/dev/null
+                                -t "${IMAGE}:${IMAGE_TAG}" .
 
                             docker push "${IMAGE}:${IMAGE_TAG}"
-                            docker push "${IMAGE}:${BRANCH_NAME}"
                             case "${SVC}" in
-                                staff-api) record_image registry.staffApi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
-                                staff-ui) record_image registry.staffUi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
-                                partner-api) record_image registry.partnerApi.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                staff-api) record_image registry.staffApi.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
+                                staff-ui) record_image registry.staffUi.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
+                                partner-api) record_image registry.partnerApi.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
                                 celery)
-                                    record_image registry.celeryWorker.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}"
-                                    record_image registry.celeryBeat.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
-                                db-seed) record_image registry.dbSeed.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
-                                sanity-tests) record_image registry.sanity.image "${ECR_BASE}/${SVC}" "${IMAGE_TAG}" ;;
+                                    record_image registry.celeryWorker.image "${REPOSITORY}" "${IMAGE_TAG}"
+                                    record_image registry.celeryBeat.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
+                                db-seed) record_image registry.dbSeed.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
+                                sanity-tests) record_image registry.sanity.image "${REPOSITORY}" "${IMAGE_TAG}" ;;
                             esac
 
                             # The connector image carries the OAN extension:
@@ -274,33 +283,33 @@ pipeline {
                                     -c 'pip install --quiet --no-cache-dir --root-user-action=ignore pytest==8.4.2 && python -m pytest -q -p no:cacheprovider tests'
                             fi
 
-                            # Drop the build tag, keep the branch tag: it is the
-                            # next build's cache.
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         done
 
                         if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
-                            UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${DASHBOARD_UI_SHA}"
-                            docker build --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
+                            ensure_repository dashboard-ui "${DASHBOARD_UI_ECR}"
+                            UI_IMAGE="${ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${IMAGE_TAG}"
+                            docker build --label org.opencontainers.image.source="${DASHBOARD_UI_REPO}" \
+                              --label org.opencontainers.image.revision="${DASHBOARD_UI_SHA}" \
+                              --label org.opencontainers.image.ref.name="${DASHBOARD_UI_REF_USED}" \
                               -f .build/dashboard-ui/Dockerfile -t "$UI_IMAGE" .build/dashboard-ui
                             docker push "$UI_IMAGE"
-                            record_image dashboardUi.image "${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"
+                            record_image dashboardUi.image "${DASHBOARD_UI_ECR}" "${IMAGE_TAG}"
                         fi
                         # Skipped when 'Checkout dashboard-api' did not run (staging).
                         if [ -n "${DASHBOARD_API_SHA:-}" ]; then
                             # The dashboard service, from its own repository (cloned by
                             # 'Checkout dashboard-api'), with its own build context.
+                            ensure_repository dashboard-api "${DASHBOARD_API_ECR}"
                             IMAGE="${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
                             echo "--- dashboard-api (${DASHBOARD_API_REF_USED} @ ${DASHBOARD_API_SHA}) -> ${IMAGE}:${IMAGE_TAG} ---"
                             docker build --pull \
-                                --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from "${IMAGE}:${BRANCH_NAME}" \
                                 --label org.opencontainers.image.source="${DASHBOARD_API_REPO}" \
                                 --label org.opencontainers.image.revision="${DASHBOARD_API_SHA}" \
                                 --label org.opencontainers.image.ref.name="${DASHBOARD_API_REF_USED}" \
                                 -f .build/dashboard-api/Dockerfile \
-                                -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:${BRANCH_NAME}" .build/dashboard-api
+                                -t "${IMAGE}:${IMAGE_TAG}" .build/dashboard-api
                             docker push "${IMAGE}:${IMAGE_TAG}"
-                            docker push "${IMAGE}:${BRANCH_NAME}"
                             record_image dashboardApi.image "${DASHBOARD_API_ECR}" "${IMAGE_TAG}"
                             docker rmi "${IMAGE}:${IMAGE_TAG}" || true
                         fi
@@ -335,22 +344,27 @@ pipeline {
                         }
                         // The service image (api, worker, beat) and the UI image come from the same
                         // build, so one tag resolves to one digest in each repository.
-                        env.CONNECTOR_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector"
-                        env.CONNECTOR_UI_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}/registry-connector-ui"
+                        def repositories = [:]
+                        ['registry-connector', 'registry-connector-ui'].each { name ->
+                            repositories[name] = sh(returnStdout: true, script: "python3 ci/image_names.py repository ${name}").trim()
+                        }
+                        env.CONNECTOR_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${repositories['registry-connector']}"
+                        env.CONNECTOR_UI_IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${repositories['registry-connector-ui']}"
                         def resolved = [:]
                         ['registry-connector', 'registry-connector-ui'].each { name ->
+                            def repository = repositories[name]
                             def digest
                             try {
                                 digest = sh(returnStdout: true, script: """
-                                    aws ecr describe-images --region "${AWS_REGION}" --repository-name "${ECR_BASE}/${name}"                                         --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
+                                    aws ecr describe-images --region "${AWS_REGION}" --repository-name "${repository}"                                         --image-ids imageTag="${tag}" --query 'imageDetails[0].imageDigest' --output text
                                 """).trim()
                             } catch (err) {
-                                error "image ${ECR_BASE}/${name}:${tag} was not found in ECR (${err.message})"
+                                error "image ${repository}:${tag} was not found in ECR (${err.message})"
                             }
                             if (!(digest ==~ /sha256:[0-9a-f]{64}/)) {
-                                error "could not resolve ${ECR_BASE}/${name}:${tag} to a digest"
+                                error "could not resolve ${repository}:${tag} to a digest"
                             }
-                            echo "connector image ${ECR_BASE}/${name}:${tag} = ${digest}"
+                            echo "connector image ${repository}:${tag} = ${digest}"
                             resolved[name] = digest
                         }
                         env.CONNECTOR_IMAGE_DIGEST = resolved['registry-connector']
@@ -379,7 +393,7 @@ pipeline {
             steps {
                 sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch registry'
                 sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch dashboard'
-                stash name: 'deploy', includes: "ci/**,.central-charts/**,.ecr-token,.ecr-registry"
+                stash name: 'deploy', includes: "init.yaml,ci/**,.central-charts/**,.ecr-token,.ecr-registry,helm/openg2p-cropsown-registry/Chart.yaml"
                 // Stashed; keep the credential out of the build agent's workspace.
                 sh 'rm -f .ecr-token .ecr-registry'
             }
@@ -498,7 +512,7 @@ pipeline {
                                 sh 'BUILT_CHART_DIR="$PWD/built-chart" bash ci/deploy-crop-dev.sh "${IMAGE_TAG}"'
                             }
                         }
-                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${DASHBOARD_UI_SHA}"'
+                        sh 'bash ci/dashboard/deploy-ui.sh cropsown "${HELM_NAMESPACE}" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${DASHBOARD_UI_ECR}" "${IMAGE_TAG}"'
                     }
                 }
             }
@@ -508,7 +522,7 @@ pipeline {
             // staging only, and never helm upgrade, so staging's release, chart,
             // values and hostnames are untouched:
             //   1. ci/staging-set-images.sh moves each app Deployment to this
-            //      build's staging-<n> image (kubectl set image), and undoes them
+            //      build's image (kubectl set image), and undoes them
             //      all if a rollout fails;
             //   2. ci/staging-run-db-seed.sh then runs this build's db-seed as a
             //      plain Job, rendered with staging's own release values, so the
@@ -607,7 +621,7 @@ URL:        ${env.BUILD_URL}
 Console:    ${env.BUILD_URL}console
 
 If the images built and pushed they are in ECR under
-openg2p/cropsown-registry/*:${env.IMAGE_TAG}, and the deploy can be re-run by hand
+eoan/cropsown-registry/<image>[-<RP version>]:${env.IMAGE_TAG}, and the deploy can be re-run by hand
 from oan-ci-deploy-agent-1 with ci/deploy-crop-dev.sh.
 
 Regards,

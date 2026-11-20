@@ -6,7 +6,7 @@
 # at https://10.0.1.58:6443, set up by ci/k8s/crop-ci-dev.yaml). It is a script,
 # not inline Groovy, so a deploy by hand is the same command:
 #
-#   KUBECONFIG=<kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/deploy-crop-dev.sh develop-42
+#   KUBECONFIG=<kubeconfig> AWS_ACCOUNT_ID=<id> ./ci/deploy-crop-dev.sh 0.0.0-develop.42
 #
 # What it does, in order:
 #   1. Preflight: print the API server and identity; stop at once if the server
@@ -27,8 +27,8 @@
 #   AWS_ACCOUNT_ID   owner of the ECR registry                      required
 #   KUBECONFIG       kubeconfig for the dev cluster                 required
 #   AWS_REGION       default ap-south-1
-#   ECR_BASE         default openg2p/cropsown-registry
-#   DASHBOARD_API_ECR default openg2p/cropsown-registry/dashboard-api
+#   (the registry images: eoan/cropsown-registry/<image>-<RP version>, from ci/image_names.py)
+#   DASHBOARD_API_ECR default eoan/cropsown-registry/dashboard-api (ci/image_names.py)
 #   HELM_RELEASE     default cropsown-registry
 #   HELM_NAMESPACE   default crop
 #   EXPECTED_SERVER  default https://10.0.1.58:6443 â€” refuse any other API server
@@ -71,8 +71,7 @@ TAG="${1:-${TAG:-}}"
 : "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID}"
 : "${KUBECONFIG:?set KUBECONFIG}"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
-ECR_BASE="${ECR_BASE:-openg2p/cropsown-registry}"
-DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/cropsown-registry/dashboard-api}"
+DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-$(python3 ci/image_names.py repository dashboard-api)}"
 HELM_RELEASE="${HELM_RELEASE:-cropsown-registry}"
 HELM_NAMESPACE="${HELM_NAMESPACE:-crop}"
 EXPECTED_SERVER="${EXPECTED_SERVER-https://10.0.1.58:6443}"
@@ -107,7 +106,13 @@ SEED_MINIO_ASSETS="${SEED_MINIO_ASSETS:-true}"
 # (templates/reporting-views*.yaml, templates/dashboard-api.yaml).
 DASHBOARD_API="${DASHBOARD_API:-true}"
 HELM_TIMEOUT="${HELM_TIMEOUT:-40m}"
-ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_BASE}"
+ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+# The registry images, resolved before anything is changed: a failed lookup stops here, where inside the values
+# heredoc below it would only leave an empty repository.
+declare -A IMAGE
+for component in staff-api staff-ui partner-api celery db-seed sanity-tests; do
+  IMAGE[$component]="${ECR}/$(python3 ci/image_names.py repository "$component")"
+done
 
 NS=(-n "$HELM_NAMESPACE")
 WORK="$(mktemp -d)"
@@ -156,7 +161,7 @@ if [ -n "$EXPECTED_SERVER" ] && [ "${SERVER%/}" != "${EXPECTED_SERVER%/}" ]; the
 fi
 echo "namespace: ${HELM_NAMESPACE}"
 echo "release:   ${HELM_RELEASE}"
-echo "images:    ${ECR}/*:${TAG}"
+echo "images:    ${IMAGE[staff-api]%/*}/<image>-<RP version>:${TAG}"
 
 if ! CONN="$(kubectl get --raw /version --request-timeout=15s 2>&1)"; then
   echo "ERROR: cannot connect to the API server:" >&2
@@ -302,24 +307,24 @@ fi
 cat > "$WORK/ci-values.yaml" <<EOF
 registry:
   staffApi:
-    image: {repository: '${ECR}/staff-api', tag: '${TAG}'}
+    image: {repository: '${IMAGE[staff-api]}', tag: '${TAG}'}
   staffUi:
-    image: {repository: '${ECR}/staff-ui', tag: '${TAG}'}
+    image: {repository: '${IMAGE[staff-ui]}', tag: '${TAG}'}
   partnerApi:
-    image: {repository: '${ECR}/partner-api', tag: '${TAG}'}
+    image: {repository: '${IMAGE[partner-api]}', tag: '${TAG}'}
   celeryWorker:
-    image: {repository: '${ECR}/celery', tag: '${TAG}'}
+    image: {repository: '${IMAGE[celery]}', tag: '${TAG}'}
   celeryBeat:
-    image: {repository: '${ECR}/celery', tag: '${TAG}'}
+    image: {repository: '${IMAGE[celery]}', tag: '${TAG}'}
   dbSeed:
     enabled: ${RUN_DB_SEED}
     # The crop db-seed image carries configuration only (no /seed/upload_images.py).
     loadImages: false
     loadTemplates: ${SEED_MINIO_ASSETS}
-    image: {repository: '${ECR}/db-seed', tag: '${TAG}'}
+    image: {repository: '${IMAGE[db-seed]}', tag: '${TAG}'}
   sanity:
     enabled: ${RUN_SANITY}
-    image: {repository: '${ECR}/sanity-tests', tag: '${TAG}'}
+    image: {repository: '${IMAGE[sanity-tests]}', tag: '${TAG}'}
   iamRegister:
     enabled: ${RUN_IAM_REGISTER}
 reporting:
@@ -459,7 +464,7 @@ if [ "${OUTSIDE_CHART:-true}" = "true" ]; then
   say "Deployments outside the chart"
   for PAIR in "${HELM_RELEASE}-staff-portal-ui-pub:staff-ui"; do
     D="${PAIR%%:*}"
-    IMG="${ECR}/${PAIR#*:}:${TAG}"
+    IMG="${IMAGE[${PAIR#*:}]}:${TAG}"
     if ! kubectl get deploy "$D" "${NS[@]}" >/dev/null 2>&1; then
       echo "${D}: not in ${HELM_NAMESPACE}, skipped"
       continue
