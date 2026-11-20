@@ -7,8 +7,6 @@ def call() {
     properties([parameters([
         choice(name: 'OPERATOR_ACTION', choices: ['publish-only', 'fresh-install', 'connector-plan', 'connector-upgrade'],
             description: 'develop only. fresh-install backs up the New Dev databases, uninstalls the release, DROPS the databases and installs the pinned chart on an empty database. connector-plan prints, changing nothing, what connector-upgrade would do. connector-upgrade builds no images, archives the connector database and upgrades the connector release. publish-only builds and pushes the images without deploying.'),
-        string(name: 'CONNECTOR_IMAGE_TAG', defaultValue: 'develop',
-            description: 'connector-plan and connector-upgrade only: the connector image tag to pin by digest.'),
         booleanParam(name: 'ALLOW_NON_IMAGE_CHANGES', defaultValue: false,
             description: 'connector-plan and connector-upgrade only: accept a deliberate chart change (removed non-image lines or a rendered Job, such as the connector-definitions Job) instead of failing the images-only check. Read the plan diff first.')
     ])])
@@ -28,7 +26,6 @@ def call() {
     // Only ASMIT runs this job: the approval is restricted to the Jenkins 'admin' user.
     input message: "Run '${params.OPERATOR_ACTION}' on ${env.BRANCH_NAME} (ALLOW_NON_IMAGE_CHANGES=${params.ALLOW_NON_IMAGE_CHANGES})? fresh-install DROPS the New Dev databases.", ok: 'Run', submitter: 'admin'
     env.NEW_DEV_DELIVERY_ACTION = params.OPERATOR_ACTION
-    env.CONNECTOR_IMAGE_TAG = params.CONNECTOR_IMAGE_TAG ?: 'develop'
     env.ALLOW_NON_IMAGE_CHANGES = params.ALLOW_NON_IMAGE_CHANGES ? '1' : '0'
     def delivery
     node {

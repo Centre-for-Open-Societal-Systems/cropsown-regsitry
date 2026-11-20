@@ -54,6 +54,21 @@ class ChartDeliveryTests(unittest.TestCase):
         self.assertIn("DASHBOARD_API_ECR = 'eoan/cropsown-registry/dashboard-api'", PIPELINE)
         self.assertIn("DASHBOARD_UI_ECR = 'eoan/cropsown-registry/dashboard-ui'", PIPELINE)
 
+    def test_the_connector_actions_take_the_pinned_build_and_digests(self):
+        import json, re, subprocess, sys
+        pin = json.loads((ROOT / "ci/deploy/connector-image.newdev.json").read_text(encoding="utf-8"))
+        self.assertRegex(pin["tag"], r"^\d+\.\d+\.\d+-develop\.[1-9]\d*$")       # a build tag, never a moving one
+        self.assertEqual(sorted(pin["digests"]), ["registry-connector-api", "registry-connector-ui"])
+        for name, digest in pin["digests"].items():
+            self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
+            done = subprocess.run([sys.executable, str(ROOT / "ci/deploy/connector_image.py"), name],
+                                  stdout=subprocess.PIPE, universal_newlines=True, check=True)
+            self.assertEqual(done.stdout.strip(), digest)
+        self.assertIn('python3 ci/deploy/connector_image.py ${field}', PIPELINE)
+        self.assertIn("is ${digest} in ECR, not the pinned ${pinned}", PIPELINE)
+        self.assertNotIn("CONNECTOR_IMAGE_TAG", PIPELINE)
+        self.assertNotIn("CONNECTOR_IMAGE_TAG", (ROOT / "ci/pipelines/operator.groovy").read_text(encoding="utf-8"))
+
     def test_every_build_tests_the_image_names(self):
         self.assertIn("python3 -m unittest discover -s test -p test_image_names.py -v", PIPELINE)
         self.assertIn("python3 -m unittest discover -s test -p test_image_name_scripts.py -v", PIPELINE)

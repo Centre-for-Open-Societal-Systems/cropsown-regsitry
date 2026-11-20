@@ -1,0 +1,8 @@
+{
+  "_comment": "The connector images New Dev's cropsown-connector release runs (connector-plan, then connector-upgrade). One develop build's registry-connector-api and registry-connector-ui, named by ci/image_names.py and pinned by digest. Change it by PR to move the connector.",
+  "tag": "1.0.0-develop.307",
+  "digests": {
+    "registry-connector-api": "sha256:7cb3b43ae871fd37472ffd15da9aeb6209d22b4dbea0c94455a34a55f7010a69",
+    "registry-connector-ui": "sha256:aa9844e8bcad4c9326337d59b543f94baaae66d38aafa6abc140f6a275493d7a"
+  }
+}
