@@ -338,9 +338,15 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
                     script {
-                        def tag = (env.CONNECTOR_IMAGE_TAG ?: 'develop').trim()
-                        if (!(tag ==~ /[A-Za-z0-9._-]{1,128}/)) {
-                            error "CONNECTOR_IMAGE_TAG must match [A-Za-z0-9._-]{1,128}; got '${tag}'"
+                        // The images are the ones pinned in ci/deploy/connector-image.newdev.json: one develop
+                        // build's tag and the digest of each image. Tags are immutable, so ECR must still give
+                        // that digest for that tag; anything else stops here. There is no moving tag to follow.
+                        def pinField = { String field ->
+                            sh(returnStdout: true, script: "python3 ci/deploy/connector_image.py ${field}").trim()
+                        }
+                        def tag = pinField('tag')
+                        if (!(tag ==~ /[0-9]+\.[0-9]+\.[0-9]+-develop\.[1-9][0-9]*/)) {
+                            error "ci/deploy/connector-image.newdev.json: tag must be a develop build tag; got '${tag}'"
                         }
                         // The service image (api, worker, beat) and the UI image come from the same
                         // build, so one tag resolves to one digest in each repository.
@@ -363,6 +369,10 @@ pipeline {
                             }
                             if (!(digest ==~ /sha256:[0-9a-f]{64}/)) {
                                 error "could not resolve ${repository}:${tag} to a digest"
+                            }
+                            def pinned = pinField(repository.tokenize('/').last())
+                            if (digest != pinned) {
+                                error "${repository}:${tag} is ${digest} in ECR, not the pinned ${pinned}"
                             }
                             echo "connector image ${repository}:${tag} = ${digest}"
                             resolved[name] = digest

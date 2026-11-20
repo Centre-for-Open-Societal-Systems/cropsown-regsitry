@@ -58,9 +58,11 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 
 The service image (api, worker, beat) is `eoan/cropsown-registry/registry-connector-api` (built by this
 pipeline from `docker/registry-connector`) and the UI image is `eoan/cropsown-registry/registry-connector-ui`
-(from `docker/registry-connector-ui`; names from `ci/image_names.py`). Both are taken from the tag `CONNECTOR_IMAGE_TAG` (default
-`develop`, or a build tag such as `0.0.0-develop.195`), each resolved to its own digest in ECR and pinned by
-digest, so the Helm release owns the images instead of a hand-run `kubectl set image`.
+(from `docker/registry-connector-ui`; names from `ci/image_names.py`). Both come from
+`ci/deploy/connector-image.newdev.json`: one develop build's tag (such as `1.0.0-develop.307`) and the digest of each
+image. The pipeline checks that ECR still gives that digest for that tag (tags are immutable) and pins the release by
+digest, so the Helm release owns the images instead of a hand-run `kubectl set image`. Moving the connector is a PR
+that changes the pin.
 
 Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
 release's values with `helm get values`, writes a small override file (the image on api,

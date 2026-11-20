@@ -23,7 +23,7 @@
     "environment": "dev",
     "namespace": "crop",
     "release": "cropsown-registry-dashboard",
-    "promotionReady": false,
+    "promotionReady": true,
     "values": {
       "path": "environments/dev/values/cropsown-dashboard.yaml",
       "sha256": "b7882002d3de4c9c6b803bdf756535716933f9801d5f33f62ccc769f3c7b8cfc"
