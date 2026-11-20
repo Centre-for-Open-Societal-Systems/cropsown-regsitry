@@ -40,8 +40,9 @@
 #                    portal/API public hosts, Keycloak or MinIO below
 #   KEYCLOAK_URL     default https://keycloak.development.oanstaging.com â€” the
 #                    Keycloak the APIs call (staff API's AWE token, approvers)
-#   MINIO_HOST       default minio-farmer.development.oanstaging.com â€” the shared
-#                    MinIO (templates bucket, documents, browser pre-signed URLs)
+#   MINIO_HOST       default garage.development.oanstaging.com â€” the shared
+#                    object store, Garage since 20 Nov 2026 (templates bucket, documents,
+#                    browser pre-signed URLs); minio-farmer.development is an alias for it
 #   REGISTRY_HOST    default crop-registry.development.oanstaging.com (staff UI)
 #   STAFF_API_HOST   default staff-crop.development.oanstaging.com
 #   PARTNER_API_HOST default partner-crop.development.oanstaging.com
@@ -89,7 +90,7 @@ COOKIE_DOMAIN="${COOKIE_DOMAIN:-.development.oanstaging.com}"
 # ("Name does not resolve") and ingestion could not load its templates from
 # minio-api.crop.openg2p.test.
 KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
-MINIO_HOST="${MINIO_HOST:-minio-farmer.development.oanstaging.com}"
+MINIO_HOST="${MINIO_HOST:-garage.development.oanstaging.com}"
 RUN_DB_SEED="${RUN_DB_SEED:-true}"
 RUN_SANITY="${RUN_SANITY:-false}"
 # iam-register takes its token from the PUBLIC Keycloak URL
