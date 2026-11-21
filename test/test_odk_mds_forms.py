@@ -169,6 +169,29 @@ def test_committed_workbooks(form_id):
         kind = (r["type"] or "").split()
         if kind[0] == "select_one_from_file" and kind[1] in ("zone.csv", "woreda.csv", "kebele.csv"):
             assert (r["choice_filter"] or "").startswith("parent="), (form_id, r["name"])
+    # the published forms carry the builder's rules and its version
+    assert str(settings["version"]) == builder.VERSION, form_id
+    land_ids = [r for r in survey if r["name"] in builder.LAND_ID_QUESTIONS[form_id]]
+    assert {r["name"] for r in land_ids} == builder.LAND_ID_QUESTIONS[form_id], form_id
+    assert all(r["constraint"] == builder.LAND_ID_CONSTRAINT and r["constraint_message"] == builder.LAND_ID_MESSAGE
+               for r in land_ids), form_id
+    for r in survey:
+        if r["name"] in builder.NO_DATE_LIMIT.get(form_id, set()):
+            assert not r.get("constraint") and not r.get("constraint_message"), (form_id, r["name"])
+    required = builder.REQUIRED[form_id]
+    assert {r["name"] for r in survey if r["name"] in required} == set(required), form_id
+    for r in survey:
+        if r["name"] in required:
+            assert (r["required"] == "yes") is required[r["name"]], (form_id, r["name"])
+    assert required["crop_year"] is True, form_id
+
+
+def test_the_odk_land_id_is_plain_text_refusing_only_spaces():
+    """Land ID has no format (UPID or Adjudication ID, as on the land certificate): ODK refuses
+    only an answer of spaces alone, as the server does."""
+    assert builder.LAND_ID_CONSTRAINT == "string-length(normalize-space(.)) > 0"
+    assert "regex" not in builder.LAND_ID_CONSTRAINT
+    assert builder.LAND_ID_MESSAGE == "Enter the ID from the land certificate."
 
 
 @pytest.mark.parametrize("form_id", ("crop_sown_registry_plan", "crop_sown_registry_prep"))
@@ -213,17 +236,24 @@ def test_pest_dates_and_land_ids_read_as_on_the_web_form(pack, tmp_path):
         dates = [r for r in survey if (r["type"] or "").split(" ")[0] == "date"]
         assert dates and all(r["appearance"] == "ethiopian" for r in dates), form_id
         assert not any("Gregorian" in (r["label"] or "") for r in dates), form_id
-        assert all(not r.get("constraint") for r in survey if r["name"] == "cluster_land_info_id"), form_id
+        # Land IDs carry only the Land ID format, not a match against other rows
+        land_ids = [r for r in survey if r["name"] in ("land_info_id", "cluster_land_info_id", "infestation_land_info_id")]
+        assert {r["name"] for r in land_ids} == builder.LAND_ID_QUESTIONS[form_id], form_id
+        assert all(r["constraint"] == builder.LAND_ID_CONSTRAINT and r["constraint_message"] == builder.LAND_ID_MESSAGE
+                   for r in land_ids), form_id
     sown = sheet(openpyxl.load_workbook(tmp_path / "forms" / "crop_sown_registry_sown.xlsx"), "survey")
     types = {r["name"]: r["type"] for r in sown}
     assert types["pest_name"] == "text"  # typed, as on the web form
     assert types["pest_pesticide_method"] == "select_one pest_control_action"
     assert types["infestation_type_ids"] == "select_one infestation_type"  # one type per incident, as on the web form
     assert types["weed_control_method"] == "select_one method_control"  # matches the web form's own list
-    # the infestation Land ID is not checked against the Sowing rows, as on the web form
+    # the infestation Land ID is not checked against the Sowing rows, as on the web form: only its format
     infestation_land = [r for r in sown if r["name"] == "infestation_land_info_id"]
     assert len(infestation_land) == 1
-    assert not infestation_land[0].get("constraint") and not infestation_land[0].get("constraint_message")
+    assert infestation_land[0]["constraint"] == builder.LAND_ID_CONSTRAINT
+    # Date of observation may be a future date, as on the server
+    observation = [r for r in sown if r["name"] == "observation_date"]
+    assert len(observation) == 1 and not observation[0].get("constraint") and not observation[0].get("constraint_message")
 
 
 def test_planning_and_cultivation_ask_the_land_and_crop_locations_as_on_the_web_form(pack, tmp_path):

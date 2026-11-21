@@ -323,9 +323,8 @@ def test_cultivation_land_prep_methods_and_fin_identity():
 
 
 def test_sowing_and_harvest_cluster_status_are_lists_and_headers_ignore_case():
-    sowing = render('sowing', {**BASE, 'Land_ID': ' L1 ', 'cluster_status': 'cluster; independent'})
-    # a Clustered row without cluster_land_id takes its land_id as the Land ID (cluster)
-    assert sowing['cs_sowing_details'][0] == {'land_id': 'L1', 'cluster_land_id': 'L1',
+    sowing = render('sowing', {**BASE, 'Land_ID': ' L1 ', 'cluster_land_id': 'C1', 'cluster_status': 'cluster; independent'})
+    assert sowing['cs_sowing_details'][0] == {'land_id': 'L1', 'cluster_land_id': 'C1',
                                               'cluster_status': ['CLUSTERED', 'INDEPENDENT'], 'season': 'SEASON_MEHER'}
     harvest = render('harvesting', {**BASE, 'land_id': 'L1', 'qty_harvested': '12'})
     assert harvest['cs_harvest_details'][0] == {'land_id': 'L1', 'qty_harvested': 12.0}
@@ -368,11 +367,13 @@ def test_cultivation_no_keeps_the_land_columns():
 
 
 @pytest.mark.parametrize('form', ('sowing', 'harvesting'))
-def test_a_clustered_row_without_cluster_land_id_uses_its_land_id(form):
-    record = render(form, {**BASE, 'land_id': 'L1', 'cluster_status': 'CLUSTER'})[FORMS[form]['details']][0]
-    assert record['cluster_land_id'] == 'L1' and 'land_id' not in record
-    record = render(form, {**BASE, 'land_id': 'L1', 'cluster_status': 'CLUSTER;INDEPENDENT'})[FORMS[form]['details']][0]
-    assert (record['land_id'], record['cluster_land_id']) == ('L1', 'L1')
+def test_a_clustered_row_needs_its_cluster_land_id(form):
+    # Required as on the web form and in ODK: a blank one is refused, not filled from land_id.
+    for status in ('CLUSTER', 'CLUSTER;INDEPENDENT'):
+        with pytest.raises(UndefinedError, match='column cluster_land_id is required for a Clustered row'):
+            render(form, {**BASE, 'land_id': 'L1', 'cluster_status': status})
+    record = render(form, {**BASE, 'cluster_land_id': 'C9', 'cluster_status': 'CLUSTER'})[FORMS[form]['details']][0]
+    assert record['cluster_land_id'] == 'C9'
     record = render(form, {**BASE, 'land_id': 'L1', 'cluster_land_id': 'C9', 'cluster_status': 'CLUSTER;INDEPENDENT'})
     assert (record[FORMS[form]['details']][0]['land_id'], record[FORMS[form]['details']][0]['cluster_land_id']) == ('L1', 'C9')
 

@@ -303,9 +303,6 @@ def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
         # the optional "Is planning record created?" questions and the land fields for No.
         if path.name.endswith("_sowing_harvest_land_rows.sql"):
             continue
-        # The dates overlay only adds the Sowing date and Date of observation pickers' "today" limit and message.
-        if path.name.endswith("_dates_not_future.sql"):
-            continue
         # The cluster status overlay only moves Sowing / Harvest Cluster status to the CLUSTER_STATUS
         # list and its show / require rules from CLUSTER to CLUSTERED; widget-required is untouched.
         if path.name.endswith("_cluster_status_list.sql"):
