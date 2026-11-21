@@ -20,6 +20,7 @@ WHEN field='fayda_fin' THEN pattern:='^\s*[0-9]{12}\s*$'; message_key:='validati
 WHEN field='first_name' THEN pattern:=person_pattern; message_key:='validation_first_name';
 WHEN field='first_name_amh' THEN pattern:=ethiopic_pattern; message_key:='validation_first_name_amh';
 WHEN field='first_name_other' THEN pattern:=person_pattern; message_key:='validation_first_name_other';
+WHEN field IN ('land_id','cluster_land_id') THEN pattern:='\S'; message_key:='validation_land_id';
 WHEN field='last_name' THEN pattern:=person_pattern; message_key:='validation_last_name';
 WHEN field='last_name_amh' THEN pattern:=ethiopic_pattern; message_key:='validation_last_name_amh';
 WHEN field='last_name_other' THEN pattern:=person_pattern; message_key:='validation_last_name_other';
