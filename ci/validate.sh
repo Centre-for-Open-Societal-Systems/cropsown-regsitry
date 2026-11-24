@@ -4,7 +4,15 @@ case "${1:-source}" in source|--native) ;; *) echo "Usage: ci/validate.sh [--nat
 export REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension
 export PYTHONPATH="cropsown-extension/src${PYTHONPATH:+:$PYTHONPATH}"
 python -m ruff check --no-cache --select E9,F63,F7,F82 cropsown-extension/src cropsown-extension/tests
-python -m pytest -q -p no:cacheprovider test/test_sample_loader.py test/test_rp_pin_lockstep.py test/test_oan_chart.py test/test_deployment_guard.py test/test_onboarding_runner_failure.py test/test_metadata_transitions.py test/test_default_approvals.py test/test_verified_update_policy.py test/test_require_green_checks.py test/test_direct_approval.py
+# Every test in test/, so a new test file runs without being listed here. test/sanity runs against a deployment.
+python -m pytest -q -p no:cacheprovider test --ignore=test/sanity
+# The staff UI widget tests import TypeScript, which Node runs from 22.18. The Jenkins test image has no Node; the
+# GitHub contracts check runs them, and Jenkins deploys only when every GitHub check is green.
+if command -v node > /dev/null; then
+  node --test test/*.test.mjs
+else
+  echo "note: node unavailable; test/*.test.mjs run in the GitHub contracts check"
+fi
 # Native suites require the published OpenG2P runtime. GitHub's native-image
 # step runs these independently; Jenkins requests this mode inside that image.
 if [[ "${1:-source}" == --native ]]; then
