@@ -13,7 +13,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson openpyxl==3.1.5
       - name: Source and deployment contracts
         run: bash ci/validate.sh
       - name: cropsown-connector chart renders the digest-pinned image
