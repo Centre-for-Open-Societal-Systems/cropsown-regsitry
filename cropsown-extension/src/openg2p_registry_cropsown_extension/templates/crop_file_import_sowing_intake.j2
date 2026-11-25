@@ -71,7 +71,8 @@
 {#- Land rows (zz-oan/97g_sowing_harvest_land_rows.sql): Land ID for Independent, Land ID (cluster)
     for Clustered, and "Is planning record created?" for each (is_land_recorded / is_cluster_land_recorded).
     yes keeps only the Land ID; no keeps the land (Independent) or the cluster location (Clustered).
-    A file without cluster_land_id gives a Clustered row its land_id, as before. -#}
+    A Clustered row needs its cluster_land_id, as on the web form and in ODK (a blank one is
+    refused, not filled from land_id). -#}
 {% for key in ['cluster_land_id', 'plot_category', 'ownership_type', 'soil_fertility_type', 'cluster_sub_kebele'] %}{% if cell.get(key) %}{% set _ = record.update({key: cell[key]}) %}{% endif %}{% endfor %}
 {% for key in ['is_land_recorded', 'is_cluster_land_recorded', 'is_plot_not_registered'] %}{% set value = cell.get(key, '') | lower %}{% if value %}
   {% if value not in ['true', 'yes', '1', 'false', 'no', '0'] %}{{ fail('column ' ~ key ~ ' must be yes or no, got ' ~ value) }}{% endif %}
@@ -83,10 +84,7 @@
 {% endif %}{% endfor %}
 {% for key in ['region', 'zone', 'woreda', 'kebele', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele'] %}{% set code = cell.get(key, '') | upper %}{% if code %}{% set _ = record.update({key: code}) %}{% endif %}{% endfor %}
 {% set statuses = record.get('cluster_status') or [] %}
-{% if 'CLUSTERED' in statuses and not record.get('cluster_land_id') and record.get('land_id') %}
-  {% set _ = record.update({'cluster_land_id': record['land_id']}) %}
-  {% if 'INDEPENDENT' not in statuses %}{% set _ = record.pop('land_id', none) %}{% endif %}
-{% endif %}
+{% if 'CLUSTERED' in statuses and not record.get('cluster_land_id') %}{{ fail('column cluster_land_id is required for a Clustered row') }}{% endif %}
 {% if record.get('is_land_recorded') is sameas true %}
   {% for key in ['is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'] %}{% set _ = record.pop(key, none) %}{% endfor %}
 {% endif %}

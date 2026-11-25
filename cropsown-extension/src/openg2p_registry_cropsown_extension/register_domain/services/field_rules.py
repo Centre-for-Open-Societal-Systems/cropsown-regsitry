@@ -48,8 +48,15 @@ DATE_FIELDS = frozenset(
         "start_gc",
     ]
 )
-# Sowing date and Date of observation: today or earlier, on every channel (web, ODK, file import).
-PAST_ONLY = frozenset({"date_of_birth", "registration_date", "sowing_date", "observation_date"})
+# Land ID and Land ID (cluster) are plain text, typed as on the land certificate (UPID or
+# Adjudication ID): there is no single format, so none is enforced. Only a value of spaces
+# alone is refused, on every channel (web, ODK, file import, change requests); an empty
+# value is left to the required rules.
+LAND_ID_FIELDS = frozenset({"land_id", "cluster_land_id"})
+
+# Sowing date and Date of observation may be future dates; they are only checked as dates
+# (DATE_FIELDS), on every channel (web, ODK, file import, change requests).
+PAST_ONLY = frozenset({"date_of_birth", "registration_date"})
 
 # Numeric-value fields. Rule is keyed by field name, so one entry covers every
 # section (and both intake and change-request, since clean_records runs in both).
@@ -112,6 +119,8 @@ LABELS = {
     "last_name_other": "Last name (other language)",
     "da_mobile_number": "Development agent mobile number",
     "supervisor_mobile_number": "Supervisor mobile number",
+    "land_id": "Land ID",
+    "cluster_land_id": "Land ID (cluster)",
 }
 MESSAGES = {
     "validation_rule_name_format": "{label}: use 1 to 100 letters, spaces, hyphens or apostrophes. Do not use digits or other symbols.",
@@ -131,6 +140,7 @@ MESSAGES = {
     "validation_rule_month": "{label}: enter a whole number from 1 to 12.",
     "validation_rule_day": "{label}: enter a whole number from 1 to 31.",
     "validation_rule_mobile": "{label}: enter a valid Ethiopian mobile number (e.g. +251911234567 or 0911234567).",
+    "validation_rule_land_id_blank": "{label}: enter the ID from the land certificate.",
 }
 
 
@@ -188,6 +198,10 @@ def clean_records(records):
         problems.extend(split_fayda_id(record))
         for key, value in list(record.items()):
             field = key.rsplit(".", 1)[-1] if isinstance(key, str) else None
+            if field in LAND_ID_FIELDS and isinstance(value, str) and value != "" and not value.strip():
+                # Checked before blanks are skipped: a Land ID of spaces alone is refused.
+                problems.append(Issue(field, "validation_rule_land_id_blank"))
+                continue
             if value is None or isinstance(value, str) and not value.strip():
                 continue
             if field in PERSON_NAMES:

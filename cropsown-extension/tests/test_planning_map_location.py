@@ -53,7 +53,8 @@ def test_the_planning_model_keeps_gps_and_adds_latitude_and_longitude():
 def test_odk_and_file_import_fill_the_planning_latitude_and_longitude():
     odk = (PACKAGE / "templates/odk_to_crop_intake.j2").read_text(encoding="utf-8")
     planning = odk.split('"cs_planning_details"')[1]
-    assert '"latitude": "{{ p_lat }}"' in planning and '"longitude": "{{ p_lon }}"' in planning
+    assert ('"latitude": {{ (p_lat) | trim | tojson }}' in planning
+            and '"longitude": {{ (p_lon) | trim | tojson }}' in planning)
     assert "p_gps_str" not in odk
     imported = (PACKAGE / "templates/crop_file_import_planning_intake.j2").read_text(encoding="utf-8")
     assert "record.update({'latitude': latitude | string, 'longitude': longitude | string})" in imported

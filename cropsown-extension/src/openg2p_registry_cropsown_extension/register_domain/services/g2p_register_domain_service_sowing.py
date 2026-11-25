@@ -607,7 +607,7 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
     #         validation_error(f"Land ID '{land_id}' in Sowing does not match any Land ID specified in Cultivation / cultivation cluster{msg_fayda}.")
 
     def _validate_sowing_date(self, record: dict) -> None:
-        # A future sowing date is refused by field_rules (PAST_ONLY), on every channel.
+        # A future sowing date is allowed; field_rules checks it is a real date, on every channel.
         return
 
     def _validate_area_sown(self, record: dict) -> None:
