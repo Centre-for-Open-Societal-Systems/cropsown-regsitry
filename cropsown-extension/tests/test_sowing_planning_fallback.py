@@ -1,5 +1,5 @@
 """Sowing with no matching Cultivation is checked against Planning: the sowing date
-against the Planned date, the area sown against the Planned crop area."""
+against the Planned date. Areas are not compared across sections (see test_area_total_land_only)."""
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -54,32 +54,7 @@ def test_cultivation_still_comes_first():
     sow_dates(rows, "2026-06-01")  # after cultivation; the later planned date is not used
 
 
-def sow_area(rows, area):
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "commodity": "CROP_TEFF", "season": "SEASON_MEHER",
-              "area_sown": area,
-              "submission_id": "sub-1"}
-    with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=MASTER)):
-        asyncio.run(G2PRegisterDomainServiceSowing()._validate_sowing_area_after_cultivation(record, Session(rows)))
-
-
-def test_without_cultivation_the_area_sown_is_checked_against_the_planned_area():
-    with pytest.raises(G2PRegistryException) as error:
-        sow_area({"g2p_intake_form_plannings": [(2.0,)]}, 3)
-    assert "cannot exceed Planned Crop Area in Planning (2.0 hectares)" in error.value.message
-    sow_area({"g2p_intake_form_plannings": [(2.0,)]}, 2)
-    sow_area({"g2p_register_plannings": [(2.0,)]}, 1.5)
-    with pytest.raises(G2PRegistryException):
-        sow_area({"g2p_register_plannings": [(2.0,)]}, 2.5)  # the farmer's Planning record
-    sow_area({}, 9)  # neither: nothing to check
-
-
-def test_cultivation_area_still_comes_first():
-    with pytest.raises(G2PRegistryException) as error:
-        sow_area({"g2p_intake_form_cultivations": [(1.0,)], "g2p_intake_form_plannings": [(5.0,)]}, 2)
-    assert "Actual Crop Area in Cultivation (1.0 hectares)" in error.value.message
-
-
-# Harvest: Sowing first, then Cultivation, then Planning.
+# Harvest date: Sowing first, then Cultivation, then Planning.
 from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_domain_service_harvest import (  # noqa: E402
     G2PRegisterDomainServiceHarvest,
 )
@@ -109,40 +84,3 @@ def test_sowing_still_comes_first_for_the_harvest_date():
     rows = {**CULT, "g2p_intake_form_sowings": [("L1", "CROP_TEFF", None, "SEASON_MEHER", None, "2026-06-01",
                                                   ["INDEPENDENT"], None)]}
     harvest_dates(rows, "2026-07-01")  # after sowing; the later cultivation date is not used
-
-
-def harvest_area(rows, area):
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "L1", "commodity": "CROP_TEFF", "area_harvested": area,
-              "submission_id": "sub-1"}
-    with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=MASTER)):
-        asyncio.run(G2PRegisterDomainServiceHarvest()._validate_harvest_area_after_sowing(record, Session(rows)))
-
-
-def test_without_sowing_or_cultivation_the_area_harvested_is_checked_against_the_planned_area():
-    with pytest.raises(G2PRegistryException) as error:
-        harvest_area({"g2p_intake_form_plannings": [(2.0,)]}, 3)
-    assert "cannot exceed Planned Crop Area in Planning (2.0 hectares)" in error.value.message
-    harvest_area({"g2p_register_plannings": [(2.0,)]}, 2)
-    harvest_area({}, 9)
-    with pytest.raises(G2PRegistryException) as error:
-        harvest_area({"g2p_intake_form_sowings": [(1.0,)], "g2p_intake_form_plannings": [(5.0,)]}, 2)
-    assert "Area Sown in Sowing (1.0 hectares)" in error.value.message
-
-
-def test_registered_cultivation_is_the_farmers_own():
-    # The farmer's own registered Cultivation limits the area sown
-    with pytest.raises(G2PRegistryException) as error:
-        sow_area({"g2p_register_cultivations": [(1.0,)]}, 1.5)
-    assert "Actual Crop Area in Cultivation (1.0 hectares)" in error.value.message
-    sow_area({"g2p_register_cultivations": [(1.0,)]}, 0.9)
-
-
-def test_another_farmers_land_of_the_same_name_is_not_used():
-    # Without any of the farmer's crop sown records there is no registered Cultivation to compare with
-    # (a "Plot 1" of another farmer must not limit this farmer's sowing)
-    record = {"cluster_status": ["INDEPENDENT"], "land_id": "Plot 1", "commodity": "CROP_TEFF", "season": "SEASON_IRRIGATION",
-              "area_sown": 0.9,
-              "submission_id": "sub-1"}
-    rows = {"g2p_register_cultivations": [(0.75,)]}
-    with patch.object(checks, "get_master_records_for_submission", new=AsyncMock(return_value=([], "", "", ""))):
-        asyncio.run(G2PRegisterDomainServiceSowing()._validate_sowing_area_after_cultivation(record, Session(rows)))

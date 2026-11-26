@@ -74,7 +74,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.20.2"
+VERSION = "2026.11.26.1"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -83,7 +83,7 @@ INLINE_LISTS = {
     "crop_season": "CROP_SEASON",
     "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
     "plot_cat": "PLOT_CATEGORY",
-    "ownership": "OWNERSHIP_TYPE",
+    "ownership": "LAND_OWNERSHIP_TYPE",
     "soil_fertility": "SOIL_FERTILITY",
     "cropping_sys": "CROPPING_SYSTEM",
     "seed_class": "SEED_TYPE",
@@ -92,8 +92,8 @@ INLINE_LISTS = {
     "water_source": "WATER_SOURCE",
     "method": "WATER_SOURCE_METHOD",
     "frequency": "WATER_SOURCE_FREQUENCY",
-    "cult_method": "MACHINERY",
-    "land_prep_method": "LAND_PREP_METHOD",
+    "cult_method": "FARM_MACHINERY",
+    "land_prep_method": "LAND_PREPARATION_METHOD",
     "growth_stage": "CROP_GROWTH_STAGE",
     "security_level": "INFESTATION_SEVERITY",
     "pest_type": "PEST",

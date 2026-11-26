@@ -12,9 +12,15 @@
 -- list, so the stored values (level_value_id), the table grid, ODK and imports are
 -- unchanged.
 --
+-- Their data source also gets the stock "dependsOn": "oan-parent-cell", a value that
+-- is never set. The platform loads a cell's list itself, from the column as given,
+-- before the select runs; with this it waits instead of loading every zone, woreda or
+-- kebele (which would replace the select's list). The select points dependsOn at the
+-- parent cell of the open row, so only one list is loaded.
+--
 -- To undo on a database: run the UPDATE below with
---   node - 'oan-parent-column'
--- in place of the || jsonb_build_object(...) branch (or reseed without this file).
+--   (node - 'oan-parent-column') #- '{widget-data-source,dependsOn}'
+-- in place of the jsonb_set(...) branch (or reseed without this file).
 -- A second run changes nothing.
 CREATE OR REPLACE FUNCTION pg_temp.cascading_location(node jsonb) RETURNS jsonb
 LANGUAGE sql IMMUTABLE AS $$
@@ -22,8 +28,9 @@ LANGUAGE sql IMMUTABLE AS $$
         WHEN 'object' THEN
             CASE
                 WHEN node->>'column-key' IN ('zone', 'woreda', 'kebele') AND node->>'widget' = 'select'
-                    THEN node || jsonb_build_object('oan-parent-column',
-                             CASE node->>'column-key' WHEN 'zone' THEN 'region' WHEN 'woreda' THEN 'zone' ELSE 'woreda' END)
+                    THEN jsonb_set(node || jsonb_build_object('oan-parent-column',
+                             CASE node->>'column-key' WHEN 'zone' THEN 'region' WHEN 'woreda' THEN 'zone' ELSE 'woreda' END),
+                         '{widget-data-source,dependsOn}', '"oan-parent-cell"')
                 ELSE (SELECT COALESCE(jsonb_object_agg(key, pg_temp.cascading_location(value)), '{}'::jsonb)
                         FROM jsonb_each(node))
             END
@@ -55,7 +62,8 @@ BEGIN
                   jsonb_path_query(s."section_ui_schema"::jsonb, 'strict $.** ? (@."column-key" != null)') c
             WHERE s."section_id" = sections.id
               AND c->>'column-key' = expected.level
-              AND c->>'oan-parent-column' = expected.parent);
+              AND c->>'oan-parent-column' = expected.parent
+              AND c->'widget-data-source'->>'dependsOn' = 'oan-parent-cell');
     IF missing IS NOT NULL THEN
         RAISE EXCEPTION 'Location columns without their parent: %', missing;
     END IF;

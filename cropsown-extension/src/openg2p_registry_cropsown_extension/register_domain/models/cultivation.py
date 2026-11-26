@@ -22,7 +22,7 @@ class G2PCultivation:
     # ── Plot: each line records the land it was worked on (Gen1 puts
     # land_info_id and its attributes on the line, not the header) ───────────
     land_id: Mapped[str] = mapped_column(String, nullable=True)
-    ownership_type: Mapped[str] = mapped_column(String, nullable=True)        # Attribute lookup (OWNERSHIP_TYPE)
+    ownership_type: Mapped[str] = mapped_column(String, nullable=True)        # Attribute lookup (LAND_OWNERSHIP_TYPE)
     soil_fertility_type: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (SOIL_FERTILITY)
     plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
@@ -44,8 +44,8 @@ class G2PCultivation:
     local_name: Mapped[str] = mapped_column(String, nullable=True)
     scientific_name: Mapped[str] = mapped_column(String, nullable=True)
     actual_yield: Mapped[float] = mapped_column(Numeric, nullable=True)
-    land_prep_method: Mapped[list[str]] = mapped_column(JSONB, nullable=True)      # Attribute lookup (LAND_PREP_METHOD)
-    cultivation_type: Mapped[str] = mapped_column(String, nullable=True)      # Attribute lookup (MACHINERY)
+    land_prep_method: Mapped[list[str]] = mapped_column(JSONB, nullable=True)      # Attribute lookup (LAND_PREPARATION_METHOD)
+    cultivation_type: Mapped[str] = mapped_column(String, nullable=True)      # Attribute lookup (FARM_MACHINERY)
     cropping_system: Mapped[CroppingSystemEnum] = mapped_column(String, nullable=True) # CroppingSystemEnum
     actual_cultivation_date: Mapped[date] = mapped_column(Date, nullable=True)
     actual_crop_area: Mapped[float] = mapped_column(Numeric, nullable=True)
