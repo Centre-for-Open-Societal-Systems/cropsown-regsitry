@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.20.2",
+  "version": "2026.11.26.1",
   "media_rows": {
     "crop_name.csv": 125,
     "seed_variety.csv": 794,
@@ -11,7 +11,7 @@
   "forms": [
     {
       "form_id": "crop_sown_registry_plan",
-      "version": "2026.11.20.2",
+      "version": "2026.11.26.1",
       "workbook": "crop_sown_registry_plan.xlsx",
       "media": [
         "crop_name.csv",
@@ -28,7 +28,7 @@
         "fertilizer_type": "FERTILIZER_TYPE",
         "frequency": "WATER_SOURCE_FREQUENCY",
         "method": "WATER_SOURCE_METHOD",
-        "ownership": "OWNERSHIP_TYPE",
+        "ownership": "LAND_OWNERSHIP_TYPE",
         "plot_cat": "PLOT_CATEGORY",
         "seed_class": "SEED_TYPE",
         "seed_source": "SEED_SOURCE",
@@ -39,7 +39,7 @@
     },
     {
       "form_id": "crop_sown_registry_prep",
-      "version": "2026.11.20.2",
+      "version": "2026.11.26.1",
       "workbook": "crop_sown_registry_prep.xlsx",
       "media": [
         "crop_name.csv",
@@ -53,12 +53,12 @@
         "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
         "crop_season": "CROP_SEASON",
         "cropping_sys": "CROPPING_SYSTEM",
-        "cult_method": "MACHINERY",
+        "cult_method": "FARM_MACHINERY",
         "fertilizer_type": "FERTILIZER_TYPE",
         "frequency": "WATER_SOURCE_FREQUENCY",
-        "land_prep_method": "LAND_PREP_METHOD",
+        "land_prep_method": "LAND_PREPARATION_METHOD",
         "method": "WATER_SOURCE_METHOD",
-        "ownership": "OWNERSHIP_TYPE",
+        "ownership": "LAND_OWNERSHIP_TYPE",
         "plot_cat": "PLOT_CATEGORY",
         "seed_class": "SEED_TYPE",
         "seed_source": "SEED_SOURCE",
@@ -69,7 +69,7 @@
     },
     {
       "form_id": "crop_sown_registry_sown",
-      "version": "2026.11.20.2",
+      "version": "2026.11.26.1",
       "workbook": "crop_sown_registry_sown.xlsx",
       "media": [
         "crop_name.csv",
@@ -84,7 +84,7 @@
         "disease_type": "CROP_DISEASE",
         "fertilizer_type": "FERTILIZER_TYPE",
         "growth_stage": "CROP_GROWTH_STAGE",
-        "ownership": "OWNERSHIP_TYPE",
+        "ownership": "LAND_OWNERSHIP_TYPE",
         "pest_control_action": "PEST_CONTROL_ACTION",
         "pest_type": "PEST",
         "plot_cat": "PLOT_CATEGORY",
@@ -104,7 +104,7 @@
     },
     {
       "form_id": "crop_sown_registry_harvest",
-      "version": "2026.11.20.2",
+      "version": "2026.11.26.1",
       "workbook": "crop_sown_registry_harvest.xlsx",
       "media": [
         "crop_name.csv",
@@ -115,7 +115,7 @@
       ],
       "master_data_lists": {
         "crop_season": "CROP_SEASON",
-        "ownership": "OWNERSHIP_TYPE",
+        "ownership": "LAND_OWNERSHIP_TYPE",
         "plot_cat": "PLOT_CATEGORY",
         "soil_fertility": "SOIL_FERTILITY"
       },

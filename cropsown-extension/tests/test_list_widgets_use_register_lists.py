@@ -14,7 +14,6 @@ COMPAT = (PACKAGE_DIR / "native_schema_compat.sql").read_text(encoding="utf-8")
 LISTED_FIELDS = {
     "plot_category": "PLOT_CATEGORY",
     "water_source_frequency": "WATER_SOURCE_FREQUENCY",
-    "cultivation_type": "MACHINERY",
     "cluster_status": "CLUSTER_STATUS",
     "pest_name": "PEST",
     "pesticide_method": "PEST_CONTROL_ACTION",

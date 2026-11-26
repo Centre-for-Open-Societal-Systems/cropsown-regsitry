@@ -315,9 +315,9 @@ def test_planning_row_maps_columns_to_the_sections_of_the_form():
 
 def test_cultivation_land_prep_methods_and_fin_identity():
     result = render('cultivation', {**BASE, 'fayda_id': '123456789012', 'land_id': 'L1',
-                                    'land_prep_method': 'LAND_PREP_METHOD_SHILSHALO; land_prep_method_manual_digging'})
+                                    'land_prep_method': 'LPM_OXEN; lpm_manual'})
     assert result['cs_cultivation_details'][0]['land_prep_method'] == \
-        'LAND_PREP_METHOD_SHILSHALO,LAND_PREP_METHOD_MANUAL_DIGGING'
+        'LPM_OXEN,LPM_MANUAL'
     assert result['crop_farmer_lookup'][0]['fayda_fin'] == '123456789012'
     assert result['crop_farmer_lookup'][0]['fayda_fan_id'] is None
 

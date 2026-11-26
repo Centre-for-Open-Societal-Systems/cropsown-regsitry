@@ -65,13 +65,14 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
                 # await self._validate_existing_crop_sown_record_required(record, session=session)
                 # await self._validate_land_id_matches_planning(record, session=session)  # Land ID match not used in the current workflow
                 await self._validate_sowing_after_cultivation(record, session=session)
-                await self._validate_sowing_area_after_cultivation(record, session=session)
                 await self._validate_date_in_season_enhanced(record, "sowing_date", session=session)
-            # Area cross-check on Next: Area Sown <= matching Cultivation's Actual Crop Area.
+            # Area sown is checked only against Total land area (Total cultivated area for a
+            # Clustered row): the row's own, above, or with a Yes the land's, below. It is not
+            # compared with the crop areas of Planning or Cultivation.
             from .domain_validation_utils import run_record_cross_validation
-            await run_record_cross_validation(self._validate_sowing_area_after_cultivation, record, session)
             # "Is planning record created?" Yes: the Land ID is in Planning or Cultivation
-            # (Clustered: Cluster or Cultivation cluster) of this farmer, year and season.
+            # (Clustered: Cluster or Cultivation cluster) of this farmer, year and season, and
+            # Area sown is not more than that land's total area (Cultivation first).
             from .cropsown_intake_validation_service import validate_land_recorded
             await run_record_cross_validation(validate_land_recorded, record, session)
             # The map can hand back numbers; the columns hold text.
@@ -173,53 +174,6 @@ class G2PRegisterDomainServiceSowing(G2PRegisterDomainService):
     #             f"No existing crop sown record found for Fayda ID '{fayda_fan_id}'{year_str}{season_str}. "
     #             f"Sowing cannot create a new crop sown record. Please ensure a Cultivation/crop sown record already exists for this Farmer identity."
     #         )
-
-    async def _validate_sowing_area_after_cultivation(self, record: dict, session) -> None:
-        """Area sown may not exceed the matching earlier stage's area.
-
-        Independent: Area sown against the Cultivation row of the same Land ID, crop and season
-        (Actual crop area), else the matching Planning row (Planned crop area).
-        Clustered: Area sown (cluster) against the Cultivation cluster of the same Land ID (cluster)
-        and FPC name (Total cultivated area), else the matching Planning cluster (Planned area).
-        A row with both ticked is checked on both sides. With no matching earlier row nothing is
-        checked: Sowing may come without a prior record.
-        """
-        from .cropsown_intake_validation_service import (
-            CLUSTER_MATCH, crop_match, earlier_stage_area, row_lands,
-        )
-
-        cluster_land_id, land_id = row_lands(record)
-        area_sown = as_float(record.get("area_sown"))
-        commodity = str(record.get("commodity") or "").strip()
-        if land_id and commodity and area_sown is not None and area_sown > 0:
-            match, params = crop_match(record, land_id, commodity)
-            limit, label = await earlier_stage_area(session, record, [
-                ("g2p_intake_form_cultivations", "g2p_register_cultivations", "actual_crop_area",
-                 "Actual Crop Area in Cultivation", match),
-                ("g2p_intake_form_plannings", "g2p_register_plannings", "planned_area",
-                 "Planned Crop Area in Planning", match),
-            ], params)
-            if limit is not None and area_sown > limit + 1e-6:
-                validation_error(
-                    f"Area sown ({area_sown} hectares) cannot exceed {label} ({limit} hectares) "
-                    f"for Land ID '{land_id}' and Crop '{commodity}'."
-                )
-
-        cluster_area = as_float(record.get("cluster_area_sown"))
-        cluster_name = str(record.get("cluster_name") or "").strip()
-        if cluster_land_id and cluster_name and cluster_area is not None and cluster_area > 0:
-            params = {"cluster_land_id": cluster_land_id, "cluster_name": cluster_name.upper()}
-            limit, label = await earlier_stage_area(session, record, [
-                ("g2p_intake_form_cultivation_clusters", "g2p_register_cultivation_clusters", "cluster_area_hectare",
-                 "Total cultivated area in Cultivation cluster", CLUSTER_MATCH),
-                ("g2p_intake_form_clusters", "g2p_register_clusters", "cluster_plan",
-                 "Planned area in Planning cluster", CLUSTER_MATCH),
-            ], params)
-            if limit is not None and cluster_area > limit + 1e-6:
-                validation_error(
-                    f"Area sown, cluster ({cluster_area} hectares) cannot exceed {label} ({limit} hectares) "
-                    f"for Farmer production cluster '{cluster_name}' and Land ID (cluster) '{cluster_land_id}'."
-                )
 
     async def _validate_sowing_after_cultivation(self, record: dict, session) -> None:
         sowing_date = parse_date(record.get("sowing_date"))

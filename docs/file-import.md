@@ -37,7 +37,7 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `longitude` | Location (`cs_cropsown_location`) and the plot row | No | Decimal degrees; needs the latitude too |
 | `land_id` | `cs_planning_details` | Yes | Plain text, as on the land certificate; only spaces is refused. |
 | `plot_category` | `cs_planning_details` | No | Code from the PLOT_CATEGORY list below. |
-| `ownership_type` | `cs_planning_details` | No | Code from the OWNERSHIP_TYPE list below. |
+| `ownership_type` | `cs_planning_details` | No | Code from the LAND_OWNERSHIP_TYPE list below. |
 | `soil_fertility_type` | `cs_planning_details` | No | Code from the SOIL_FERTILITY list below. |
 | `season` | `cs_planning_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_planning_details` | Yes | Code from the CROP_COMMODITY list below. |
@@ -128,7 +128,7 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `crop_category` | `cs_cultivation_details` | No | Code from the CROP_CATEGORY list below. |
 | `local_name` | `cs_cultivation_details` | No | Text |
 | `scientific_name` | `cs_cultivation_details` | No | Text |
-| `cultivation_type` | `cs_cultivation_details` | No | Code from the MACHINERY list below. |
+| `cultivation_type` | `cs_cultivation_details` | No | Code from the FARM_MACHINERY list below. |
 | `seed_variety` | `cs_cultivation_details` | No | The variety (shown as "Variety"): code from the SEED_VARIETY list below. |
 | `actual_fertilizer_type` | `cs_cultivation_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `water_source` | `cs_cultivation_details` | No | Code from the WATER_SOURCE list below. |
@@ -155,10 +155,10 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `cropping_system` | `cs_cultivation_details` | No | Code from the CROPPING_SYSTEM list below. |
 | `actual_seed_class` | `cs_cultivation_details` | No | Code from the SEED_TYPE list below. |
 | `actual_seed_source` | `cs_cultivation_details` | No | Code from the SEED_SOURCE list below. |
-| `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREP_METHOD list below. Several values separated by a semicolon. |
+| `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREPARATION_METHOD list below. Several values separated by a semicolon. |
 | `is_planning_record_created` | `cs_cultivation_details` | No | yes or no (also true/false, 1/0). yes: the land is in Planning, so only `land_id` and `land_area` are kept and the Land ID must be in the farmer's Planning of the same crop year and season. no: the land columns below are kept. |
 | `plot_category` | `cs_cultivation_details` | No | Code from the PLOT_CATEGORY list. Read when `is_planning_record_created` is not yes. |
-| `ownership_type` | `cs_cultivation_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_planning_record_created` is not yes. |
+| `ownership_type` | `cs_cultivation_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_planning_record_created` is not yes. |
 | `soil_fertility_type` | `cs_cultivation_details` | No | Code from the SOIL_FERTILITY list. Read when `is_planning_record_created` is not yes. |
 | `region` | `cs_cultivation_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_planning_record_created` is not yes. |
 | `zone` | `cs_cultivation_details` | No | The land's Zone: P-code, for example ET0404. Read when `is_planning_record_created` is not yes. |
@@ -239,7 +239,7 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `is_land_recorded` | `cs_sowing_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_sowing_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
 | `plot_category` | `cs_sowing_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
-| `ownership_type` | `cs_sowing_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_sowing_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
 | `land_area` | `cs_sowing_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
 | `soil_fertility_type` | `cs_sowing_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
 | `region` | `cs_sowing_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
@@ -322,7 +322,7 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 | `is_land_recorded` | `cs_harvest_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_harvest_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
 | `plot_category` | `cs_harvest_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
-| `ownership_type` | `cs_harvest_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_harvest_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
 | `land_area` | `cs_harvest_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
 | `soil_fertility_type` | `cs_harvest_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
 | `region` | `cs_harvest_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
@@ -392,11 +392,11 @@ Master Data list `PLOT_CATEGORY` as the ETH-OAN pack seeds it.
 
 `ANNUAL_CROP`, `PERENNIAL_CROP`, `BIENNIAL_CROP`
 
-### OWNERSHIP_TYPE
+### LAND_OWNERSHIP_TYPE
 
-Master Data list `OWNERSHIP_TYPE` as the ETH-OAN pack seeds it.
+Master Data list `LAND_OWNERSHIP_TYPE` as the ETH-OAN pack seeds it.
 
-`OWNER`, `TENANT`, `CROP_SHARING`, `FAMILY_GIFT`
+`OWNER`, `TENANT`, `CROP_SHARE`
 
 ### WATER_SOURCE_METHOD
 
@@ -410,17 +410,17 @@ Master Data list `WATER_SOURCE_FREQUENCY` as the ETH-OAN pack seeds it.
 
 `DAILY`, `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AS_NEEDED`, `OTHER`
 
-### MACHINERY
+### FARM_MACHINERY
 
-Master Data list `MACHINERY` as the ETH-OAN pack seeds it.
+Master Data list `FARM_MACHINERY` as the ETH-OAN pack seeds it.
 
-`OXEN_TILLAGE`, `EQUINE_OTHER`, `TRACTOR_PLOUGHING`, `POWER_TILLER`, `COMBINE_HARVESTER`, `THRASHING_MACHINE`, `FAMILY_LABOR`, `DEBO_JIGI`, `HIRED_LABOR`, `TRACTOR_OXEN`, `OXEN_MANUAL`
+`MACH_TRACTOR`, `MACH_ROW_PLANTER`, `MACH_THRESHER`, `MACH_COMBINE`, `MACH_SPRAYER`, `MACH_WATER_PUMP`
 
-### LAND_PREP_METHOD
+### LAND_PREPARATION_METHOD
 
-Master Data list `LAND_PREP_METHOD` as the ETH-OAN pack seeds it.
+Master Data list `LAND_PREPARATION_METHOD` as the ETH-OAN pack seeds it.
 
-`TRADITIONAL_MARESHA_PLOUGHING`, `TRACTOR_DISC_MOLDBOARD_PLOUGHING`, `MANUAL_DIGGING`, `SHILSHALO`, `RIDGING_FURROWING`, `MANUAL_LEVELING`, `MINIMUM_TILLAGE`, `SOIL_WATER_CONSERVATION_STRUCTURES`, `BIOLOGICAL_MULCHING`
+`LPM_OXEN`, `LPM_TRACTOR`, `LPM_MANUAL`, `LPM_ZERO_TILLAGE`
 
 ### CROPPING_SYSTEM
 

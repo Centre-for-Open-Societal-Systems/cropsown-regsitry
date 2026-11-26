@@ -19,6 +19,9 @@ import { SelectWidget, setValues, type WidgetRootState } from '@openg2p/registry
 type Config = Record<string, any>;
 
 const PARENT_COLUMN = 'oan-parent-column';
+// The column's own dependsOn (97b): never set, so the platform's own load of the cell
+// waits; replaced here by the parent cell, and dropped outside a row dialog.
+const PARENT_PLACEHOLDER = 'oan-parent-cell';
 
 /** The parent cell's widget id in the same dialog row, or null outside a row dialog. */
 export function parentCellId(config: Config): string | null {
@@ -52,11 +55,19 @@ export function CascadingSelectWidget({ config }: { config: Config }) {
         previous.current = { parent: parentValue, own: ownValue };
     }, [dispatch, ownValue, parentId, parentValue, widgetId]);
 
+    // Until the level above is chosen this level offers nothing ("Select" only), like the
+    // Farmer registry's location. The platform skips loading when the parent is empty but
+    // keeps a list it already had, so an empty list is given explicitly here.
+    const parentChosen = parentValue !== undefined && parentValue !== null && String(parentValue).trim() !== '';
     const effective = useMemo(() => {
-        if (!parentId) return config;
+        if (!parentId) {
+            const { dependsOn, ...source } = config['widget-data-source'] ?? {};
+            return dependsOn === PARENT_PLACEHOLDER ? { ...config, 'widget-data-source': source } : config;
+        }
+        if (!parentChosen) return { ...config, 'widget-data-source': { type: 'static', options: [] } };
         const source = config['widget-data-source'] ?? {};
         return { ...config, 'widget-data-source': { ...source, dependsOn: parentId } };
-    }, [config, parentId]);
+    }, [config, parentId, parentChosen]);
 
     return <SelectWidget config={effective as never} />;
 }
