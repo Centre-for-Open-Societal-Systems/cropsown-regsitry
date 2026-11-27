@@ -4,8 +4,9 @@
 # right after scripts/ci/deliver_staging.sh of oan-helm promoted and deployed the registry; it takes no parameters.
 #
 # Which image: the promoted chart (built-chart/*.tgz) pins the staff-api image by digest. ECR lists the build
-# tag of that digest (develop-<n>); the connector and connector UI images carry the same tag, because one
-# develop build pushes all of them. Their digests are resolved from ECR and the release is pinned to the digests.
+# tag of that digest (<version>-develop.<n>, or develop-<n> before the eoan names); the connector and connector
+# UI images carry the same tag and the same -<RP version> repository suffix, because one develop build pushes all
+# of them (ci/image_names.py). Their digests are resolved from ECR and the release is pinned to the digests.
 # Nothing is built or tagged here, and no tag is guessed: if the build has no connector image the run fails
 # before the cluster is touched.
 #
@@ -37,7 +38,7 @@ RELEASE=cropsown-connector
 CHART=ci/deploy/connector-chart
 VALUES=ci/deploy/cropsown-connector.staging.values.yaml
 DEFINITIONS=ci/deploy/definitions.staging.yaml
-BUILD_TAG_PATTERN='^develop-[0-9]+$'
+BUILD_TAG_PATTERN='^([0-9]+\.[0-9]+\.[0-9]+-develop\.[0-9]+|develop-[0-9]+)$'
 PROMOTED_CHART="${PROMOTED_CHART:-$(ls built-chart/*.tgz 2> /dev/null | head -n 1)}"
 test -f "${PROMOTED_CHART:-}" || { echo "No promoted chart archive (built-chart/*.tgz): the registry promotion must run first." >&2; exit 1; }
 STATE=$(mktemp -d)
@@ -63,7 +64,7 @@ with tarfile.open(sys.argv[1]) as bundle:
     values = bundle.extractfile(member).read().decode("utf-8")
 repository = None
 for line in values.splitlines():
-    found = re.match(r"""^\s*repository:\s*["']?(\S+?/staff-api)["']?\s*$""", line)
+    found = re.match(r"""^\s*repository:\s*["']?(\S+?/staff-api(?:-[0-9][0-9A-Za-z.-]*)?)["']?\s*$""", line)
     if found:
         repository = found.group(1)
         continue
@@ -77,27 +78,36 @@ PY
 }
 read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(promoted_service_image "$PROMOTED_CHART")
 test -n "${SERVICE_DIGEST:-}" || { echo "no staff-api digest in $PROMOTED_CHART" >&2; exit 1; }
-IMAGE_PREFIX=${SERVICE_REPOSITORY%/staff-api}
+# The connector images of the same build, in the same ECR path as staff-api. Under the eoan names they are
+# registry-connector-api and registry-connector-ui (ci/image_names.py: not platform images, so no RP suffix); builds
+# before that pushed registry-connector[-<RP version>] and registry-connector-ui[-<RP version>], with staff-api's suffix.
+SERVICE_NAME=${SERVICE_REPOSITORY##*/}
+PLATFORM_SUFFIX=${SERVICE_NAME#staff-api}
+IMAGE_PREFIX=${SERVICE_REPOSITORY%/*}
 ECR_BASE=${IMAGE_PREFIX#*/}
-CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector"
-CONNECTOR_UI_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector-ui"
+CONNECTOR_NAMES="registry-connector-api:registry-connector-ui registry-connector$PLATFORM_SUFFIX:registry-connector-ui$PLATFORM_SUFFIX"
 ecr_digest() {
   aws ecr describe-images --region "$AWS_REGION" --repository-name "$1" --image-ids "imageTag=$2" \
     --query 'imageDetails[0].imageDigest' --output text 2> /dev/null || true
 }
-build_tags=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$ECR_BASE/staff-api" \
+# Newest build first: both tag forms end in the build number.
+build_tags=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$ECR_BASE/$SERVICE_NAME" \
   --image-ids "imageDigest=$SERVICE_DIGEST" --query 'imageDetails[0].imageTags[]' --output text | tr '\t' '\n' \
-  | grep -E "$BUILD_TAG_PATTERN" | sort -t- -k2 -n -r || true)
+  | grep -E "$BUILD_TAG_PATTERN" | awk -F'[.-]' '{ print $NF "\t" $0 }' | sort -n -r | cut -f2 || true)
 test -n "$build_tags" || { echo "staff-api $SERVICE_DIGEST has no build tag matching $BUILD_TAG_PATTERN in ECR." >&2; exit 1; }
 CONNECTOR_IMAGE_DIGEST=""
 for tag in $build_tags; do
-  CONNECTOR_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/registry-connector" "$tag")
-  CONNECTOR_UI_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/registry-connector-ui" "$tag")
-  if [[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$CONNECTOR_UI_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    BUILD_TAG=$tag
-    break
-  fi
-  CONNECTOR_IMAGE_DIGEST=""
+  for names in $CONNECTOR_NAMES; do
+    CONNECTOR_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/${names%%:*}" "$tag")
+    CONNECTOR_UI_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/${names#*:}" "$tag")
+    if [[ "$CONNECTOR_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$CONNECTOR_UI_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      BUILD_TAG=$tag
+      CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/${names%%:*}"
+      CONNECTOR_UI_IMAGE_REPOSITORY="$IMAGE_PREFIX/${names#*:}"
+      break 2
+    fi
+    CONNECTOR_IMAGE_DIGEST=""
+  done
 done
 test -n "$CONNECTOR_IMAGE_DIGEST" || { echo "No registry-connector and registry-connector-ui image carries a build tag of the promoted staff-api ($build_tags)." >&2; exit 1; }
 echo "Promoted staff-api $SERVICE_DIGEST is build $BUILD_TAG"

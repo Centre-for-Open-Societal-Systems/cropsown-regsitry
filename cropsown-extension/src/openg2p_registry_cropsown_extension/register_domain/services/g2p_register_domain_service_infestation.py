@@ -205,7 +205,7 @@ class G2PRegisterDomainServiceInfestation(G2PRegisterDomainService):
         #     )
 
         # Not used in the current workflow: Date of observation is not compared with the
-        # Sowing date (it only has to be today or earlier, field_rules.PAST_ONLY).
+        # Sowing date (it only has to be a valid date; a future date is allowed).
         # obs_date = parse_date(record.get("observation_date"))
         # sow_dt = parse_date(sowing_date)
         # if obs_date and sow_dt and obs_date <= sow_dt:

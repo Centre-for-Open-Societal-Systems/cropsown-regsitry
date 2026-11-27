@@ -74,7 +74,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "odk/source"
 FORMS = REPO / "odk/forms"
 MEDIA = REPO / "odk/media/mds"
-VERSION = "2026.11.13.1"
+VERSION = "2026.11.26.1"
 FORM_IDS = ("crop_sown_registry_plan", "crop_sown_registry_prep", "crop_sown_registry_sown", "crop_sown_registry_harvest")
 LEVELS = ("region", "zone", "woreda", "kebele")
 
@@ -83,7 +83,7 @@ INLINE_LISTS = {
     "crop_season": "CROP_SEASON",
     "agro_ecological_zone": "AGRO_ECOLOGICAL_ZONE",
     "plot_cat": "PLOT_CATEGORY",
-    "ownership": "OWNERSHIP_TYPE",
+    "ownership": "LAND_OWNERSHIP_TYPE",
     "soil_fertility": "SOIL_FERTILITY",
     "cropping_sys": "CROPPING_SYSTEM",
     "seed_class": "SEED_TYPE",
@@ -92,8 +92,8 @@ INLINE_LISTS = {
     "water_source": "WATER_SOURCE",
     "method": "WATER_SOURCE_METHOD",
     "frequency": "WATER_SOURCE_FREQUENCY",
-    "cult_method": "MACHINERY",
-    "land_prep_method": "LAND_PREP_METHOD",
+    "cult_method": "FARM_MACHINERY",
+    "land_prep_method": "LAND_PREPARATION_METHOD",
     "growth_stage": "CROP_GROWTH_STAGE",
     "security_level": "INFESTATION_SEVERITY",
     "pest_type": "PEST",
@@ -126,6 +126,102 @@ QUESTION_TYPES = {"pest_pesticide_method": "select_one pest_control_action",
                   "infestation_type_ids": "select_one infestation_type"}
 # The web form does not check these Land IDs against planning / cultivation / sowing; neither does ODK.
 NO_RULE = {"cluster_land_info_id", "infestation_land_info_id"}
+
+
+# Row limits, as the server checks them on Next and submit: a field is compared with another
+# field of the same row only when that other field is given (an area limit only when it is
+# more than 0). ODK otherwise fails a comparison with a blank field and blocks the question.
+def _not_before(start: str) -> str:
+    return f"(${{{start}}} = '' or . >= ${{{start}}})"
+
+
+def _not_after(end: str) -> str:
+    return f"(${{{end}}} = '' or . <= ${{{end}}})"
+
+
+def _at_most(limit: str) -> str:
+    return f"(${{{limit}}} = '' or ${{{limit}}} <= 0 or . <= ${{{limit}}})"
+
+
+def _needs(field: str, shown_when: str | None = None) -> str:
+    """An entered value needs `field` (as the server checks it); only while `field` is shown."""
+    given = f"${{{field}}} != ''"
+    return f"({shown_when} or {given})" if shown_when else given
+
+
+# Sowing / Harvest ask Total land area only when "Is planning record created?" is No.
+LAND_AREA_HIDDEN = "${is_land_recorded} != 'no'"
+
+
+def _stored_plus_sold(other: str, harvested: str) -> str:
+    return (f". >= 0 and (${{{harvested}}} = '' or ${{{harvested}}} <= 0"
+            f" or (if(${{{other}}} = '', 0, ${{{other}}}) + .) <= ${{{harvested}}})")
+
+
+# question name -> (constraint, constraint message or None to keep the form's own message)
+ROW_LIMITS = {
+    "crop_sown_registry_plan": {
+        "end_gc": (_not_before("start_gc"), None),
+        "collected_gc": (f"{_not_before('start_gc')} and {_not_after('end_gc')}", None),
+        "crop_planned_area": (f". >= 0 and {_needs('land_area')} and {_at_most('land_area')}",
+                              "Enter Total Land Area first. Planned Crop Area must be 0 or greater and not more than Total Land Area."),
+        "cluster_end_gc": (_not_before("cluster_start_gc"), None),
+        # The published "remaining land" rule assumed the cluster is on the planning row's
+        # land; the cluster Land ID is no longer tied to it (NO_RULE) and the web form has no
+        # such rule, so only "not negative" stays.
+        "cluster_area_timad": (". >= 0", "Total Cultivated Area cannot be negative."),
+        "cluster_plan": (f". >= 0 and {_at_most('cluster_area_hectare')}", None),
+        "cluster_collected_land_quintal": (f". >= 0 and {_at_most('cluster_area_hectare')}", None),
+        "cluster_collected_by_combiner": (f". >= 0 and {_at_most('cluster_plan')}", None),
+    },
+    "crop_sown_registry_sown": {
+        "area_sown": (f". >= 0 and {_needs('land_area', LAND_AREA_HIDDEN)} and {_at_most('land_area')}",
+                      "Enter Total Land Area first. Area Sown cannot be negative or more than Total Land Area."),
+        "cluster_area_sown": (f". >= 0 and {_needs('cluster_area_hectare')} and {_at_most('cluster_area_hectare')}",
+                              "Enter Total Cultivated Area first. Area Sown cannot be negative or more than Total Cultivated Area."),
+    },
+    "crop_sown_registry_harvest": {
+        "independent_area_harvested": (f". > 0 and {_needs('land_area', LAND_AREA_HIDDEN)} and {_at_most('land_area')}",
+                                       "Enter Total Land Area first. Area Harvested must be greater than 0 and not more than Total Land Area."),
+        "independent_qty_stored": (_stored_plus_sold("independent_qty_sold", "independent_qty_harvested"), None),
+        "independent_qty_sold": (_stored_plus_sold("independent_qty_stored", "independent_qty_harvested"), None),
+        "cluster_qty_stored": (_stored_plus_sold("cluster_qty_sold", "cluster_qty_harvested"), None),
+        "cluster_qty_sold": (_stored_plus_sold("cluster_qty_stored", "cluster_qty_harvested"), None),
+    },
+}
+ROW_LIMITS["crop_sown_registry_prep"] = {
+    **{k: v for k, v in ROW_LIMITS["crop_sown_registry_plan"].items() if k != "crop_planned_area"},
+    "actual_crop_area": (f". >= 0 and {_needs('land_area')} and {_at_most('land_area')}",
+                         "Enter Total Land Area first. Actual Crop Area must be 0 or greater and not more than Total Land Area."),
+}
+# Only the removed "remaining land" rule read this calculation.
+ROW_LIMIT_DROPPED = {"crop_sown_registry_plan": {"remaining_land_area"},
+                     "crop_sown_registry_prep": {"remaining_land_area"}}
+
+# Land ID and Land ID (cluster) are plain text, typed as on the land certificate (UPID or
+# Adjudication ID); there is no single format. Only a value of spaces alone is refused, as on
+# the server (field_rules.LAND_ID_FIELDS). Whether the question must be answered stays with its
+# own "required".
+LAND_ID_QUESTIONS = {
+    "crop_sown_registry_plan": {"land_info_id", "cluster_land_info_id"},
+    "crop_sown_registry_prep": {"land_info_id", "cluster_land_info_id"},
+    "crop_sown_registry_sown": {"land_info_id", "cluster_land_info_id", "infestation_land_info_id"},
+    "crop_sown_registry_harvest": {"land_info_id", "cluster_land_info_id"},
+}
+LAND_ID_CONSTRAINT = "string-length(normalize-space(.)) > 0"
+LAND_ID_MESSAGE = "Enter the ID from the land certificate."
+
+# Sowing date and Date of observation may be future dates (as on the server), so the
+# published "not in the future" constraints are removed.
+NO_DATE_LIMIT = {"crop_sown_registry_sown": {"sowing_date_gc", "observation_date"}}
+# Questions that must or need not be answered (True: required, False: optional). Crop Year is
+# asked on every form; Actual Crop Area may be left blank; both Sowing rows ask their Season.
+REQUIRED = {
+    "crop_sown_registry_plan": {"crop_year": True},
+    "crop_sown_registry_prep": {"crop_year": True, "actual_crop_area": False},
+    "crop_sown_registry_sown": {"crop_year": True, "season_id": True, "cluster_season_id": True},
+    "crop_sown_registry_harvest": {"crop_year": True},
+}
 # Dates are entered on the Ethiopian calendar, as on the web form; the value stays the
 # Gregorian date the registry stores.
 DATE_APPEARANCE = "ethiopian"
@@ -437,6 +533,38 @@ def match_web_form(survey: list[dict], form_id: str, source: Path) -> None:
     survey[:] = out
 
 
+def row_limits(survey: list[dict], form_id: str) -> None:
+    """The web form's row limits (ROW_LIMITS), skipped when the other field is blank."""
+    limits = ROW_LIMITS.get(form_id, {})
+    dropped = ROW_LIMIT_DROPPED.get(form_id, set())
+    land_ids = LAND_ID_QUESTIONS.get(form_id, set())
+    open_dates = NO_DATE_LIMIT.get(form_id, set())
+    required = REQUIRED.get(form_id, {})
+    missing = sorted((set(limits) | dropped | land_ids | open_dates | set(required))
+                     - {row.get("name") for row in survey})
+    if missing:
+        raise SystemExit(f"{form_id}: questions not found: {', '.join(missing)}")
+    survey[:] = [row for row in survey if row.get("name") not in dropped]
+    for row in survey:
+        if row.get("name") in limits:
+            constraint, message = limits[row["name"]]
+            row["constraint"] = constraint
+            if message:
+                row["constraint_message"] = message
+        if row.get("name") in land_ids:
+            row["constraint"] = LAND_ID_CONSTRAINT
+            row["constraint_message"] = LAND_ID_MESSAGE
+        if row.get("name") in open_dates:
+            row.pop("constraint", None)
+            row.pop("constraint_message", None)
+        if row.get("name") in required:
+            if required[row["name"]]:
+                row["required"] = "yes"
+            else:
+                row.pop("required", None)
+                row.pop("required_message", None)
+
+
 def used_lists(survey: list[dict]) -> set[str]:
     """Names of the inline choice lists the questions use."""
     used = set()
@@ -471,6 +599,7 @@ def build_form(form_id: str, lists: dict[str, dict], version: str, source: Path,
     survey = rebuild_identity(survey, form_id)
     files = use_master_data(survey, form_id)
     match_web_form(survey, form_id, source)
+    row_limits(survey, form_id)
     # the media files of the questions match_web_form added
     files |= {(row.get("type") or "").split()[1] for row in survey
               if (row.get("type") or "").startswith("select_one_from_file ")}

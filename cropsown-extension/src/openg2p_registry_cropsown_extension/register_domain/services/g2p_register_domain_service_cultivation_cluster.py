@@ -47,14 +47,19 @@ class G2PRegisterDomainServiceCultivationCluster(G2PRegisterDomainService):
             self._validate_collected_land(record)
             self._validate_cluster_plan(record)
             self._validate_collected_by_combiner(record)
+            from .domain_validation_utils import validate_date_in_window, validate_season_window
+            validate_season_window(record)
+            validate_date_in_window(record, "establishing_date", "Establishing date")
             # Not running: core passes no session on save, so this never ran. Kept for reference.
             # if session:
             #     await self._validate_land_id_matches_planning(record, session=session)
         self._validate_no_duplicate_cluster(active_records)
-        # Cross-section (on Next): Cultivation Cluster date >= matching Planning date.
-        from .domain_validation_utils import run_previous_section_validation
-        from .cropsown_intake_validation_service import validate_cultivation_cluster_against_planning
-        await run_previous_section_validation(validate_cultivation_cluster_against_planning, active_records, session)
+        # Retired: the Cultivation cluster date may be earlier than the Planning cluster date,
+        # as for Cultivation rows. The dates stay checked against the row's own Start and End
+        # date (End date >= Start date above).
+        # from .domain_validation_utils import run_previous_section_validation
+        # from .cropsown_intake_validation_service import validate_cultivation_cluster_against_planning
+        # await run_previous_section_validation(validate_cultivation_cluster_against_planning, active_records, session)
 
     def _validate_no_duplicate_cluster(self, records: list[dict]) -> None:
         seen: set[tuple[str, str, str]] = set()

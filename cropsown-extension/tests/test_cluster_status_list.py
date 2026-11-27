@@ -60,10 +60,10 @@ def test_the_overlay_runs_after_the_land_rows_and_before_the_dates():
     ('INDEPENDENT', ['INDEPENDENT']),
 ])
 def test_file_import_stores_the_list_codes(form, given, stored):
-    record = file_import(form, {'land_id': 'L1', 'cluster_status': given})
+    record = file_import(form, {'land_id': 'L1', 'cluster_land_id': 'C1', 'cluster_status': given})
     assert record['cluster_status'] == stored
     if 'CLUSTERED' in stored:
-        assert record['cluster_land_id'] == 'L1'  # a Clustered row without cluster_land_id takes its land_id
+        assert record['cluster_land_id'] == 'C1'  # a Clustered row needs its own cluster_land_id
 
 
 @pytest.mark.parametrize('answer,stored', [

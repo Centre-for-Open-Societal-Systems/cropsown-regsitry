@@ -18,6 +18,9 @@ Existing Jenkins deployment branches, credential references, ECR repositories,
 deployment scripts and preservation guards are retained. This branch builds and
 validates only; no existing environment was replaced.
 
+How the registry reaches each environment: [deployment](docs/deployment.md). How a version is numbered and promoted:
+[release](docs/release.md). What changed: [CHANGELOG.md](CHANGELOG.md).
+
 Domain models/schemas/UUIDs and portable rules are preserved. Platform workers,
 core code and compiled UI assets are not patched. Legacy bulk import,
 Keycloak-location approval and optional Farmer lookup paths are retired.
@@ -33,3 +36,5 @@ for the verified 482 fields, registered schema/location widgets and preserved
 source cleanup. Helm lives in oan-helm; this repository consumes exact
 archives through [the central profile](ci/deploy/oan-chart.json). Deployment
 remains blocked until the explicit acceptance requirements pass.
+
+What checks a change, where it runs and how to run it locally: [ci/README.md](ci/README.md).

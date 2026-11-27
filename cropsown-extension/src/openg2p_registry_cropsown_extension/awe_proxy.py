@@ -18,6 +18,17 @@ class ScopedAweProxyControllerService(ScopedAweTasksMixin, G2PAweProxyController
     def _awe_helper(self):
         return AweHelper.get_component()
 
+    async def submit_task_decision(self, payload, *, bearer_token: str):
+        """A message is mandatory for both approve and reject decisions."""
+        from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
+
+        if not (payload.comment or "").strip():
+            raise G2PRegistryException(
+                code=G2PRegistryErrorCodes.REQUEST_VALIDATION_ERROR.value[1],
+                message="A message is required to approve or reject",
+            )
+        return await super().submit_task_decision(payload, bearer_token=bearer_token)
+
     async def _call_awe(self, call):
         try:
             return await call

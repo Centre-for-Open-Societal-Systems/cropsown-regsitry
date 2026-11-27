@@ -75,6 +75,30 @@ def is_blank(value) -> bool:
     return False
 
 
+# Row limits: two fields of the same table row compared on Next, submit, ODK, file import
+# and change requests. Blank values are not compared.
+def validate_season_window(record: dict) -> None:
+    """End date on or after Start date."""
+    start, end = parse_date(record.get("start_gc")), parse_date(record.get("end_gc"))
+    if start and end and end < start:
+        validation_error("End date cannot be earlier than Start date.")
+
+
+def validate_date_in_window(record: dict, field: str, label: str) -> None:
+    """record[field] on or after Start date and on or before End date (each when given)."""
+    value = parse_date(record.get(field))
+    start, end = parse_date(record.get("start_gc")), parse_date(record.get("end_gc"))
+    if value and ((start and value < start) or (end and value > end)):
+        validation_error(f"{label} must be between Start date and End date.")
+
+
+def validate_not_more_than(record: dict, field: str, limit_field: str, message: str) -> None:
+    """record[field] not more than a positive record[limit_field]; message takes {value} and {limit}."""
+    value, limit = as_float(record.get(field)), as_float(record.get(limit_field))
+    if value is not None and limit is not None and limit > 0 and value > limit + 1e-6:
+        validation_error(message.format(value=f"{value:g}", limit=f"{limit:g}"))
+
+
 def validate_alphabetical_name(value, field_name: str) -> None:
     if is_blank(value):
         return

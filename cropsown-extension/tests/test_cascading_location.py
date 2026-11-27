@@ -23,8 +23,11 @@ def test_only_the_three_sections_location_columns_get_their_parent():
         assert other not in sql
     assert "IN ('zone', 'woreda', 'kebele') AND node->>'widget' = 'select'" in sql
     assert "WHEN 'zone' THEN 'region' WHEN 'woreda' THEN 'zone' ELSE 'woreda'" in sql
-    # the columns stay selects on the same data source: no widget, path or source rewrite
-    assert "widget-data-source" not in sql.split("CREATE OR REPLACE FUNCTION")[1].split('UPDATE "public"')[0]
+    # the columns stay selects on the same list; only the stock dependsOn is added, a
+    # placeholder never set, so the platform's own load of the cell waits for the select
+    function = sql.split("CREATE OR REPLACE FUNCTION")[1].split('UPDATE "public"')[0]
+    assert "'{widget-data-source,dependsOn}', '\"oan-parent-cell\"')" in function
+    assert "AND c->'widget-data-source'->>'dependsOn' = 'oan-parent-cell'" in sql
 
 
 def test_the_overlay_sorts_after_the_section_rewrites_and_before_the_dates():
@@ -40,5 +43,10 @@ def test_the_ui_select_reads_the_mark_and_is_registered():
     assert "const PARENT_COLUMN = 'oan-parent-column';" in widget
     assert "dependsOn: parentId" in widget and "-dlg-" in widget
     assert "<SelectWidget config={effective as never} />" in widget
+    # until the level above is chosen, the level offers nothing ("Select" only)
+    assert "if (!parentChosen) return { ...config, 'widget-data-source': { type: 'static', options: [] } };" in widget
+    # the placeholder dependsOn is replaced in a row dialog and dropped anywhere else
+    assert "const PARENT_PLACEHOLDER = 'oan-parent-cell';" in widget
+    assert "dependsOn === PARENT_PLACEHOLDER ? { ...config, 'widget-data-source': source } : config" in widget
     register = (WIDGETS / "register.ts").read_text(encoding="utf-8")
     assert "widgetRegistry.register({ widget: 'select', component: CascadingSelectWidget as never });" in register

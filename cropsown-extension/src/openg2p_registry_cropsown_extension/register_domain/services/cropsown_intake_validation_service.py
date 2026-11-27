@@ -196,23 +196,39 @@ def row_lands(row: dict) -> tuple[str, str]:
 
 
 # "Is planning record created?" on Sowing and Harvest rows: the answer's key, the Land ID
-# it is about, and the earlier sections that may hold that land.
+# it is about, the earlier sections that may hold that land (Cultivation first), what they
+# are called, the earlier section's total area column, the row's own total area column (a
+# filled one is already checked on the row), the row's areas that may not exceed the total,
+# and the total's name.
 LAND_RECORDED = (
-    ("is_land_recorded", "land_id", "Land ID", ("plannings", "cultivations"),
-     "planning or cultivation record"),
-    ("is_cluster_land_recorded", "cluster_land_id", "Land ID (cluster)", ("clusters", "cultivation_clusters"),
-     "cluster planning or cultivation cluster record"),
+    ("is_land_recorded", "land_id", "Land ID", ("cultivations", "plannings"),
+     "planning or cultivation record", "land_area", None,
+     (("area_sown", "Area sown"), ("area_harvested", "Area harvested")), "Total land area"),
+    ("is_cluster_land_recorded", "cluster_land_id", "Land ID (cluster)", ("cultivation_clusters", "clusters"),
+     "cluster planning or cultivation cluster record", "cluster_area_hectare", "cluster_area_hectare",
+     (("cluster_area_sown", "Area sown, cluster"), ("cluster_area_harvested", "Area harvested, cluster")),
+     "Total cultivated area"),
 )
+SECTION_NAMES = {"cultivations": "Cultivation", "plannings": "Planning",
+                 "cultivation_clusters": "Cultivation cluster", "clusters": "Planning cluster"}
 
 
 async def validate_land_recorded(record: dict, session) -> None:
     """Yes to "Is planning record created?": the Land ID is in an earlier section of the
-    same farmer, crop year and season (this intake's rows, the farmer's matching crop
+    same farmer, crop year and season (this intake's rows, else the farmer's matching crop
     records, or the crop record being edited). When neither the intake nor the record
-    can be told, nothing is refused."""
+    can be told, nothing is refused.
+
+    The land's total area is then taken from that earlier row, Cultivation first, else
+    Planning (Clustered: Cultivation cluster, else Planning cluster), and the row's Area
+    sown or Area harvested may not be more than it. The land is matched by Land ID only,
+    not crop: the plot's size does not depend on what is grown on it."""
     if session is None:
         return
-    for answer_key, land_key, land_label, tables, what in LAND_RECORDED:
+    from .domain_validation_utils import as_float
+
+    for (answer_key, land_key, land_label, tables, what, total_column, row_total,
+         areas, total_label) in LAND_RECORDED:
         answer = record.get(answer_key)
         if not (answer is True or str(answer).strip().lower() in ("true", "yes")):
             continue
@@ -221,32 +237,62 @@ async def validate_land_recorded(record: dict, session) -> None:
             continue
         submission_id = record.get("submission_id")
         record_ids: list[str] = []
-        found = False
+        found = None  # (total area or None, the section it came from)
         if submission_id:
-            for table in tables:
-                if (await session.execute(
-                        text(f"SELECT 1 FROM g2p_intake_form_{table} WHERE submission_id = :sid AND TRIM(land_id) = :land LIMIT 1"),
-                        {"sid": str(submission_id), "land": land_id})).first():
-                    found = True
-                    break
-            if not found:
+            found = await _earlier_land(session, tables, total_column, "g2p_intake_form_",
+                                        "submission_id = :sid", {"sid": str(submission_id), "land": land_id})
+            if not found or found[0] is None:
                 record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
         if record.get("link_internal_record_id"):
             record_ids = [*record_ids, str(record["link_internal_record_id"])]
-        if found or (not submission_id and not record_ids):
+        if not found and not submission_id and not record_ids:
             continue
-        for table in tables if record_ids else ():
-            if (await session.execute(
-                    text(f"SELECT 1 FROM g2p_register_{table} WHERE link_internal_record_id = ANY(:ids) "
-                         "AND record_status = 'ACTIVE' AND TRIM(land_id) = :land LIMIT 1"),
-                    {"ids": record_ids, "land": land_id})).first():
-                found = True
-                break
+        if (not found or found[0] is None) and record_ids:
+            # Not in this intake, or there without a total area: the farmer's crop records.
+            registered = await _earlier_land(session, tables, total_column, "g2p_register_",
+                                             "link_internal_record_id = ANY(:ids) AND record_status = 'ACTIVE'",
+                                             {"ids": record_ids, "land": land_id}, newest_first=True)
+            if registered and (not found or registered[0] is not None):
+                found = registered
         if not found:
             validation_error(
                 f"No {what} found for {land_label} '{land_id}' for this farmer in this crop year and season. "
                 "Check the Land ID, or choose No for \"Is planning record created?\" and enter the land details."
             )
+        total, section = found
+        if total is None or total <= 0 or (row_total and as_float(record.get(row_total)) is not None):
+            continue
+        for area_key, area_label in areas:
+            value = as_float(record.get(area_key))
+            if value is not None and value > total + 1e-6:
+                validation_error(
+                    f"{area_label} ({value:g} hectares) cannot be more than {total_label} ({total:g} hectares) "
+                    f"in {SECTION_NAMES[section]} for {land_label} '{land_id}'."
+                )
+
+
+async def _earlier_land(session, tables, total_column, prefix, where, params, newest_first=False):
+    """The land's earlier rows, `tables` in order (Cultivation first): (total area, table) of the
+    first one with a total area; when none has one, (None, the first table that has the land).
+    Registered rows newest first. None when no table has the land."""
+    order = f"{total_column} IS NULL" + (", created_at DESC" if newest_first else "")
+    first_with_land = None
+    for table in tables:
+        row = (await session.execute(
+            text(f"SELECT {total_column} FROM {prefix}{table} WHERE {where} AND TRIM(land_id) = :land "
+                 f"ORDER BY {order} LIMIT 1"),
+            params)).first()
+        if not row:
+            continue
+        try:
+            total = float(row[0]) if row[0] is not None else None
+        except (TypeError, ValueError):
+            total = None
+        if total is not None and total > 0:
+            return total, table
+        first_with_land = first_with_land or (None, table)
+    return first_with_land
+
 
 async def get_master_records_for_submission(session, submission_id: str | None) -> tuple[list[str], str, str, str]:
     """
@@ -295,61 +341,6 @@ async def get_master_records_for_submission(session, submission_id: str | None) 
             matched_master_ids.append(str(r_id))
 
     return matched_master_ids, fayda, crop_year, prod_season
-
-
-async def earlier_stage_area(session, record: dict, sources, params: dict) -> tuple[float | None, str | None]:
-    """The area a Sowing or Harvest row may not exceed: the first earlier-stage row that matches it.
-
-    `sources` are (intake table, register table, area column, label, match SQL), tried in order.
-    For each, this intake's rows come first, then the farmer's registered crop records (the
-    records of this intake's farmer, crop year and season, and the record being edited); a Land
-    ID is never looked up among another farmer's records. The match SQL names the row's Land ID
-    and crop (Independent) or Land ID (cluster) and FPC name (Clustered); `params` fills it.
-    Returns (area, label), or (None, None) when no earlier row matches (then nothing is checked).
-    """
-    submission_id = record.get("submission_id")
-    record_ids: list[str] = []
-    if submission_id:
-        record_ids, _, _, _ = await get_master_records_for_submission(session, str(submission_id))
-    link_id = record.get("link_internal_record_id")
-    if link_id:
-        record_ids = [*record_ids, str(link_id)]
-    for intake_table, register_table, column, label, match in sources:
-        if submission_id:
-            row = (await session.execute(
-                text(f"SELECT {column} FROM {intake_table} WHERE submission_id = :sub_id AND {column} IS NOT NULL{match}"),
-                {**params, "sub_id": submission_id})).fetchone()
-            if row and row[0] is not None:
-                return float(row[0]), label
-        if record_ids:
-            row = (await session.execute(
-                text(f"SELECT {column} FROM {register_table} WHERE link_internal_record_id = ANY(:ids) "
-                     f"AND record_status = 'ACTIVE' AND {column} IS NOT NULL{match} ORDER BY created_at DESC"),
-                {**params, "ids": record_ids})).fetchone()
-            if row and row[0] is not None:
-                return float(row[0]), label
-    return None, None
-
-
-def crop_match(record: dict, land_id: str, commodity: str) -> tuple[str, dict]:
-    """Match SQL for an Independent row's earlier stage: same Land ID, crop and season (the row's
-    season, else the production season), as the date checks match. Crop and season codes match in
-    any of their spellings (CROP_TEFF / TEFF)."""
-    from .domain_validation_utils import get_attribute_variants
-
-    match = " AND TRIM(land_id) = :land_id AND commodity = ANY(:crops)"
-    params = {"land_id": land_id, "crops": get_attribute_variants(commodity, "CROP_COMMODITY") or [commodity]}
-    seasons = get_attribute_variants(record.get("season") or record.get("production_season"), "CROP_SEASON")
-    if seasons:
-        match += " AND season = ANY(:seasons)"
-        params["seasons"] = seasons
-    return match, params
-
-
-# Match SQL for a Clustered row's earlier stage: same Land ID (cluster) and FPC name. The Sowing table
-# keeps the cluster's land in cluster_land_id; the Cluster and Cultivation cluster tables in land_id.
-CLUSTER_MATCH = " AND TRIM(land_id) = :cluster_land_id AND UPPER(TRIM(cluster_name)) = :cluster_name"
-SOWING_CLUSTER_MATCH = " AND TRIM(cluster_land_id) = :cluster_land_id AND UPPER(TRIM(cluster_name)) = :cluster_name"
 
 
 _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
@@ -724,124 +715,130 @@ _FARMER_ID_PATTERN = re.compile(r"^FR-[0-9]{12}$")
 #                 )
 
 
-async def validate_cultivation_against_planning(session, section_payload: list[dict], submission_id: str | None):
-    """
-    Rule 3: In Cultivation Intake Form, if a record is ALREADY available in Planning
-    for the Land ID, Crop Name, and Season: check that Cultivation Date >= Planning Date
-    (equal or future date is allowed; past date shows error on Next button).
-    If it's a new record (no planning record exists for this land/crop/season), any date can be given.
-    """
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+# Retired: Cultivation and Cultivation cluster dates may be earlier than the Planning dates.
+# Only the retired checks in the Cultivation and Cultivation cluster services called this;
+# kept commented for reference.
+# async def validate_cultivation_against_planning(session, section_payload: list[dict], submission_id: str | None):
+#     """
+#     Rule 3: In Cultivation Intake Form, if a record is ALREADY available in Planning
+#     for the Land ID, Crop Name, and Season: check that Cultivation Date >= Planning Date
+#     (equal or future date is allowed; past date shows error on Next button).
+#     If it's a new record (no planning record exists for this land/crop/season), any date can be given.
+#     """
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    # Fetch active planning records under master records and current submission
-    plans = []
-    if master_ids:
-        res_p = await session.execute(
-            text("""
-                SELECT land_id, commodity, season, planned_date, start_gc
-                FROM g2p_register_plannings
-                WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
-            """),
-            {"m_ids": master_ids}
-        )
-        plans.extend(res_p.fetchall())
+#     # Fetch active planning records under master records and current submission
+#     plans = []
+#     if master_ids:
+#         res_p = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, season, planned_date, start_gc
+#                 FROM g2p_register_plannings
+#                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+#             """),
+#             {"m_ids": master_ids}
+#         )
+#         plans.extend(res_p.fetchall())
 
-    if submission_id:
-        res_ip = await session.execute(
-            text("""
-                SELECT land_id, commodity, season, planned_date, start_gc
-                FROM g2p_intake_form_plannings
-                WHERE submission_id = :sid
-            """),
-            {"sid": submission_id}
-        )
-        plans.extend(res_ip.fetchall())
+#     if submission_id:
+#         res_ip = await session.execute(
+#             text("""
+#                 SELECT land_id, commodity, season, planned_date, start_gc
+#                 FROM g2p_intake_form_plannings
+#                 WHERE submission_id = :sid
+#             """),
+#             {"sid": submission_id}
+#         )
+#         plans.extend(res_ip.fetchall())
 
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        commodity = str(row.get("commodity") or "").strip()
-        season = str(row.get("season") or prod_season or "").strip()
-        cult_date = parse_date_flexible(row.get("actual_cultivation_date") or row.get("start_gc"))
+#         land_id = str(row.get("land_id") or "").strip()
+#         commodity = str(row.get("commodity") or "").strip()
+#         season = str(row.get("season") or prod_season or "").strip()
+#         cult_date = parse_date_flexible(row.get("actual_cultivation_date") or row.get("start_gc"))
 
-        if not land_id or not cult_date:
-            continue
+#         if not land_id or not cult_date:
+#             continue
 
-        matching_plan_date = None
-        for p_land, p_comm, p_season, p_pdate, p_start in plans:
-            if str(p_land or "").strip() == land_id:
-                if commodity_matches(commodity, p_comm) and season_matches(season, p_season):
-                    p_date_val = parse_date_flexible(p_pdate or p_start)
-                    if p_date_val:
-                        matching_plan_date = p_date_val
-                        break
+#         matching_plan_date = None
+#         for p_land, p_comm, p_season, p_pdate, p_start in plans:
+#             if str(p_land or "").strip() == land_id:
+#                 if commodity_matches(commodity, p_comm) and season_matches(season, p_season):
+#                     p_date_val = parse_date_flexible(p_pdate or p_start)
+#                     if p_date_val:
+#                         matching_plan_date = p_date_val
+#                         break
 
-        # Only validate date if a planning record exists for this land_id, crop name, and season
-        if matching_plan_date is not None and cult_date < matching_plan_date:
-            validation_error(
-                f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planned Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'. "
-                f"You can only choose a date equal to or after the planned date."
-            )
+#         # Only validate date if a planning record exists for this land_id, crop name, and season
+#         if matching_plan_date is not None and cult_date < matching_plan_date:
+#             validation_error(
+#                 f"Cultivation Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+#                 f"Planned Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Land ID '{land_id}' and Crop '{commodity}'. "
+#                 f"You can only choose a date equal to or after the planned date."
+#             )
 
 
-async def validate_cultivation_cluster_against_planning(session, section_payload: list[dict], submission_id: str | None):
-    """
-    Cluster Cultivation vs Planning date check:
-    If a Planning Cluster record exists for this cluster_name and land_id,
-    Cultivation Date must be >= Planning Date. If none exists, allow any date.
-    """
-    master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
+# Retired: Cultivation and Cultivation cluster dates may be earlier than the Planning dates.
+# Only the retired checks in the Cultivation and Cultivation cluster services called this;
+# kept commented for reference.
+# async def validate_cultivation_cluster_against_planning(session, section_payload: list[dict], submission_id: str | None):
+#     """
+#     Cluster Cultivation vs Planning date check:
+#     If a Planning Cluster record exists for this cluster_name and land_id,
+#     Cultivation Date must be >= Planning Date. If none exists, allow any date.
+#     """
+#     master_ids, fayda, crop_year, prod_season = await get_master_records_for_submission(session, submission_id)
 
-    plan_clusters = []
-    if master_ids:
-        res_c = await session.execute(
-            text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date
-                FROM g2p_register_clusters
-                WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
-            """),
-            {"m_ids": master_ids}
-        )
-        plan_clusters.extend(res_c.fetchall())
+#     plan_clusters = []
+#     if master_ids:
+#         res_c = await session.execute(
+#             text("""
+#                 SELECT land_id, cluster_name, start_gc, establishing_date
+#                 FROM g2p_register_clusters
+#                 WHERE link_internal_record_id = ANY(:m_ids) AND record_status = 'ACTIVE'
+#             """),
+#             {"m_ids": master_ids}
+#         )
+#         plan_clusters.extend(res_c.fetchall())
 
-    if submission_id:
-        res_ic = await session.execute(
-            text("""
-                SELECT land_id, cluster_name, start_gc, establishing_date
-                FROM g2p_intake_form_clusters
-                WHERE submission_id = :sid
-            """),
-            {"sid": submission_id}
-        )
-        plan_clusters.extend(res_ic.fetchall())
+#     if submission_id:
+#         res_ic = await session.execute(
+#             text("""
+#                 SELECT land_id, cluster_name, start_gc, establishing_date
+#                 FROM g2p_intake_form_clusters
+#                 WHERE submission_id = :sid
+#             """),
+#             {"sid": submission_id}
+#         )
+#         plan_clusters.extend(res_ic.fetchall())
 
-    for row in section_payload or []:
-        if is_record_deleted(row):
-            continue
+#     for row in section_payload or []:
+#         if is_record_deleted(row):
+#             continue
 
-        land_id = str(row.get("land_id") or "").strip()
-        cluster_name = str(row.get("cluster_name") or "").strip()
-        cult_date = parse_date_flexible(row.get("start_gc") or row.get("establishing_date"))
+#         land_id = str(row.get("land_id") or "").strip()
+#         cluster_name = str(row.get("cluster_name") or "").strip()
+#         cult_date = parse_date_flexible(row.get("start_gc") or row.get("establishing_date"))
 
-        if not land_id or not cluster_name or not cult_date:
-            continue
+#         if not land_id or not cluster_name or not cult_date:
+#             continue
 
-        matching_plan_date = None
-        for p_land, p_cname, p_start, p_est in plan_clusters:
-            if str(p_land or "").strip() == land_id and str(p_cname or "").strip().upper() == cluster_name.upper():
-                p_date_val = parse_date_flexible(p_start or p_est)
-                if p_date_val:
-                    matching_plan_date = p_date_val
-                    break
+#         matching_plan_date = None
+#         for p_land, p_cname, p_start, p_est in plan_clusters:
+#             if str(p_land or "").strip() == land_id and str(p_cname or "").strip().upper() == cluster_name.upper():
+#                 p_date_val = parse_date_flexible(p_start or p_est)
+#                 if p_date_val:
+#                     matching_plan_date = p_date_val
+#                     break
 
-        if matching_plan_date is not None and cult_date < matching_plan_date:
-            validation_error(
-                f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
-                f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
-            )
+#         if matching_plan_date is not None and cult_date < matching_plan_date:
+#             validation_error(
+#                 f"Cultivation Cluster Date ({cult_date.strftime('%d/%m/%Y')}) cannot be earlier than "
+#                 f"Planning Date ({matching_plan_date.strftime('%d/%m/%Y')}) for Farmers Production Cluster Name '{cluster_name}' and Land ID '{land_id}'."
+#             )
 
 
 async def validate_sowing_against_cultivation(session, section_payload: list[dict], submission_id: str | None):

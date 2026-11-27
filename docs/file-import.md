@@ -35,9 +35,9 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `kebele` | Location (`cs_cropsown_location`) and the plot row | No | Master Data geo unit id (P-code), for example ET040404888003 |
 | `latitude` | Location (`cs_cropsown_location`) and the plot row | No | Decimal degrees; needs the longitude too |
 | `longitude` | Location (`cs_cropsown_location`) and the plot row | No | Decimal degrees; needs the latitude too |
-| `land_id` | `cs_planning_details` | Yes | Text |
+| `land_id` | `cs_planning_details` | Yes | Plain text, as on the land certificate; only spaces is refused. |
 | `plot_category` | `cs_planning_details` | No | Code from the PLOT_CATEGORY list below. |
-| `ownership_type` | `cs_planning_details` | No | Code from the OWNERSHIP_TYPE list below. |
+| `ownership_type` | `cs_planning_details` | No | Code from the LAND_OWNERSHIP_TYPE list below. |
 | `soil_fertility_type` | `cs_planning_details` | No | Code from the SOIL_FERTILITY list below. |
 | `season` | `cs_planning_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_planning_details` | Yes | Code from the CROP_COMMODITY list below. |
@@ -53,7 +53,7 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `da_mobile_number` | `cs_planning_details` | No | Text |
 | `supervisor_name` | `cs_planning_details` | No | Text |
 | `supervisor_mobile_number` | `cs_planning_details` | No | Text |
-| `land_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
+| `land_area` | `cs_planning_details` | No | Number, digits and an optional decimal point. Required when `planned_area` is given. |
 | `planned_area` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `expected_yield` | `cs_planning_details` | No | Number, digits and an optional decimal point |
 | `crop_latitude` | `cs_planning_details` | No | The crop's latitude in decimal degrees. |
@@ -73,14 +73,14 @@ Import configuration: `file_import_to_crop_planning_intake`.
 | `cropping_system` | `cs_planning_details` | No | Code from the CROPPING_SYSTEM list below. |
 | `seed_class` | `cs_planning_details` | No | Code from the SEED_TYPE list below. |
 | `seed_source` | `cs_planning_details` | No | Code from the SEED_SOURCE list below. |
-| `cluster_<n>_land_id` | `cs_cluster_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `cluster_<n>_land_id` | `cs_cluster_details` | No | Text. The Land ID; **required when the group has any value**. Plain text, as on the land certificate; only spaces is refused. |
 | `cluster_<n>_name` | `cs_cluster_details` | No | Text (Farmer production cluster name) |
 | `cluster_<n>_reference` | `cs_cluster_details` | No | Text |
 | `cluster_<n>_fpc_type` | `cs_cluster_details` | No | `GREEN` |
 | `cluster_<n>_season` | `cs_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cluster_details` | No | P-code, for example ET040404 |
@@ -122,13 +122,13 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `fayda_id` | Farmer lookup (`crop_farmer_lookup`) | Yes | A 12-digit FIN or a 16-digit FAN, digits only (spaces are dropped) |
 | `crop_year` | Production Season (`cs_common_intake_season`) | Yes | Four-digit year, for example 2026 |
 | `production_season` | Production Season (`cs_common_intake_season`) | Yes | Code from the CROP_SEASON list below. |
-| `land_id` | `cs_cultivation_details` | Yes | Text |
+| `land_id` | `cs_cultivation_details` | Yes | Plain text, as on the land certificate; only spaces is refused. |
 | `season` | `cs_cultivation_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_cultivation_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `crop_category` | `cs_cultivation_details` | No | Code from the CROP_CATEGORY list below. |
 | `local_name` | `cs_cultivation_details` | No | Text |
 | `scientific_name` | `cs_cultivation_details` | No | Text |
-| `cultivation_type` | `cs_cultivation_details` | No | Code from the MACHINERY list below. |
+| `cultivation_type` | `cs_cultivation_details` | No | Code from the FARM_MACHINERY list below. |
 | `seed_variety` | `cs_cultivation_details` | No | The variety (shown as "Variety"): code from the SEED_VARIETY list below. |
 | `actual_fertilizer_type` | `cs_cultivation_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `water_source` | `cs_cultivation_details` | No | Code from the WATER_SOURCE list below. |
@@ -138,7 +138,7 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `da_mobile_number` | `cs_cultivation_details` | No | Text |
 | `supervisor_name` | `cs_cultivation_details` | No | Text |
 | `supervisor_mobile_number` | `cs_cultivation_details` | No | Text |
-| `land_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
+| `land_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point. Required when `actual_crop_area` is given. |
 | `actual_crop_area` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
 | `actual_yield` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
 | `actual_seed_qty` | `cs_cultivation_details` | No | Number, digits and an optional decimal point |
@@ -155,10 +155,10 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `cropping_system` | `cs_cultivation_details` | No | Code from the CROPPING_SYSTEM list below. |
 | `actual_seed_class` | `cs_cultivation_details` | No | Code from the SEED_TYPE list below. |
 | `actual_seed_source` | `cs_cultivation_details` | No | Code from the SEED_SOURCE list below. |
-| `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREP_METHOD list below. Several values separated by a semicolon. |
+| `land_prep_method` | `cs_cultivation_details` | No | Code from the LAND_PREPARATION_METHOD list below. Several values separated by a semicolon. |
 | `is_planning_record_created` | `cs_cultivation_details` | No | yes or no (also true/false, 1/0). yes: the land is in Planning, so only `land_id` and `land_area` are kept and the Land ID must be in the farmer's Planning of the same crop year and season. no: the land columns below are kept. |
 | `plot_category` | `cs_cultivation_details` | No | Code from the PLOT_CATEGORY list. Read when `is_planning_record_created` is not yes. |
-| `ownership_type` | `cs_cultivation_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_planning_record_created` is not yes. |
+| `ownership_type` | `cs_cultivation_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_planning_record_created` is not yes. |
 | `soil_fertility_type` | `cs_cultivation_details` | No | Code from the SOIL_FERTILITY list. Read when `is_planning_record_created` is not yes. |
 | `region` | `cs_cultivation_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_planning_record_created` is not yes. |
 | `zone` | `cs_cultivation_details` | No | The land's Zone: P-code, for example ET0404. Read when `is_planning_record_created` is not yes. |
@@ -168,14 +168,14 @@ Import configuration: `file_import_to_crop_cultivation_intake`.
 | `longitude` | `cs_cultivation_details` | No | The land's longitude in decimal degrees, for example 38.7469. Read when `is_planning_record_created` is not yes. |
 | `crop_latitude` | `cs_cultivation_details` | No | The crop's latitude in decimal degrees. |
 | `crop_longitude` | `cs_cultivation_details` | No | The crop's longitude in decimal degrees. |
-| `cluster_<n>_land_id` | `cs_cultivation_cluster_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `cluster_<n>_land_id` | `cs_cultivation_cluster_details` | No | Text. The Land ID; **required when the group has any value**. Plain text, as on the land certificate; only spaces is refused. |
 | `cluster_<n>_name` | `cs_cultivation_cluster_details` | No | Text (Farmer production cluster name) |
 | `cluster_<n>_reference` | `cs_cultivation_cluster_details` | No | Text |
 | `cluster_<n>_fpc_type` | `cs_cultivation_cluster_details` | No | `GREEN` |
 | `cluster_<n>_season` | `cs_cultivation_cluster_details` | No | Code from the CROP_SEASON list below. Blank means the production season; another season is refused. |
 | `cluster_<n>_start_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
 | `cluster_<n>_end_gc` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
-| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD |
+| `cluster_<n>_establishing_date` | `cs_cultivation_cluster_details` | No | YYYY-MM-DD, between `cluster_<n>_start_gc` and `cluster_<n>_end_gc`. |
 | `cluster_<n>_region` | `cs_cultivation_cluster_details` | No | Master Data geo unit id (P-code), for example ET04 |
 | `cluster_<n>_zone` | `cs_cultivation_cluster_details` | No | P-code, for example ET0404 |
 | `cluster_<n>_woreda` | `cs_cultivation_cluster_details` | No | P-code, for example ET040404 |
@@ -216,30 +216,30 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `fayda_id` | Farmer lookup (`crop_farmer_lookup`) | Yes | A 12-digit FIN or a 16-digit FAN, digits only (spaces are dropped) |
 | `crop_year` | Production Season (`cs_common_intake_season`) | Yes | Four-digit year, for example 2026 |
 | `production_season` | Production Season (`cs_common_intake_season`) | Yes | Code from the CROP_SEASON list below. |
-| `land_id` | `cs_sowing_details` | Yes | Text |
+| `land_id` | `cs_sowing_details` | Yes | Plain text, as on the land certificate; only spaces is refused. |
 | `season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. Blank means the production season. |
 | `commodity` | `cs_sowing_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `fertilizer_type` | `cs_sowing_details` | No | Code from the FERTILIZER_TYPE list below. |
 | `cluster_name` | `cs_sowing_details` | No | Text |
-| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. |
+| `cluster_season` | `cs_sowing_details` | No | Code from the CROP_SEASON list below. Required when `cluster_status` has CLUSTERED. |
 | `da_name` | `cs_sowing_details` | No | Text |
 | `da_mobile_number` | `cs_sowing_details` | No | Text |
 | `supervisor_name` | `cs_sowing_details` | No | Text |
 | `supervisor_mobile_number` | `cs_sowing_details` | No | Text |
 | `area_sown` | `cs_sowing_details` | Yes | Number, digits and an optional decimal point |
 | `fertilizer_qty` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
-| `cluster_area_hectare` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
+| `cluster_area_hectare` | `cs_sowing_details` | No | Number, digits and an optional decimal point. Required when `cluster_area_sown` is given on a Clustered row. |
 | `cluster_area_sown` | `cs_sowing_details` | No | Number, digits and an optional decimal point |
-| `sowing_date` | `cs_sowing_details` | Yes | YYYY-MM-DD |
+| `sowing_date` | `cs_sowing_details` | Yes | YYYY-MM-DD (a future date is allowed) |
 | `has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |
 | `cluster_has_pest_disease` | `cs_sowing_details` | No | yes or no (also true/false, 1/0) |
 | `agro_ecological_zone` | `cs_sowing_details` | No | Code from the AGRO_ECOLOGICAL_ZONE list below. |
 | `cluster_status` | `cs_sowing_details` | No | `CLUSTERED`, `INDEPENDENT`, or both separated by a semicolon (`CLUSTER` is read as `CLUSTERED`) |
-| `cluster_land_id` | `cs_sowing_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
+| `cluster_land_id` | `cs_sowing_details` | No | Land ID (cluster) of a Clustered row; **required for a Clustered row** (a blank one is refused). Plain text, as on the land certificate; only spaces is refused. |
 | `is_land_recorded` | `cs_sowing_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_sowing_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
 | `plot_category` | `cs_sowing_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
-| `ownership_type` | `cs_sowing_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_sowing_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
 | `land_area` | `cs_sowing_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
 | `soil_fertility_type` | `cs_sowing_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
 | `region` | `cs_sowing_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
@@ -256,7 +256,7 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `cluster_sub_kebele` | `cs_sowing_details` | No | Text. Read when `is_cluster_land_recorded` is not yes. |
 | `cluster_latitude` | `cs_sowing_details` | No | The cluster land's latitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
 | `cluster_longitude` | `cs_sowing_details` | No | The cluster land's longitude in decimal degrees. Read when `is_cluster_land_recorded` is not yes. |
-| `infestation_<n>_land_id` | `cs_infestation_details` | No | Text. The Land ID; **required when the group has any value**. |
+| `infestation_<n>_land_id` | `cs_infestation_details` | No | Text. The Land ID; **required when the group has any value**. Plain text, as on the land certificate; only spaces is refused. |
 | `infestation_<n>_cluster_status` | `cs_infestation_details` | No | `CLUSTERED` or `INDEPENDENT` (`CLUSTER` is read as `CLUSTERED`) |
 | `infestation_<n>_cluster_name` | `cs_infestation_details` | No | Text. Read for a Clustered row. |
 | `infestation_<n>_commodity` | `cs_infestation_details` | No | Code from the CROP_COMMODITY list below. Read for an Independent row. |
@@ -280,7 +280,7 @@ Import configuration: `file_import_to_crop_sowing_intake`.
 | `infestation_<n>_fungicide_name` | `cs_infestation_details` | No | Text. Disease rows. |
 | `infestation_<n>_disease_frequency_of_application` | `cs_infestation_details` | No | Text. Disease rows. |
 | `infestation_<n>_growth_stage` | `cs_infestation_details` | No | Code from the CROP_GROWTH_STAGE list |
-| `infestation_<n>_observation_date` | `cs_infestation_details` | No | YYYY-MM-DD, today or earlier |
+| `infestation_<n>_observation_date` | `cs_infestation_details` | No | YYYY-MM-DD (a future date is allowed) |
 | `infestation_<n>_severity_level` | `cs_infestation_details` | No | Code from the INFESTATION_SEVERITY list |
 | `infestation_<n>_estimated_damage_pct` | `cs_infestation_details` | No | Estimated crop damage (%): a number from 0 to 100, without the `%` sign, for example `15` |
 
@@ -296,7 +296,7 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 | `fayda_id` | Farmer lookup (`crop_farmer_lookup`) | Yes | A 12-digit FIN or a 16-digit FAN, digits only (spaces are dropped) |
 | `crop_year` | Production Season (`cs_common_intake_season`) | Yes | Four-digit year, for example 2026 |
 | `production_season` | Production Season (`cs_common_intake_season`) | Yes | Code from the CROP_SEASON list below. |
-| `land_id` | `cs_harvest_details` | Yes | Text |
+| `land_id` | `cs_harvest_details` | Yes | Plain text, as on the land certificate; only spaces is refused. |
 | `commodity` | `cs_harvest_details` | Yes | Code from the CROP_COMMODITY list below. |
 | `cluster_name` | `cs_harvest_details` | No | Text |
 | `da_name` | `cs_harvest_details` | No | Text |
@@ -318,11 +318,11 @@ Import configuration: `file_import_to_crop_harvesting_intake`.
 | `crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
 | `cluster_crop_maturity_status` | `cs_harvest_details` | No | `READY_FOR_HARVEST`, `NOT_YET_READY_FOR_HARVEST` |
 | `cluster_status` | `cs_harvest_details` | No | `CLUSTERED`, `INDEPENDENT`, or both separated by a semicolon (`CLUSTER` is read as `CLUSTERED`) |
-| `cluster_land_id` | `cs_harvest_details` | No | Land ID (cluster) of a Clustered row. Blank: the row's `land_id` is used. |
+| `cluster_land_id` | `cs_harvest_details` | No | Land ID (cluster) of a Clustered row; **required for a Clustered row** (a blank one is refused). Plain text, as on the land certificate; only spaces is refused. |
 | `is_land_recorded` | `cs_harvest_details` | No | "Is planning record created?" for the Independent Land ID: yes or no (also true/false, 1/0). yes keeps only the Land ID, which must be in the farmer's Planning or Cultivation of the same crop year and season; no keeps the land columns below. |
 | `is_plot_not_registered` | `cs_harvest_details` | No | yes or no (also true/false, 1/0). Read when `is_land_recorded` is not yes. |
 | `plot_category` | `cs_harvest_details` | No | Code from the PLOT_CATEGORY list. Read when `is_land_recorded` is not yes. |
-| `ownership_type` | `cs_harvest_details` | No | Code from the OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
+| `ownership_type` | `cs_harvest_details` | No | Code from the LAND_OWNERSHIP_TYPE list. Read when `is_land_recorded` is not yes. |
 | `land_area` | `cs_harvest_details` | No | Number, digits and an optional decimal point. Read when `is_land_recorded` is not yes. |
 | `soil_fertility_type` | `cs_harvest_details` | No | Code from the SOIL_FERTILITY list. Read when `is_land_recorded` is not yes. |
 | `region` | `cs_harvest_details` | No | The land's Region: Master Data geo unit id (P-code), for example ET04. Read when `is_land_recorded` is not yes. |
@@ -392,11 +392,11 @@ Master Data list `PLOT_CATEGORY` as the ETH-OAN pack seeds it.
 
 `ANNUAL_CROP`, `PERENNIAL_CROP`, `BIENNIAL_CROP`
 
-### OWNERSHIP_TYPE
+### LAND_OWNERSHIP_TYPE
 
-Master Data list `OWNERSHIP_TYPE` as the ETH-OAN pack seeds it.
+Master Data list `LAND_OWNERSHIP_TYPE` as the ETH-OAN pack seeds it.
 
-`OWNER`, `TENANT`, `CROP_SHARING`, `FAMILY_GIFT`
+`OWNER`, `TENANT`, `CROP_SHARE`
 
 ### WATER_SOURCE_METHOD
 
@@ -410,17 +410,17 @@ Master Data list `WATER_SOURCE_FREQUENCY` as the ETH-OAN pack seeds it.
 
 `DAILY`, `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AS_NEEDED`, `OTHER`
 
-### MACHINERY
+### FARM_MACHINERY
 
-Master Data list `MACHINERY` as the ETH-OAN pack seeds it.
+Master Data list `FARM_MACHINERY` as the ETH-OAN pack seeds it.
 
-`OXEN_TILLAGE`, `EQUINE_OTHER`, `TRACTOR_PLOUGHING`, `POWER_TILLER`, `COMBINE_HARVESTER`, `THRASHING_MACHINE`, `FAMILY_LABOR`, `DEBO_JIGI`, `HIRED_LABOR`, `TRACTOR_OXEN`, `OXEN_MANUAL`
+`MACH_TRACTOR`, `MACH_ROW_PLANTER`, `MACH_THRESHER`, `MACH_COMBINE`, `MACH_SPRAYER`, `MACH_WATER_PUMP`
 
-### LAND_PREP_METHOD
+### LAND_PREPARATION_METHOD
 
-Master Data list `LAND_PREP_METHOD` as the ETH-OAN pack seeds it.
+Master Data list `LAND_PREPARATION_METHOD` as the ETH-OAN pack seeds it.
 
-`TRADITIONAL_MARESHA_PLOUGHING`, `TRACTOR_DISC_MOLDBOARD_PLOUGHING`, `MANUAL_DIGGING`, `SHILSHALO`, `RIDGING_FURROWING`, `MANUAL_LEVELING`, `MINIMUM_TILLAGE`, `SOIL_WATER_CONSERVATION_STRUCTURES`, `BIOLOGICAL_MULCHING`
+`LPM_OXEN`, `LPM_TRACTOR`, `LPM_MANUAL`, `LPM_ZERO_TILLAGE`
 
 ### CROPPING_SYSTEM
 

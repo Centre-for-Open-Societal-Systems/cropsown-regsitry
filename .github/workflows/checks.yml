@@ -13,7 +13,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install pytest==8.4.2 pytest-cov==7.1.0 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson openpyxl==3.1.5
       - name: Source and deployment contracts
         run: bash ci/validate.sh
       - name: cropsown-connector chart renders the digest-pinned image
@@ -21,7 +24,7 @@ jobs:
       - name: Native image extension checks
         run: |
           docker build -f ci/refactor/profile-tests.Dockerfile -t registry-reference-tests .
-          docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src registry-reference-tests -m pytest -q -p no:cacheprovider cropsown-extension/tests
+          docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_cropsown_extension -e PYTHONPATH=/work/cropsown-extension/src -e COVERAGE_FILE=/tmp/cropsown-registry.coverage registry-reference-tests -m pytest -q -p no:cacheprovider cropsown-extension/tests --cov=cropsown-extension/src --cov-report=term:skip-covered
       - name: Native metadata and notification mapping
         run: |
           OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py cropsown --pipeline

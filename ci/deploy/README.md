@@ -56,11 +56,13 @@ Jenkins `NEW_DEV_DELIVERY_ACTION` on develop:
 | `connector-plan` | Changes nothing. Prints the image digests it would set, the release values, the rendered manifest diff against the running release, a server-side dry run, and whether the optional Keycloak client secret copy exists (informational). Fails when the diff removes a non-image line or the target renders a Job (tick the operator parameter `ALLOW_NON_IMAGE_CHANGES`, which sets `ALLOW_NON_IMAGE_CHANGES=1`, only for a deliberate chart change such as the first rollout of the connector-definitions Job). |
 | `connector-upgrade` | Builds no image. Archives the connector database to the New Dev box, then `helm upgrade` of `cropsown-connector` with the same checks printed first, and verifies the pinned image on api, worker, beat and ui. Upgrade only, safe to rerun. |
 
-The service image (api, worker, beat) is `openg2p/cropsown-registry/registry-connector` (built by this
-pipeline from `docker/registry-connector`) and the UI image is `openg2p/cropsown-registry/registry-connector-ui`
-(from `docker/registry-connector-ui`). Both are taken from the tag `CONNECTOR_IMAGE_TAG` (default
-`develop`, or a build tag such as `develop-195`), each resolved to its own digest in ECR and pinned by
-digest, so the Helm release owns the images instead of a hand-run `kubectl set image`.
+The service image (api, worker, beat) is `eoan/cropsown-registry/registry-connector-api` (built by this
+pipeline from `docker/registry-connector`) and the UI image is `eoan/cropsown-registry/registry-connector-ui`
+(from `docker/registry-connector-ui`; names from `ci/image_names.py`). Both come from
+`ci/deploy/connector-image.newdev.json`: one develop build's tag (such as `1.0.0-develop.307`) and the digest of each
+image. The pipeline checks that ECR still gives that digest for that tag (tags are immutable) and pins the release by
+digest, so the Helm release owns the images instead of a hand-run `kubectl set image`. Moving the connector is a PR
+that changes the pin.
 
 Values are not copied into git. `ci/deploy/upgrade-crop-connector.sh` reads the running
 release's values with `helm get values`, writes a small override file (the image on api,
