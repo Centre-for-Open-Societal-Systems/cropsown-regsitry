@@ -25,7 +25,7 @@ class G2PHarvest:
     cluster_land_id: Mapped[str] = mapped_column(String, nullable=True)        # Land ID (cluster): the land of a Clustered row; land_id is the Independent one
     # "Is planning record created?" for Independent (is_land_recorded) and Clustered
     # (is_cluster_land_recorded); No stores the land / cluster location here
-    # (zz-oan/97g_sowing_harvest_land_rows.sql).
+    # (site-configuration/97g_sowing_harvest_land_rows.sql).
     is_land_recorded: Mapped[bool] = mapped_column(Boolean, nullable=True)
     is_cluster_land_recorded: Mapped[bool] = mapped_column(Boolean, nullable=True)
     is_plot_not_registered: Mapped[bool] = mapped_column(Boolean, nullable=True)

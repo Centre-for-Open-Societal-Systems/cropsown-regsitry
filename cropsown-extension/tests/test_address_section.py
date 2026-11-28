@@ -9,8 +9,8 @@ pytest.importorskip("openg2p_registry_core")
 from openg2p_registry_cropsown_extension.farmer_reference import projection
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension"
-ZZ_OAN = PACKAGE / "meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97e_address_section.sql"
+SITE_CONFIGURATION = PACKAGE / "meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97e_address_section.sql"
 
 
 def record(**values):
@@ -54,7 +54,7 @@ def test_the_section_is_the_read_only_address_and_off_the_planning_form():
     assert '{"section-title": "Address", "section-editable": false}' in sql
     assert "node->>'widget' IN ('geo-hierarchy', 'oan-geo-point')" in sql and '{"widget-readonly": true}' in sql
     assert 'DELETE FROM "public"."g2p_intake_form_ui_tab_sections"' in sql
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     assert len({n.split("_")[0] for n in names}) == len(names)
 

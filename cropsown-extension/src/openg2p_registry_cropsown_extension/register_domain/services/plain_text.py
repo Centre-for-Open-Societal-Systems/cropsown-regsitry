@@ -6,7 +6,7 @@ the ORM event that saves a record, which cannot call Master Data, so the words
 come from the code itself: the list prefix goes, underscores become spaces and
 the first letter is a capital. Two commodity codes whose Master Data label
 carries punctuation are listed below. The same rule is written in SQL in
-meta_data/zz-oan/86_readable_lists.sql, which rewrites names stored before the
+meta_data/site-configuration/86_readable_lists.sql, which rewrites names stored before the
 change; tests/test_readable_lists.py checks both give the same words.
 """
 

@@ -24,7 +24,7 @@ from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_d
 
 RECORD_ID = "1aa7c675-91d6-40be-86ba-41d7b9172049"
 PREFIX = "6b06a95a-9a6c-5a33-a33d-c1625716c59c."
-OVERLAY = (Path(module.__file__).resolve().parents[2] / "meta_data" / "zz-oan" / "94_crop_record_header_readonly.sql")
+OVERLAY = (Path(module.__file__).resolve().parents[2] / "meta_data" / "site-configuration" / "94_crop_record_header_readonly.sql")
 
 
 class Rows:

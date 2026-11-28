@@ -44,7 +44,7 @@ def widgets(node):
 def test_overlay_runs_after_every_register_metadata_file():
     # The seed applies every file under meta_data in sorted path order.
     files = sorted(str(path.relative_to(META)).replace("\\", "/") for path in META.rglob("*.sql"))
-    lookup = files.index("zz-oan/10_farmer_lookup.sql")
+    lookup = files.index("site-configuration/10_farmer_lookup.sql")
     assert all(index < lookup for index, name in enumerate(files) if name.startswith("register-metadata/"))
 
 
@@ -58,7 +58,7 @@ class FarmerLookupSectionTests(unittest.IsolatedAsyncioTestCase):
         await self.fixture.asyncTearDown()
 
     async def replay(self):
-        paths = sorted((META / "register-metadata").glob("*.sql")) + sorted((META / "zz-oan").glob("*.sql"))
+        paths = sorted((META / "register-metadata").glob("*.sql")) + sorted((META / "site-configuration").glob("*.sql"))
         async with self.fixture.engine.begin() as connection:
             raw = await connection.get_raw_connection()
             for path in paths:

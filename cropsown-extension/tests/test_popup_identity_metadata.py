@@ -63,7 +63,7 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
         from openg2p_registry_core.models import G2PIntakeFormUITabSection, G2PRegisterUITabSection
         package = importlib.import_module("openg2p_registry_"+PRODUCT+"_extension")
         paths = sorted((Path(package.__file__).parent/"meta_data/register-metadata").glob("*.sql"))
-        final = next(p for p in paths if p.name == "zzzzzzzz_popup_only_fin.sql")
+        final = next(p for p in paths if p.name == "update_080_popup_only_fin.sql")
         await self.replay([p for p in paths if p != final])
         # Reproduce the competing legacy alias binding found on restored New
         # Dev. Native resolution must stay unique, while the full old row is
@@ -142,7 +142,7 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
     async def test_extractor_handles_nested_arrays_and_real_duplicate_ids(self):
         import json
         package = importlib.import_module("openg2p_registry_"+PRODUCT+"_extension")
-        split = Path(package.__file__).parent/"meta_data/register-metadata/zzzzzzz_identity_section_split.sql"
+        split = Path(package.__file__).parent/"meta_data/register-metadata/update_070_identity_section_split.sql"
         function_sql = split.read_text(encoding="utf-8").split("$$;", 1)[0]+"$$;"
         fixture = {"panels": [{"widgets": [{"widget": "text", "widget-id": "farmer_id", "marker": "first"},
                     {"widget": "text", "widget-id": "farmer_id", "marker": "duplicate"}]},
@@ -158,7 +158,7 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
     async def test_final_dedup_preserves_unrelated_widgets_and_null_array_values(self):
         import json
         package = importlib.import_module("openg2p_registry_"+PRODUCT+"_extension")
-        final = Path(package.__file__).parent/"meta_data/register-metadata/zzzzzzzz_popup_only_fin.sql"
+        final = Path(package.__file__).parent/"meta_data/register-metadata/update_080_popup_only_fin.sql"
         functions = final.read_text(encoding="utf-8").split("-- Earlier popup patches", 1)[1]
         functions = "-- Earlier popup patches"+functions.split("UPDATE g2p_register_sections", 1)[0]
         fixture = {"widgets": [{"widget":"profile", "widget-id":"profile", "values":[None]},

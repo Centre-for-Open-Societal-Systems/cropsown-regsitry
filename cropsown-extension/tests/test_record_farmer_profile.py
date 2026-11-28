@@ -16,7 +16,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 PACKAGE = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_cropsown_extension")
 projection = importlib.import_module(PACKAGE + ".farmer_reference.projection")
 SOURCE = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension"
-OVERLAY = SOURCE / "meta_data/zz-oan/97m_record_farmer_profile.sql"
+OVERLAY = SOURCE / "meta_data/site-configuration/97m_record_farmer_profile.sql"
 CROP_REGISTER = "6b06a95a-9a6c-5a33-a33d-c1625716c59c"
 
 

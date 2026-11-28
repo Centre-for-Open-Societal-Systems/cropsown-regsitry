@@ -3,7 +3,7 @@ its FAN in one column and its FIN in the other."""
 from pathlib import Path
 
 OVERLAY = (Path(__file__).resolve().parents[1]
-           / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan/97n_list_fayda_fin_column.sql")
+           / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration/97n_list_fayda_fin_column.sql")
 
 
 def test_the_fin_column_goes_after_the_fan_column_of_the_crop_sown_list_only():

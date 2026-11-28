@@ -47,9 +47,9 @@ def test_the_message():
 
 def test_no_format_is_left_anywhere():
     assert not hasattr(field_rules, "LAND_ID_FORMAT") and not hasattr(field_rules, "LAND_ID_PREFIXES")
-    sql = (META / "register-metadata/zzzzzz_field_rules.sql").read_text(encoding="utf-8")
+    sql = (META / "register-metadata/update_060_field_rules.sql").read_text(encoding="utf-8")
     assert "WHEN field IN ('land_id','cluster_land_id') THEN pattern:='\\S'; message_key:='validation_land_id';" in sql
-    translations = (META / "zzzzzz_field_translations.sql").read_text(encoding="utf-8")
+    translations = (META / "translations_fields.sql").read_text(encoding="utf-8")
     assert '"validation_rule_land_id_blank": "{label}: enter the ID from the land certificate."' in translations
     assert '"validation_land_id": "Enter the ID from the land certificate."' in translations
     assert "RN or RC" not in sql + translations and "validation_rule_land_id_format" not in translations

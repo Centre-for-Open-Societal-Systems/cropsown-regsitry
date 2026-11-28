@@ -1,7 +1,7 @@
 """Planning and cultivation have one variety dropdown, labelled "Variety" (list SEED_VARIETY).
 
 The older "Crop Variety" dropdown (crop_variety, list CROP_VARIETY) meant the same thing. It is gone from the
-table columns of both sections in the base seed and in the zz-oan overlay that repairs databases that still
+table columns of both sections in the base seed and in the site-configuration overlay that repairs databases that still
 have it; the database columns stay. The overlay's own replay on PostgreSQL is described in the pull request.
 """
 import json
@@ -16,7 +16,7 @@ SECTIONS = {
     "cropsown_planning_details_section_01": "cs_planning_details_table",
     "cropsown_cultivation_details_section_01": "cs_cultivation_details_table",
 }
-OVERLAY = META / "zz-oan/96_one_variety_list.sql"
+OVERLAY = META / "site-configuration/96_one_variety_list.sql"
 
 
 def section_schema(section_id):
@@ -62,7 +62,7 @@ def test_the_remaining_variety_dropdown_is_labelled_variety(section_id):
 def test_no_seed_file_labels_a_variety_widget_other_than_variety():
     seed = (META / "register-metadata/g2p_register_sections.sql").read_text(encoding="utf-8")
     assert '"widget-label": "Seed Variety"' not in seed and '"widget-label": "Crop Variety"' not in seed
-    casing = (META / "zz-oan/30_label_casing.sql").read_text(encoding="utf-8")
+    casing = (META / "site-configuration/30_label_casing.sql").read_text(encoding="utf-8")
     assert '"seed_variety": "Variety"' in casing and "Seed variety" not in casing
     assert "crop_variety" not in casing
 
@@ -80,7 +80,7 @@ def test_the_overlay_repairs_both_sections_by_id_and_guards_the_result():
 
 
 def test_the_overlay_sorts_after_the_files_that_label_the_variety():
-    names = sorted(p.name for p in (META / "zz-oan").glob("*.sql"))
+    names = sorted(p.name for p in (META / "site-configuration").glob("*.sql"))
     assert names.index("96_one_variety_list.sql") > names.index("86_readable_lists.sql")
     assert len({n.split("_")[0] for n in names}) == len(names)
 

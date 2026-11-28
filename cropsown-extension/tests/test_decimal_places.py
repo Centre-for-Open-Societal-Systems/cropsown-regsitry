@@ -14,8 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "cropsown-extension/src/openg2p_registry_cropsown_extension"
-ZZ_OAN = PACKAGE / "meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97q_decimal_places.sql"
+SITE_CONFIGURATION = PACKAGE / "meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97q_decimal_places.sql"
 MODELS = PACKAGE / "register_domain/models"
 METADATA = ROOT / "reference/new-dev/metadata.json"
 
@@ -117,7 +117,7 @@ def test_integer_widgets_stay_integers_and_declared_places_are_kept():
 
 
 def test_the_overlay_runs_after_the_land_rows_and_before_the_dates():
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     for earlier in ("92_number_alignment.sql", "97f_cultivation_land_details.sql", "97g_sowing_harvest_land_rows.sql"):
         assert names.index(OVERLAY.name) > names.index(earlier)

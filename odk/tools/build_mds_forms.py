@@ -119,7 +119,7 @@ LABELS = {"security_level": "Severity level", "cluster_status_ids": "Cluster / n
           "cluster_status_id": "Cluster / non cluster status"}
 # Questions that read a Master Data list on the web form but not in the published form:
 # Method of control (pest) (the shared weed/disease method list). Pest name stays typed
-# text, as on the web form (zz-oan/97j_pest_name_text.sql). Type of Infestation is one
+# text, as on the web form (site-configuration/97j_pest_name_text.sql). Type of Infestation is one
 # answer per incident, as the web form's single select (the published form let several be ticked,
 # which the transform joined into one value the web form cannot show).
 QUESTION_TYPES = {"pest_pesticide_method": "select_one pest_control_action",
@@ -267,7 +267,7 @@ IDENTITY_ROWS = [
 KEEP_FROM_OLD_IDENTITY = ("crop_year", "production_season")
 
 # Planning and Cultivation follow the web form's land and crop locations
-# (zz-oan/97c_planning_map_location.sql, 97e_address_section.sql, 97f_cultivation_land_details.sql).
+# (site-configuration/97c_planning_map_location.sql, 97e_address_section.sql, 97f_cultivation_land_details.sql).
 # A GPS point is ODK's map: the transform reads its latitude and longitude.
 LAND_GPS = {"type": "geopoint", "name": "planning_gps", "label": "Land location", "appearance": "placement-map",
             "hint": "Capture the location of the land, or pick it on the map."}
@@ -285,7 +285,7 @@ PLANNING_QUESTION = {"type": "select_one yes_no", "name": "is_planning_record_cr
 WHEN_NO = "${is_planning_record_created} = 'no'"
 AFTER_LAND_ID = ("land_category", "ownership_type")
 AFTER_LAND_AREA = ("soil_fertility", "region_name_id", "zone_name_id", "woreda_name_id", "kebele_id")
-# Sowing and Harvest (zz-oan/97g_sowing_harvest_land_rows.sql): each Cluster status group
+# Sowing and Harvest (site-configuration/97g_sowing_harvest_land_rows.sql): each Cluster status group
 # starts with "Is planning record created?" and its own Land ID; No asks the land (the
 # Planning row's questions) or the cluster location (the Planning cluster's questions).
 LAND_ROW_FORMS = ("crop_sown_registry_sown", "crop_sown_registry_harvest")

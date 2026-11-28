@@ -18,15 +18,15 @@ COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 # LOAD_SAMPLE_DATA=true.
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
 ARG OPENG2P_DATA_REF=32a677c40ab5f3699c25e98d3c6591aa4acc6b9f
-RUN rm -rf /openg2p-data && mkdir -p /openg2p-data /seed/meta_data/zz-oan && cd /openg2p-data \
+RUN rm -rf /openg2p-data && mkdir -p /openg2p-data /seed/meta_data/site-configuration && cd /openg2p-data \
     && git init -q && git remote add origin ${OPENG2P_DATA_REPO} \
     && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD \
     && rm -rf .git \
-    && python3 scripts/themes/build_theme_sql.py crop > /seed/meta_data/zz-oan/90_oan_theme.sql
+    && python3 scripts/themes/build_theme_sql.py crop > /seed/meta_data/site-configuration/90_oan_theme.sql
 COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 COPY docker/db-seed/build_list_words_sql.py /tmp/build_list_words_sql.py
 COPY cropsown-extension/src/openg2p_registry_cropsown_extension/register_domain/services/plain_text.py /tmp/plain_text.py
 # The commodity and season words of the lists are the pack's labels, rendered at build time;
 # the build fails when a planning record name word differs from the pinned pack.
-RUN python3 /tmp/build_list_words_sql.py /openg2p-data /tmp/plain_text.py     && python3 /tmp/build_list_words_sql.py /openg2p-data > /seed/meta_data/zz-oan/86b_list_words.sql     && rm /tmp/build_list_words_sql.py /tmp/plain_text.py
+RUN python3 /tmp/build_list_words_sql.py /openg2p-data /tmp/plain_text.py     && python3 /tmp/build_list_words_sql.py /openg2p-data > /seed/meta_data/site-configuration/86b_list_words.sql     && rm /tmp/build_list_words_sql.py /tmp/plain_text.py
 ENTRYPOINT ["/seed/entrypoint.sh"]

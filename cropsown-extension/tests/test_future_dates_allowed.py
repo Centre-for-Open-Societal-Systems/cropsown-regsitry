@@ -50,10 +50,10 @@ def test_the_sowing_date_comparison_and_sowing_requirement_are_off():
 
 
 def test_no_web_date_picker_stops_these_dates_at_today():
-    zz_oan = META / "zz-oan"
-    assert not (zz_oan / "97i_dates_not_future.sql").exists()
+    site_configuration = META / "site-configuration"
+    assert not (site_configuration / "97i_dates_not_future.sql").exists()
     for path in META.rglob("*.sql"):
         text = path.read_text(encoding="utf-8")
         assert "'maxDate', 'today'" not in text, path.name
-    names = sorted(p.name for p in zz_oan.glob("*.sql"))
+    names = sorted(p.name for p in site_configuration.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql" and len({n.split("_")[0] for n in names}) == len(names)

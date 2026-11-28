@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-ZZ_OAN = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-SQL = ZZ_OAN / "90_season_window_from_dates.sql"
+SITE_CONFIGURATION = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+SQL = SITE_CONFIGURATION / "90_season_window_from_dates.sql"
 
 
 def test_metadata_takes_the_day_and_month_boxes_off_and_checks_it():

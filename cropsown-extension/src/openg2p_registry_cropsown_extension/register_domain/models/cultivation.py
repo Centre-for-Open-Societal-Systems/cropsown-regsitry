@@ -27,7 +27,7 @@ class G2PCultivation:
     plot_category: Mapped[str] = mapped_column(String, nullable=True)         # Attribute lookup (PLOT_CATEGORY)
     land_area: Mapped[float] = mapped_column(Numeric, nullable=True)
     # Yes: the land details are in this farmer's Planning row of the same Land ID
-    # (checked on save); No: they are entered here (zz-oan/97f_cultivation_land_details.sql).
+    # (checked on save); No: they are entered here (site-configuration/97f_cultivation_land_details.sql).
     is_planning_record_created: Mapped[bool] = mapped_column(Boolean, nullable=True)
     region: Mapped[str] = mapped_column(String, nullable=True)
     zone: Mapped[str] = mapped_column(String, nullable=True)

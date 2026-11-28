@@ -3,7 +3,7 @@
 The Farmer registry will send the notice as `farmer-registry.farmer-profile.changed.v1`
 (WebSub topic the same, Kafka topic `farmer_registry_farmer_profile_changed_v1`, native model
 `FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1`; seeded by
-`registry-inbound-message-rules/zz_farmer_registry_farmer_profile_changed_v1.sql`). This registry
+`registry-inbound-message-rules/update_020_farmer_registry_farmer_profile_changed_v1.sql`). This registry
 already receives it. The two older names below stay accepted, and `config.yaml` keeps describing
 the subscription that is live today, until the older names are removed.
 
@@ -21,7 +21,7 @@ The first classification pass resolves the Farmer's native functional ID; the
 second selects the existing Farmer identity section for UPDATE. A notice for a Farmer
 with no live record classifies as ADD onto the pipeline-only intake form
 `farmer_registry_notice_to_farmer_reference_form` (the same identity section, nothing
-else; zz-oan/97_farmer_notice_first_reference.sql). The ingest worker saves the Farmer ID
+else; site-configuration/97_farmer_notice_first_reference.sql). The ingest worker saves the Farmer ID
 and Fayda ID as a Farmer intake, and the registered intake service, instead of starting
 an approval, repeats the signed, consented lookup and queues the Farmer reference ADD
 for the normal two-stage approval; the intake is closed as cancelled with the change

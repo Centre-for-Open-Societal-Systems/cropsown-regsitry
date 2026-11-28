@@ -34,5 +34,5 @@ def test_register_tab_labels_are_translated_keys():
 
 
 def test_farmer_tab_key_has_its_display_text():
-    overlay = (META / "zz-oan" / "50_tab_label_keys.sql").read_text(encoding="utf-8")
+    overlay = (META / "site-configuration" / "50_tab_label_keys.sql").read_text(encoding="utf-8")
     assert '"cropsown_farmer_tab": "Farmer"' in overlay

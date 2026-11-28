@@ -85,8 +85,8 @@ class ReadableTextTests(unittest.IsolatedAsyncioTestCase):
         files = sorted(
             [p for p in (META / "register-metadata").glob("*.sql")]
             + [p for p in (META / "registry-configurations").glob("registry_languages*.sql")]
-            + [p for p in (META / "zz-oan").glob("*.sql")]
-            + [META / "zzzzzz_field_translations.sql"])
+            + [p for p in (META / "site-configuration").glob("*.sql")]
+            + [META / "translations_fields.sql"])
         async with self.fixture.engine.begin() as connection:
             raw = await connection.get_raw_connection()
             for path in files:

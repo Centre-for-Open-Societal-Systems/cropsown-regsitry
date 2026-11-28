@@ -7,7 +7,7 @@
 -- Change requests on both sections go through the Farmer register's
 -- REGISTER-level approval policy (registry.change_request.cropsown-farmer.default).
 --
--- Sorts after zz_farmer_register.sql, which creates the register and the tab.
+-- Sorts after update_020_farmer_register.sql, which creates the register and the tab.
 -- Idempotent: section upserts and tab-section inserts re-run safely.
 
 INSERT INTO "public"."g2p_register_sections" ("register_id","section_id","section_register_id","is_core_section","section_mnemonic","section_description","documents_required","no_of_verifications_required","is_list","section_weightage","section_ui_schema","cr_auto_approve_for_bene_portal","cr_auto_approve_for_agent_portal","cr_auto_approve_for_staff_portal","cr_auto_approve_for_partner") VALUES

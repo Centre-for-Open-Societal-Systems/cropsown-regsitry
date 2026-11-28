@@ -90,7 +90,7 @@ def test_a_message_that_is_not_about_a_list_is_unchanged():
 
 
 def test_the_translation_is_seeded_without_replacing_other_keys():
-    sql = (META / "zz-oan" / "87_code_choice_message.sql").read_text(encoding="utf-8")
+    sql = (META / "site-configuration" / "87_code_choice_message.sql").read_text(encoding="utf-8")
     assert '"validation_code_choice": "{label}: choose {noun} from the list."' in sql
     assert sql.index("validation_code_choice") < sql.index('COALESCE("domain_translation"') and "\r" not in sql
 

@@ -1,8 +1,8 @@
 """Sowing and Harvest rows ask whether the land is already recorded (web form only, for now)."""
 from pathlib import Path
 
-ZZ_OAN = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97g_sowing_harvest_land_rows.sql"
+SITE_CONFIGURATION = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97g_sowing_harvest_land_rows.sql"
 
 
 def test_each_status_gets_its_own_question_and_land_fields():
@@ -20,7 +20,7 @@ def test_each_status_gets_its_own_question_and_land_fields():
 def test_the_questions_come_after_the_land_ids_and_before_the_dates():
     sql = OVERLAY.read_text(encoding="utf-8")
     assert sql.index("Part 1: Land ID for each Cluster status") < sql.index("pg_temp.sowing_harvest_land_recorded")
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names.index(OVERLAY.name) > names.index("97c_planning_map_location.sql")
     assert names[-1] == "98_ethiopian_dates.sql"
     assert len({n.split("_")[0] for n in names}) == len(names)

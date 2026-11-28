@@ -85,7 +85,7 @@
 {% if latitude is not none and longitude is not none %}
   {% set _ = geo.update({'latitude': latitude, 'longitude': longitude}) %}{% set _ = record.update({'latitude': latitude | string, 'longitude': longitude | string}) %}
 {% endif %}
-{#- Crop location (zz-oan/97c_planning_map_location.sql): stored as text, as on the web form. -#}
+{#- Crop location (site-configuration/97c_planning_map_location.sql): stored as text, as on the web form. -#}
 {% for key in ['crop_latitude', 'crop_longitude'] %}{% if key in record %}{% set _ = record.update({key: record[key] | string}) %}{% endif %}{% endfor %}
 {#- The farmer's address comes from the Farmer Registry; the location stays on crop_farmer_lookup. -#}
 {% set _ = lookup.update({'record_name': farmer_id}) %}

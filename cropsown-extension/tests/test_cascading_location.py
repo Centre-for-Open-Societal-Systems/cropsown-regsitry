@@ -7,8 +7,8 @@ Master Data list and every other section are unchanged.
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ZZ_OAN = ROOT / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97b_cascading_location.sql"
+SITE_CONFIGURATION = ROOT / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97b_cascading_location.sql"
 WIDGETS = ROOT / "ui/staff-ui/overrides/src/oan/widgets"
 SECTIONS = ("cropsown_planning_details_section_01", "cropsown_cluster_details_section_01",
             "cropsown_cultivation_cluster_details_section_01")
@@ -31,7 +31,7 @@ def test_only_the_three_sections_location_columns_get_their_parent():
 
 
 def test_the_overlay_sorts_after_the_section_rewrites_and_before_the_dates():
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     for earlier in ("41_crop_record_tab_layout.sql", "89_master_data_dropdowns.sql", "93_plot_registered_question.sql"):
         assert names.index(OVERLAY.name) > names.index(earlier)

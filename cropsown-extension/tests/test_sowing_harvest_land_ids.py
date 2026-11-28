@@ -12,8 +12,8 @@ from openg2p_registry_core.errors import G2PRegistryException
 
 from openg2p_registry_cropsown_extension.register_domain.services import cropsown_intake_validation_service as checks
 
-ZZ_OAN = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97g_sowing_harvest_land_rows.sql"
+SITE_CONFIGURATION = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97g_sowing_harvest_land_rows.sql"
 SERVICES = Path(checks.__file__).parent
 
 
@@ -89,6 +89,6 @@ def test_the_overlay_shows_each_land_id_for_its_status():
     assert "ARRAY['cluster_status', 'cluster_land_id']" in sql  # Land ID (cluster) opens the cluster fields
     assert "NOT IN ('season', 'commodity')" in sql  # Land ID opens the Independent fields
     assert "'action', 'require'" in sql  # required while shown, on both channels
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     assert len({n.split("_")[0] for n in names}) == len(names)

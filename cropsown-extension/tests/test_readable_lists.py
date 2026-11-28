@@ -3,7 +3,7 @@
 Covers the planning record name, the list words (gender, change action, intake
 source and form status, commodity and season), the Fayda number and farmer
 status names, the intake form names, the register name and the planning labels
-that did not say what they are. The seed overlay is zz-oan/86_readable_lists.sql.
+that did not say what they are. The seed overlay is site-configuration/86_readable_lists.sql.
 """
 
 import importlib
@@ -24,7 +24,7 @@ PACKAGE = "openg2p_registry_cropsown_extension"
 CROP = "6b06a95a-9a6c-5a33-a33d-c1625716c59c"
 SRC = Path(importlib.import_module(PACKAGE).__file__).parent
 META = SRC / "meta_data"
-OVERLAY = META / "zz-oan" / "86_readable_lists.sql"
+OVERLAY = META / "site-configuration" / "86_readable_lists.sql"
 LOADER = SRC.parents[2] / "docker" / "db-seed" / "load_sample_data.py"
 plain = importlib.import_module(PACKAGE + ".register_domain.services.plain_text")
 field_rules = importlib.import_module(PACKAGE + ".register_domain.services.field_rules")
@@ -107,7 +107,7 @@ def test_the_domain_service_builds_the_name_from_words():
 # --- the seed overlay ---------------------------------------------------------
 
 def test_overlay_runs_after_the_readable_text_overlay_with_a_number_of_its_own():
-    names = sorted(path.name for path in (META / "zz-oan").glob("*.sql"))
+    names = sorted(path.name for path in (META / "site-configuration").glob("*.sql"))
     assert names.index("85_readable_text.sql") < names.index("86_readable_lists.sql")
     assert len({name.split("_")[0] for name in names}) == len(names)
 
@@ -240,8 +240,8 @@ class ReadableListsReplayTests(unittest.IsolatedAsyncioTestCase):
         files = sorted(
             list((META / "register-metadata").glob("*.sql"))
             + list((META / "registry-configurations").glob("registry_languages*.sql"))
-            + list((META / "zz-oan").glob("*.sql"))
-            + [META / "zzzzzz_field_translations.sql"])
+            + list((META / "site-configuration").glob("*.sql"))
+            + [META / "translations_fields.sql"])
         async with self.fixture.engine.begin() as connection:
             raw = await connection.get_raw_connection()
             for path in files:
