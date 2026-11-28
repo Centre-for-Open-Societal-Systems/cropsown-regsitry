@@ -69,7 +69,7 @@ def test_model_source_yields_every_register():
     registers, tables = models()
     definitions = set(re.findall(r"\('[0-9a-f-]+','([A-Za-z]+)'", "".join(
         (EXT / "meta_data/register-metadata" / name).read_text()
-        for name in ("g2p_register_definitions.sql", "update_020_farmer_register.sql"))))
+        for name in ("g2p_register_definitions.sql", "register_farmer_definition.sql"))))
     assert set(registers) == definitions == {
         "Farmer", "CropSown", "Planning", "Cultivation", "Sowing", "Production", "Harvest", "Infestation",
         "Cluster", "CultivationCluster"}

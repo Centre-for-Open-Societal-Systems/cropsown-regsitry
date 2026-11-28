@@ -3,7 +3,7 @@
 The Farmer registry will send the notice as `farmer-registry.farmer-profile.changed.v1`
 (WebSub topic the same, Kafka topic `farmer_registry_farmer_profile_changed_v1`, native model
 `FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1`; seeded by
-`registry-inbound-message-rules/update_020_farmer_registry_farmer_profile_changed_v1.sql`). This registry
+`registry-inbound-message-rules/notice_farmer_registry_farmer_profile_changed_v1.sql`). This registry
 already receives it. The two older names below stay accepted, and `config.yaml` keeps describing
 the subscription that is live today, until the older names are removed.
 

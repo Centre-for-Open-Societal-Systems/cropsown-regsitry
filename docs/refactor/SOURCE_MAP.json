@@ -234,7 +234,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/update_020_farmer_register.sql",
+      "source": "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/register-metadata/register_farmer_definition.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },

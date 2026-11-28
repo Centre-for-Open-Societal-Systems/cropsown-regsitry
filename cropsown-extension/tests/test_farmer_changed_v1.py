@@ -14,7 +14,7 @@ enrichers=importlib.import_module(PACKAGE+'.ingestion_pipeline.enricher_services
 from jinja2 import Environment
 
 ROOT=Path(importlib.import_module(PACKAGE).__file__).parent
-SEED=(ROOT/'meta_data/registry-inbound-message-rules/update_020_farmer_changed_v1.sql').read_text(encoding='utf-8')
+SEED=(ROOT/'meta_data/registry-inbound-message-rules/notice_farmer_changed_v1.sql').read_text(encoding='utf-8')
 EVENT={'event_id':'synthetic-event','farmer_id':'FR-000000000001','fayda_fan_id':'0000000000000001'}
 
 
@@ -49,7 +49,7 @@ class FarmerChangedTests(unittest.TestCase):
         self.assertNotIn('873c2342',SEED)
 
     def test_the_final_name_has_its_own_data_model_that_the_older_patterns_do_not_match(self):
-        profile=(ROOT/'meta_data/registry-inbound-message-rules/update_020_farmer_registry_farmer_profile_changed_v1.sql').read_text(encoding='utf-8')
+        profile=(ROOT/'meta_data/registry-inbound-message-rules/notice_farmer_registry_farmer_profile_changed_v1.sql').read_text(encoding='utf-8')
         self.assertIn("'FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1'",profile)
         new_type='farmer-registry.farmer-profile.changed.v1'
         profile_patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^farmer-registry[^']+)'",profile))
@@ -70,7 +70,7 @@ class FarmerChangedTests(unittest.TestCase):
         for value in own: self.assertEqual(UUID(value).version,5)
 
     def test_readable_name_has_its_own_data_model_and_is_accepted(self):
-        seed=(ROOT/'meta_data/registry-inbound-message-rules/update_020_farmer_profile_updates_v1.sql').read_text(encoding='utf-8')
+        seed=(ROOT/'meta_data/registry-inbound-message-rules/notice_farmer_profile_updates_v1.sql').read_text(encoding='utf-8')
         self.assertIn("'FARMER_PROFILE_UPDATES_V1'",seed)
         new_type='farmer.profile.updates.v1'
         patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^farmer[^']+)'",seed))

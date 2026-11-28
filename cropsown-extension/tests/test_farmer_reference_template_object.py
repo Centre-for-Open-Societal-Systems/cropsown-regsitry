@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension"
-SQL = (PACKAGE / "meta_data/registry-inbound-message-rules/update_020_farmer_reference.sql").read_text(encoding="utf-8")
+SQL = (PACKAGE / "meta_data/registry-inbound-message-rules/notice_farmer_reference.sql").read_text(encoding="utf-8")
 DOCUMENT = "7b91ad96-e435-59a1-bd4e-434fc1254f0a"
 OBJECT = "crop_farmer_reference_update.json.j2"
 
