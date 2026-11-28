@@ -4,9 +4,9 @@ from pathlib import Path
 
 from openg2p_registry_cropsown_extension.required_fields import widget_state
 
-ZZ_OAN = (Path(__file__).resolve().parents[1]
-          / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan")
-OVERLAY = ZZ_OAN / "97p_sowing_season_required.sql"
+SITE_CONFIGURATION = (Path(__file__).resolve().parents[1]
+          / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration")
+OVERLAY = SITE_CONFIGURATION / "97p_sowing_season_required.sql"
 
 
 def test_the_overlay_adds_a_require_rule_to_the_two_sowing_seasons_only():
@@ -19,7 +19,7 @@ def test_the_overlay_adds_a_require_rule_to_the_two_sowing_seasons_only():
 
 
 def test_the_overlay_sorts_after_the_cluster_status_list_and_before_the_dates():
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names.index("97k_cluster_status_list.sql") < names.index(OVERLAY.name) < names.index("98_ethiopian_dates.sql")
     assert len({n.split("_")[0] for n in names}) == len(names)
 

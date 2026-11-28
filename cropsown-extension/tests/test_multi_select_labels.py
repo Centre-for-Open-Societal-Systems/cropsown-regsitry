@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 META = ROOT / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data"
-OVERLAY = META / "zz-oan/97r_multi_select_labels.sql"
+OVERLAY = META / "site-configuration/97r_multi_select_labels.sql"
 METADATA = ROOT / "reference/new-dev/metadata.json"
 KEYS = {"selectedCount", "selectAll", "deselectAll", "clearAll"}
 
@@ -44,5 +44,5 @@ def test_new_dev_english_held_the_raw_keys_the_overlay_replaces():
 
 
 def test_runs_after_the_seed_and_the_casing_overlays():
-    names = sorted(p.name for p in (META / "zz-oan").glob("*.sql"))
+    names = sorted(p.name for p in (META / "site-configuration").glob("*.sql"))
     assert names.index("30_label_casing.sql") < names.index("85_readable_text.sql") < names.index(OVERLAY.name)

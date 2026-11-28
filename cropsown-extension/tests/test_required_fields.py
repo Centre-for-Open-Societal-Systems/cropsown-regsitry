@@ -208,7 +208,7 @@ def _sections_in_base_file():
 
 
 def _lookup_section():
-    text = (META / "zz-oan/10_farmer_lookup.sql").read_text(encoding="utf8")
+    text = (META / "site-configuration/10_farmer_lookup.sql").read_text(encoding="utf8")
     start = text.index("'{\"section-id\": \"crop_farmer_lookup\"") + 1
     ui, _ = json.JSONDecoder().raw_decode(text[start:])
     return ui
@@ -254,7 +254,7 @@ def test_the_list_sections_ask_for_their_required_columns_and_no_row_is_demanded
 
 def test_the_land_row_overlay_sorts_after_every_file_that_rewrites_a_section():
     register_metadata = sorted((META / "register-metadata").glob("*.sql"))
-    overlay = META / "register-metadata/zzzzzzzzzz_required_land_rows.sql"
+    overlay = META / "register-metadata/register_required_land_rows.sql"
     assert register_metadata[-1] == overlay
     # Files outside register-metadata that sort after it never touch these sections.
     text = overlay.read_text(encoding="utf8")

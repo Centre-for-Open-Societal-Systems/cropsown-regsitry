@@ -33,7 +33,7 @@ class G2PPlanning:
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
     kebele: Mapped[str] = mapped_column(String, nullable=True)
-    # Retired from the form (zz-oan/97c_planning_map_location.sql); kept so stored
+    # Retired from the form (site-configuration/97c_planning_map_location.sql); kept so stored
     # values stay readable.
     gps_coordinate: Mapped[str] = mapped_column(String, nullable=True)
     # Filled from the Map location in the row dialog, or typed in the map's boxes.

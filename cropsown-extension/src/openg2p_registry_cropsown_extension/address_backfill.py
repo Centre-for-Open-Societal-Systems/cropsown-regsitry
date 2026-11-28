@@ -3,7 +3,7 @@
     python -m openg2p_registry_cropsown_extension.address_backfill --backfill
 
 Run it in the staff-portal-api container after deploying the Address change
-(farmer_reference/projection.py, zz-oan/97e_address_section.sql). New records
+(farmer_reference/projection.py, site-configuration/97e_address_section.sql). New records
 get the address when they are written; this covers the ones written before. It
 is safe to run again: an unchanged address is not rewritten, and a Farmer
 without an address leaves its records as they are.

@@ -66,7 +66,7 @@ def _mirror(domain_row, farmer):
 
 
 # The farmer's address, from the approved Farmer, shown in the record's Address
-# section (zz-oan/97e_address_section.sql). Farmer column -> record column.
+# section (site-configuration/97e_address_section.sql). Farmer column -> record column.
 ADDRESS_FIELDS = {
     "region_id": "region", "zone_id": "zone", "woreda_id": "woreda", "kebele_id": "kebele",
     "region_name": "region_name", "zone_name": "zone_name",
@@ -107,7 +107,7 @@ def _mirror_address(domain_row, farmer) -> bool:
 
 
 # The farmer's personal details, from the approved Farmer, shown read-only on the
-# record's first tab (zz-oan/97m_record_farmer_profile.sql). Farmer column -> record column.
+# record's first tab (site-configuration/97m_record_farmer_profile.sql). Farmer column -> record column.
 MIRRORED_PROFILE_FIELDS = {
     "gender": "farmer_gender", "date_of_birth": "farmer_date_of_birth",
     "mobile_number": "farmer_mobile_number", "marital_status": "farmer_marital_status",

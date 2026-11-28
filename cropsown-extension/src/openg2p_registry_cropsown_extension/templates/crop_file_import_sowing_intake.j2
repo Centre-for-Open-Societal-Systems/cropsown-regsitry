@@ -33,7 +33,7 @@
 {% set choice_columns = {} %}
 {% set comma_list_columns = [] %}
 {% set choice_list_columns = {'cluster_status': ['CLUSTERED', 'INDEPENDENT']} %}
-{#- Cluster status takes the CLUSTER_STATUS codes (zz-oan/97k_cluster_status_list.sql); CLUSTER from older files is read as CLUSTERED. -#}
+{#- Cluster status takes the CLUSTER_STATUS codes (site-configuration/97k_cluster_status_list.sql); CLUSTER from older files is read as CLUSTERED. -#}
 {% if cell.get('cluster_status') %}{% set _ = cell.update({'cluster_status': cell['cluster_status'] | upper | replace('CLUSTERED', 'CLUSTER') | replace('CLUSTER', 'CLUSTERED')}) %}{% endif %}
 
 {% set record = {} %}
@@ -68,7 +68,7 @@
 {% endif %}{% endfor %}
 {% if 'season' not in record %}{% set _ = record.update({'season': production_season}) %}{% endif %}
 
-{#- Land rows (zz-oan/97g_sowing_harvest_land_rows.sql): Land ID for Independent, Land ID (cluster)
+{#- Land rows (site-configuration/97g_sowing_harvest_land_rows.sql): Land ID for Independent, Land ID (cluster)
     for Clustered, and "Is planning record created?" for each (is_land_recorded / is_cluster_land_recorded).
     yes keeps only the Land ID; no keeps the land (Independent) or the cluster location (Clustered).
     A Clustered row needs its cluster_land_id, as on the web form and in ODK (a blank one is

@@ -67,3 +67,10 @@ Closed value sets the ERD leaves as plain columns stay as Python enums
 (`register_domain/models/enums.py`): land size unit, cropping system, seed class,
 seed source, sowing status, crop maturity status, growth stage, severity level,
 agro-ecological zone and lifecycle stage.
+
+## Metadata seed order
+
+OpenG2P applies SQL in lexical path order. Within a metadata directory,
+`update_<order>_<purpose>.sql` runs after the base rows. The order prefix
+keeps dependent updates in sequence. `site-configuration/` runs after the
+base metadata categories, and `translations_fields.sql` runs after it.

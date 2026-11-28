@@ -4,7 +4,7 @@
  * Region -> Zone -> Woreda -> Kebele dropdowns inside a table row ("Add / Edit row"
  * dialog), like the Crop location section's location picker.
  *
- * A column marked "oan-parent-column" (zz-oan/97b_cascading_location.sql)
+ * A column marked "oan-parent-column" (site-configuration/97b_cascading_location.sql)
  * lists only the children of the value chosen in that column of the same row, and
  * is cleared when that value changes. The platform select already filters a geo
  * level by its parent (dependsOn + level_id -> parent_level_value_id), but it looks

@@ -103,12 +103,12 @@ def test_harvest_planning_and_cultivation_recalculate_after_ingest_and_approval(
 def test_the_five_figures_show_next_to_their_label():
     from pathlib import Path
 
-    zz_oan = Path(hm.__file__).resolve().parents[2] / "meta_data" / "zz-oan"
-    sql = (zz_oan / "97a_harvest_results_left_aligned.sql").read_text(encoding="utf-8")
+    site_configuration = Path(hm.__file__).resolve().parents[2] / "meta_data" / "site-configuration"
+    sql = (site_configuration / "97a_harvest_results_left_aligned.sql").read_text(encoding="utf-8")
     assert "'cropsown_harvest_details_section_01'" in sql and '{"textAlign": "left"}' in sql
     for field in hm.FIELDS:
         assert f"'{field}'" in sql
-    names = sorted(p.name for p in zz_oan.glob("*.sql"))
+    names = sorted(p.name for p in site_configuration.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     assert names.index("97a_harvest_results_left_aligned.sql") > names.index("41_crop_record_tab_layout.sql")
 

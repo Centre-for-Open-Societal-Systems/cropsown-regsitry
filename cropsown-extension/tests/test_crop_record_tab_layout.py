@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 META = Path(__file__).resolve().parents[1] / "src" / "openg2p_registry_cropsown_extension" / "meta_data"
-OVERLAY = META / "zz-oan" / "41_crop_record_tab_layout.sql"
+OVERLAY = META / "site-configuration" / "41_crop_record_tab_layout.sql"
 REGISTER = "6b06a95a-9a6c-5a33-a33d-c1625716c59c"
 
 

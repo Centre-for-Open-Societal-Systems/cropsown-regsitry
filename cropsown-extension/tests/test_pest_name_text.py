@@ -6,15 +6,15 @@ from types import SimpleNamespace
 import pytest
 
 SRC = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension"
-ZZ_OAN = SRC / "meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97j_pest_name_text.sql"
+SITE_CONFIGURATION = SRC / "meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97j_pest_name_text.sql"
 
 
 def test_the_web_form_asks_pest_name_as_text_without_a_list():
     sql = OVERLAY.read_text(encoding="utf-8")
     assert "WHERE \"section_id\" = 'cropsown_infestation_details_section_01'" in sql
     assert "(node - 'widget-data-source') || '{\"widget\": \"text\"}'::jsonb" in sql
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql" and len({n.split("_")[0] for n in names}) == len(names)
 
 

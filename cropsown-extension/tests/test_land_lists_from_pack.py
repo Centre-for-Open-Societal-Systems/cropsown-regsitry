@@ -1,13 +1,13 @@
 """Ownership type, Land preparation method and Cultivation type read the ETH-OAN pack's
 LAND_OWNERSHIP_TYPE, LAND_PREPARATION_METHOD and FARM_MACHINERY lists, on the web form
-(zz-oan/96a_land_lists_from_pack.sql) and in the ODK forms (build_mds_forms.py)."""
+(site-configuration/96a_land_lists_from_pack.sql) and in the ODK forms (build_mds_forms.py)."""
 import importlib.util
 import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-ZZ_OAN = REPO / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "96a_land_lists_from_pack.sql"
+SITE_CONFIGURATION = REPO / "cropsown-extension/src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "96a_land_lists_from_pack.sql"
 NEW_LISTS = {"OWNERSHIP_TYPE": "LAND_OWNERSHIP_TYPE", "LAND_PREP_METHOD": "LAND_PREPARATION_METHOD",
              "MACHINERY": "FARM_MACHINERY"}
 
@@ -22,7 +22,7 @@ def test_the_overlay_moves_each_old_list_to_its_new_one_and_guards_the_result():
 
 
 def test_the_overlay_runs_before_the_land_rows_copy_the_ownership_dropdown():
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names.index("89_master_data_dropdowns.sql") < names.index(OVERLAY.name)
     for copier in ("97f_cultivation_land_details.sql", "97g_sowing_harvest_land_rows.sql"):
         assert names.index(OVERLAY.name) < names.index(copier), copier

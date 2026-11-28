@@ -14,8 +14,8 @@ from openg2p_registry_cropsown_extension.register_domain.services.g2p_register_d
     G2PRegisterDomainServiceCultivation,
 )
 
-ZZ_OAN = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97f_cultivation_land_details.sql"
+SITE_CONFIGURATION = Path(__file__).resolve().parents[1] / "src/openg2p_registry_cropsown_extension/meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97f_cultivation_land_details.sql"
 MASTER = "openg2p_registry_cropsown_extension.register_domain.services.cropsown_intake_validation_service.get_master_records_for_submission"
 
 
@@ -75,7 +75,7 @@ def test_the_overlay_shows_the_land_details_only_for_no():
                 "'map_location'", "'latitude'", "'longitude'"):
         assert key in sql
     assert "widget-required" not in sql  # ODK and file import do not send the answer yet
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names.index(OVERLAY.name) > names.index("97c_planning_map_location.sql")
     assert names[-1] == "98_ethiopian_dates.sql"
     assert len({n.split("_")[0] for n in names}) == len(names)

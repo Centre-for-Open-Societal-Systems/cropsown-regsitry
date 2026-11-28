@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "cropsown-extension/src/openg2p_registry_cropsown_extension"
-ZZ_OAN = PACKAGE / "meta_data/zz-oan"
-OVERLAY = ZZ_OAN / "97c_planning_map_location.sql"
+SITE_CONFIGURATION = PACKAGE / "meta_data/site-configuration"
+OVERLAY = SITE_CONFIGURATION / "97c_planning_map_location.sql"
 WIDGETS = ROOT / "ui/staff-ui/overrides/src/oan/widgets"
 
 
@@ -34,7 +34,7 @@ def test_only_the_planning_table_swaps_gps_for_the_map():
 
 
 def test_the_overlay_runs_after_the_cascade_and_before_the_dates():
-    names = sorted(p.name for p in ZZ_OAN.glob("*.sql"))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob("*.sql"))
     assert names[-1] == "98_ethiopian_dates.sql"
     assert names.index(OVERLAY.name) > names.index("97b_cascading_location.sql")
     assert len({n.split("_")[0] for n in names}) == len(names)

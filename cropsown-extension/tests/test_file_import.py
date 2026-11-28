@@ -34,15 +34,15 @@ FORMS = {
 }
 IDENTITY = {'farmer_id', 'fayda_id', 'crop_year', 'production_season'}
 GEO = {'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude'}
-# Columns a zz-oan overlay adds to a dialog table on top of the base section file:
+# Columns a site-configuration overlay adds to a dialog table on top of the base section file:
 # 97c_planning_map_location.sql gives Crop planning rows their own Latitude and Longitude.
 SOWING_HARVEST_LAND = {'cluster_land_id', 'is_land_recorded', 'is_plot_not_registered', 'plot_category', 'ownership_type', 'land_area', 'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele', 'latitude', 'longitude', 'is_cluster_land_recorded', 'cluster_region', 'cluster_zone', 'cluster_woreda', 'cluster_kebele', 'cluster_sub_kebele', 'cluster_latitude', 'cluster_longitude'}
 OVERLAY_COLUMNS = {'cs_planning_details': {'latitude', 'longitude', 'crop_latitude', 'crop_longitude'},
-                   # zz-oan/97f_cultivation_land_details.sql
+                   # site-configuration/97f_cultivation_land_details.sql
                    'cs_cultivation_details': {'is_planning_record_created', 'plot_category', 'ownership_type',
                                               'soil_fertility_type', 'region', 'zone', 'woreda', 'kebele',
                                               'latitude', 'longitude', 'crop_latitude', 'crop_longitude'},
-                   # zz-oan/97g_sowing_harvest_land_rows.sql
+                   # site-configuration/97g_sowing_harvest_land_rows.sql
                    'cs_sowing_details': SOWING_HARVEST_LAND, 'cs_harvest_details': SOWING_HARVEST_LAND}
 CHILD_SECTIONS = {'cs_cluster_details', 'cs_cultivation_cluster_details', 'cs_infestation_details'}
 BASE = {'farmer_id': 'FR-000000000001', 'fayda_id': '0000 1234 5678 9012', 'crop_year': '2026',
@@ -108,7 +108,7 @@ CHILD = {'planning': ('cs_cluster_details', 'cluster_'), 'cultivation': ('cs_cul
          'sowing': ('cs_infestation_details', 'infestation_')}
 CHILD_GROUPS = 3
 # Child fields no file column fills: read-only (the registry fills them), removed from the form by an overlay
-# (zz-oan/90_season_window_from_dates.sql, 91_drop_ec_date_copies.sql), or never shown (the nutrient and
+# (site-configuration/90_season_window_from_dates.sql, 91_drop_ec_date_copies.sql), or never shown (the nutrient and
 # climate infestation fields, whose infestation types are not in Master Data).
 CLUSTER_NOT_IMPORTED = {'cluster_id', 'cluster_area_hectare', 'start_month', 'start_day', 'end_month', 'end_day',
                         'establishing_date_ec'}
@@ -392,7 +392,7 @@ def test_yes_keeps_only_the_land_id_and_no_keeps_the_land(form):
 
 
 def test_planning_rows_take_the_crop_location_as_text():
-    # zz-oan/97c_planning_map_location.sql: Crop latitude and Crop longitude on each Planning row.
+    # site-configuration/97c_planning_map_location.sql: Crop latitude and Crop longitude on each Planning row.
     record = render('planning', {**BASE, 'land_id': 'L1', 'commodity': 'CROP_TEFF', 'season': 'SEASON_MEHER',
                                  'crop_latitude': '9.02', 'crop_longitude': '38.75'})['cs_planning_details'][0]
     assert (record['crop_latitude'], record['crop_longitude']) == ('9.02', '38.75')
@@ -419,8 +419,8 @@ def test_a_file_made_for_another_form_fails_the_row(form, other):
 
 def test_the_upload_message_says_the_file_was_uploaded_not_imported():
     # The platform shows import_successful when the file is queued; rows are checked afterwards.
-    names = sorted(p.name for p in (META / 'zz-oan').glob('*.sql'))
-    overlay = 'zz-oan/97l_import_file_message.sql'
+    names = sorted(p.name for p in (META / 'site-configuration').glob('*.sql'))
+    overlay = 'site-configuration/97l_import_file_message.sql'
     assert names.index('30_label_casing.sql') < names.index('97l_import_file_message.sql') < names.index('98_ethiopian_dates.sql')
     text = (META / overlay).read_text(encoding='utf-8')
     assert '"import_successful": "File uploaded. Check Incoming Messages for the result of each row."' in text
@@ -429,7 +429,7 @@ def test_the_upload_message_says_the_file_was_uploaded_not_imported():
 
 def test_the_import_menu_shows_a_label_for_each_crop_import():
     # The menu translates an import configuration by its import_file_template_mnemonic.
-    text = (META / 'zz-oan/97l_import_file_message.sql').read_text(encoding='utf-8')
+    text = (META / 'site-configuration/97l_import_file_message.sql').read_text(encoding='utf-8')
     labels = json.loads('{' + text.split("'{\n", 1)[1].split("}'", 1)[0] + '}')  # the merged keys, not COALESCE's '{}'
     configurations = sql('registry-configurations', 'g2p_registry_import_file_configurations.sql')
     for form in FORMS:

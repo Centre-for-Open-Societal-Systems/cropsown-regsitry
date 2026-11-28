@@ -10,8 +10,8 @@ from jinja2 import Environment
 
 PACKAGE = os.environ.get('REGISTRY_EXTENSION_MODULE', 'openg2p_registry_cropsown_extension')
 ROOT = Path(importlib.import_module(PACKAGE).__file__).parent
-ZZ_OAN = ROOT / 'meta_data' / 'zz-oan'
-OVERLAY = ZZ_OAN / '97k_cluster_status_list.sql'
+SITE_CONFIGURATION = ROOT / 'meta_data' / 'site-configuration'
+OVERLAY = SITE_CONFIGURATION / '97k_cluster_status_list.sql'
 
 pytestmark = pytest.mark.skipif('cropsown' not in PACKAGE, reason='crop overlay')
 
@@ -45,7 +45,7 @@ def test_the_overlay_moves_sowing_and_harvest_to_the_list_and_its_codes():
 
 
 def test_the_overlay_runs_after_the_land_rows_and_before_the_dates():
-    names = sorted(p.name for p in ZZ_OAN.glob('*.sql'))
+    names = sorted(p.name for p in SITE_CONFIGURATION.glob('*.sql'))
     assert names.index('97g_sowing_harvest_land_rows.sql') < names.index(OVERLAY.name) < names.index('98_ethiopian_dates.sql')
     assert names[-1] == '98_ethiopian_dates.sql'
     assert len({n.split('_')[0] for n in names}) == len(names)
